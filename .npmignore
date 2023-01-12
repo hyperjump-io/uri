@@ -1,0 +1,3 @@
+.github/
+.eslintrc.json
+**/*.spec.js

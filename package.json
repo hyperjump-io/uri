@@ -1,0 +1,31 @@
+{
+  "name": "@hyperjump/uri",
+  "version": "1.0.0",
+  "description": "A small and fast library for validating parsing and resolving URIs and IRIs",
+  "type": "module",
+  "exports": "./lib/index.js",
+  "scripts": {
+    "clean": "xargs -a .gitignore rm -rf",
+    "lint": "eslint lib",
+    "test": "mocha 'lib/**/*.spec.js'"
+  },
+  "repository": "github:hyperjump-io/uri",
+  "author": "Jason Desrosiers <jdesrosi@gmail.com>",
+  "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/jdesrosiers"
+  },
+  "keywords": [
+    "URI",
+    "IRI",
+    "resolve"
+  ],
+  "devDependencies": {
+    "chai": "*",
+    "eslint": "*",
+    "eslint-import-resolver-node": "*",
+    "eslint-plugin-import": "*",
+    "mocha": "*"
+  }
+}
