@@ -71,7 +71,7 @@ An IRI is not relative and may include a fragment.
 
 * **isIri**: (value: string) => boolean
 * **parseIri**: (value: string) => IdentifierComponents
-* **toAbsoluteUri**: (value: string) => string
+* **toAbsoluteIri**: (value: string) => string
 
     Takes an IRI and strips its fragment component if it exists.
 
