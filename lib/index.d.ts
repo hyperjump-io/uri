@@ -14,7 +14,11 @@ export const parseIri: (value: string) => IdentifierComponents;
 export const parseIriReference: (value: string) => IdentifierComponents;
 export const parseAbsoluteIri: (value: string) => IdentifierComponents;
 
-export const resolveReference: (uriReference: string, baseUri: string, type?: "uri" | "iri") => string;
+export const toAbsoluteUri: (value: string) => string;
+export const toAbsoluteIri: (value: string) => string;
+
+export const resolveUri: (uriReference: string, baseUri: string) => string;
+export const resolveIri: (iriReference: string, baseIri: string) => string;
 
 export type IdentifierComponents = {
   scheme: string;
