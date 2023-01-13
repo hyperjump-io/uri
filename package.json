@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A small and fast library for validating parsing and resolving URIs and IRIs",
   "type": "module",
+  "main": "./lib/index.js",
   "exports": "./lib/index.js",
   "scripts": {
     "clean": "xargs -a .gitignore rm -rf",
