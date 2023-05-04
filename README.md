@@ -32,15 +32,24 @@ const a = isIri("http://examplé.org/rosé#"); // true
 ```
 
 ## API
-### Resolution
-* **resolveUri**: (uriReference: string, baseUri: string) => string
+### Resolve Relative References
+These functions resovle relative-references against a base URI/IRI. The base
+URI/IRI must be absolute, meaning it must have a scheme (`https`) and no
+fragment (`#foo`). The resolution process will normalize percent-encoded
+characters and dot segments (`/.`, `/..`).
 
-    Resolve a URI-reference against a base URI. The `baseUri` must be an
-    [absolute-URI](https://www.rfc-editor.org/rfc/rfc3986#section-4.3).
+* **resolveUri**: (uriReference: string, baseUri: string) => string
 * **resolveIri**: (iriReference: string, baseIri: string) => string
 
-    Resolve a IRI-reference against a base IRI. The `baseIri` must be an
-    absolute-IRI.
+### Normalize
+These functions apply two normalization rules.
+1. Decode any unnecessarily percent-encoded characters.
+2. Convert any lowercase characters in the hex numbers of percent-encoded
+   characters to uppercase.
+3. Resolve and remove any dot-segments (`/.`, `/..`) in paths.
+
+* **normalizeUri**: (uri: string) => string
+* **normalizeIri**: (iri: string, baseIri: string) => string
 
 ### URI
 A [URI](https://www.rfc-editor.org/rfc/rfc3986#section-3) is not relative and

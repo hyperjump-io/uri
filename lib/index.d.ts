@@ -20,6 +20,9 @@ export const toAbsoluteIri: (value: string) => string;
 export const resolveUri: (uriReference: string, baseUri: string) => string;
 export const resolveIri: (iriReference: string, baseIri: string) => string;
 
+export const normalizeUri: (uriReference: string, baseUri: string) => string;
+export const normalizeIri: (iriReference: string, baseIri: string) => string;
+
 export type IdentifierComponents = {
   scheme: string;
   authority: string;
