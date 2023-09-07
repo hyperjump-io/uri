@@ -8,7 +8,7 @@
   "scripts": {
     "clean": "xargs -a .gitignore rm -rf",
     "lint": "eslint lib",
-    "test": "mocha 'lib/**/*.spec.js'"
+    "test": "mocha 'lib/**/*.spec.ts'"
   },
   "repository": "github:hyperjump-io/uri",
   "author": "Jason Desrosiers <jdesrosi@gmail.com>",
@@ -23,10 +23,17 @@
     "resolve"
   ],
   "devDependencies": {
+    "@types/chai": "*",
+    "@types/mocha": "*",
+    "@typescript-eslint/eslint-plugin": "*",
+    "@typescript-eslint/parser": "*",
     "chai": "*",
     "eslint": "*",
     "eslint-import-resolver-node": "*",
+    "eslint-import-resolver-typescript": "*",
     "eslint-plugin-import": "*",
-    "mocha": "*"
+    "mocha": "*",
+    "ts-node": "*",
+    "typescript": "*"
   }
 }
