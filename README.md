@@ -35,18 +35,20 @@ const a = isIri("http://examplé.org/rosé#"); // true
 ### Resolve Relative References
 These functions resovle relative-references against a base URI/IRI. The base
 URI/IRI must be absolute, meaning it must have a scheme (`https`) and no
-fragment (`#foo`). The resolution process will normalize percent-encoded
-characters and dot segments (`/.`, `/..`).
+fragment (`#foo`). The resolution process will [normalize]{#normalize} the
+result.
 
 * **resolveUri**: (uriReference: string, baseUri: string) => string
 * **resolveIri**: (iriReference: string, baseIri: string) => string
 
 ### Normalize
-These functions apply two normalization rules.
+These functions apply the following normalization rules.
 1. Decode any unnecessarily percent-encoded characters.
 2. Convert any lowercase characters in the hex numbers of percent-encoded
    characters to uppercase.
 3. Resolve and remove any dot-segments (`/.`, `/..`) in paths.
+4. Convert the scheme to lowercase.
+5. Convert the authority to lowercase.
 
 * **normalizeUri**: (uri: string) => string
 * **normalizeIri**: (iri: string, baseIri: string) => string
