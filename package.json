@@ -20,7 +20,13 @@
   "keywords": [
     "URI",
     "IRI",
-    "resolve"
+    "resolve",
+    "relative",
+    "parse",
+    "RFC3986",
+    "RFC-3986",
+    "RFC3987",
+    "RFC-3987"
   ],
   "devDependencies": {
     "@types/chai": "*",
