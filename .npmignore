@@ -1,3 +1,5 @@
 .github/
 .eslintrc.json
-**/*.spec.js
+.mocharc.json
+tsconfig.json
+**/*.spec.ts
