@@ -33,9 +33,9 @@ const a = isIri("http://examplé.org/rosé#"); // true
 
 ## API
 ### Resolve Relative References
-These functions resovle relative-references against a base URI/IRI. The base
+These functions resolve relative-references against a base URI/IRI. The base
 URI/IRI must be absolute, meaning it must have a scheme (`https`) and no
-fragment (`#foo`). The resolution process will [normalize]{#normalize} the
+fragment (`#foo`). The resolution process will [normalize](#normalize) the
 result.
 
 * **resolveUri**: (uriReference: string, baseUri: string) => string
