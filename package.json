@@ -30,6 +30,7 @@
   ],
   "devDependencies": {
     "@stylistic/eslint-plugin": "*",
+    "@types/node": "^22.13.0",
     "eslint-import-resolver-typescript": "*",
     "eslint-plugin-import": "*",
     "typescript-eslint": "*",
