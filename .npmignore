@@ -1,4 +1,6 @@
 .github/
+bin/
 eslint.config.js
 tsconfig.json
+tsconfig.build.json
 **/*.test.js
