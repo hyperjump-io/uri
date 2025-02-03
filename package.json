@@ -6,9 +6,9 @@
   "main": "./lib/index.js",
   "exports": "./lib/index.js",
   "scripts": {
-    "clean": "xargs -a .gitignore rm -rf",
     "lint": "eslint lib",
-    "test": "mocha 'lib/**/*.spec.ts'"
+    "test": "vitest --watch=false",
+    "type-check": "tsc --noEmit"
   },
   "repository": "github:hyperjump-io/uri",
   "author": "Jason Desrosiers <jdesrosi@gmail.com>",
@@ -29,17 +29,10 @@
     "RFC-3987"
   ],
   "devDependencies": {
-    "@types/chai": "*",
-    "@types/mocha": "*",
-    "@typescript-eslint/eslint-plugin": "*",
-    "@typescript-eslint/parser": "*",
-    "chai": "*",
-    "eslint": "*",
-    "eslint-import-resolver-node": "*",
+    "@stylistic/eslint-plugin": "*",
     "eslint-import-resolver-typescript": "*",
     "eslint-plugin-import": "*",
-    "mocha": "*",
-    "ts-node": "*",
-    "typescript": "*"
+    "typescript-eslint": "*",
+    "vitest": "*"
   }
 }

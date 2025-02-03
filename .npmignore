@@ -1,5 +1,4 @@
 .github/
-.eslintrc.json
-.mocharc.json
+eslint.config.js
 tsconfig.json
-**/*.spec.ts
+**/*.test.js
