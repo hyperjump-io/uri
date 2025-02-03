@@ -51,7 +51,14 @@ These functions apply the following normalization rules.
 5. Convert the authority to lowercase.
 
 * **normalizeUri**: (uri: string) => string
-* **normalizeIri**: (iri: string, baseIri: string) => string
+* **normalizeIri**: (iri: string) => string
+
+### To Relative
+These functions convert a non-relative URI/IRI into a relative URI/IRI given a
+base.
+
+* **toRelativeUri**: (uri: string, relativeTo: string) => string
+* **toRelativeIri**: (iri: string, relativeTo: string) => string
 
 ### URI
 A [URI](https://www.rfc-editor.org/rfc/rfc3986#section-3) is not relative and
