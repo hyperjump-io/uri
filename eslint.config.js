@@ -20,7 +20,8 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: true,
-        tsconfigRootDir: import.meta.dirname
+        // @ts-expect-error This works in node.js
+        tsconfigRootDir: import.meta.dirname // eslint-disable-line @typescript-eslint/no-unsafe-assignment
       }
     },
     settings: {
