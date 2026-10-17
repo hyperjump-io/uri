@@ -20,6 +20,9 @@ export const toAbsoluteIri: (iri: string) => string;
 export const normalizeUri: (uri: string) => string;
 export const normalizeIri: (iri: string) => string;
 
+export const encodeUriFragment: (fragment: string) => string;
+export const encodeIriFragment: (fragment: string) => string;
+
 export const resolveUri: (reference: string, base: string) => string;
 export const resolveIri: (reference: string, base: string) => string;
 

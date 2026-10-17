@@ -53,6 +53,15 @@ These functions apply the following normalization rules.
 * **normalizeUri**: (uri: string) => string
 * **normalizeIri**: (iri: string) => string
 
+### Encode
+These functions percent-encode a string so it can be used as a fragment, such
+as a JSON Pointer. Every character that isn't allowed in a fragment is
+encoded, including `%`, and nothing else is. The result is already normalized,
+so it can be compared to a [normalized](#normalize) URI/IRI.
+
+* **encodeUriFragment**: (fragment: string) => string
+* **encodeIriFragment**: (fragment: string) => string
+
 ### To Relative
 These functions convert a non-relative URI/IRI into a relative URI/IRI given a
 base.
