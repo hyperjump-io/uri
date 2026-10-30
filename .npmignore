@@ -2,3 +2,5 @@
 eslint.config.js
 tsconfig.json
 **/*.test.js
+scratch/
+TODO*
