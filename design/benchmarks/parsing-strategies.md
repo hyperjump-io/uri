@@ -70,8 +70,8 @@ query, or fragment.
 - The `u` flag doesn't make the IRI pattern slower.
 - The URI pattern is slower than the IRI pattern on the same ASCII
   strings. It isn't the flag: the URI pattern takes the same time with it.
-  It isn't the unescaped `-` in `unreserved` either. Why is an open
-  question.
+  It isn't the unescaped `-` in `unreserved` either (see
+  [Why the URI pattern is slower](#why-the-uri-pattern-is-slower)).
 - A check with a `charCodeAt` loop was slower than with a regular
   expression.
 
@@ -117,3 +117,76 @@ reference rules are timed on the four identifiers and four references:
 
 The functions, timed with `benchmark/compare.js`, were the same as in
 [Comparison with v1](v1-comparison.md), within a few milliseconds.
+
+## Why the URI pattern is slower
+
+The scripts are `benchmark/uri-slow*.js`, and
+`benchmark/bytecode-histogram.py` and `benchmark/bytecode-diff.py`
+compare bytecode from `--print-regexp-bytecode`. Each variant is timed
+in its own process, on the four identifiers unless a row says otherwise.
+
+### One ingredient at a time
+
+The patterns are built with `rules`, 300,000 iterations.
+
+| Pattern | Time |
+| --- | --- |
+| `rules(unreserved)`, the URI pattern | 150 |
+| `rules(iunreserved, iprivate)`, the IRI pattern | 114 |
+| `rules(iunreserved)`, without `iprivate` | 113 |
+| `rules(unreserved, iprivate)` | 154 |
+| `rules` with `\u00A0` added to `unreserved` | 115 |
+| `rules` with `\u0080-\uFFFF` added to `unreserved` | 135 |
+
+### One character added to `unreserved`
+
+| Added | Time |
+| --- | --- |
+| Nothing | 150 |
+| `\u0080`, `\u00A0`, or `\u00FF` | 112–113 |
+| `\u0080-\u00FF` | 130 |
+| `\u0100`, `\u4E00`, or `\uFFFF` | 150–154 |
+| `\u0001`, `\x7F`, `!`, or `%` | 149–154 |
+
+### Where in the grammar
+
+The Latin-1 class in one rule at a time, 1,200,000 iterations, with the
+grammar written out so each rule's class can be chosen:
+
+| Latin-1 class in | Time |
+| --- | --- |
+| No rule | 153 |
+| Every rule | 114 |
+| `regName` | 149 |
+| `userinfo` | 141 |
+| `pchar` | 137 |
+
+Each identifier on its own, ASCII class and Latin-1 class:
+
+| Identifier | ASCII | Latin-1 |
+| --- | --- | --- |
+| `https://json-schema.org/draft/2020-12/schema` | 218 | 149 |
+| `https://example.com/a/b/c?x=1#/$defs/foo` | 205 | 152 |
+| `urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66` | 84 | 83 |
+| `file:///home/user/schemas/main.json` | 110 | 73 |
+
+Small patterns with the same shape, like `^(?:[…]*@)?[…]*$` for an
+authority, a `pchar` loop, or a path of segments, differed by 8% at most.
+
+### The engine
+
+The first identifier, ASCII class and Latin-1 class:
+
+| | ASCII | Latin-1 |
+| --- | --- | --- |
+| Native code | 212 | 150 |
+| `--regexp-interpret-all`, the bytecode interpreter | 998 | 850 |
+| `--no-regexp-optimization` | 432 | 441 |
+
+The bytecode for the whole pattern is 21,343 instructions with the ASCII
+class and 21,338 with the Latin-1 class. They differ in how classes are
+checked: with the ASCII class, a loop's class is tested with
+`AND_CHECK_CHAR` with the mask `0x80` first, and with the Latin-1 class,
+with `CHECK_GT 0x7f` and `CHECK_BIT_IN_TABLE`. `--trace-regexp-bytecodes`
+and `--trace-regexp-assembler`, which would show which instructions run,
+print nothing in release builds.

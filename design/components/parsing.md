@@ -46,12 +46,38 @@ Every function is faster than v1, which used capture groups: `isIri` 2.2
 times, the others 1.2–1.4 times (see
 [Comparison with v1](../benchmarks/v1-comparison.md)).
 
-## Open questions
+## Why URIs are slower than IRIs
 
-- The URI pattern is about 1.4 times slower than the IRI pattern on the
-  same ASCII strings, so `isUri` is slower than `isIri`. It isn't the `u`
-  flag or the unescaped `-` in `unreserved` (see
+The URI pattern is about 1.3 times slower than the IRI pattern on the same
+ASCII strings, so `isUri` is slower than `isIri`. It's how V8's regular
+expression compiler, `irregexp`, compiles the ASCII-only `unreserved` class,
+not what the class matches or how the grammar is written (see
+[Parsing strategies](../benchmarks/parsing-strategies.md#why-the-uri-pattern-is-slower)).
+
+- Adding one character from U+0080 to U+00FF to `unreserved`, which never
+  occurs in the input, makes the URI pattern as fast as the IRI pattern.
+  V8 compiles a pattern separately for strings it stores one byte per
+  character, and only a character that can be in one of those changes the
+  class.
+- With `--no-regexp-optimization`, both are the same speed.
+- In the bytecode, the ASCII class is tested with a quick check first, a
+  mask for "is it ASCII", which always passes on a URI, on each character
+  of the loops in the authority. The Latin-1 class can't be checked with
+  that mask, so it goes straight to the class's table. That this check is
+  the cost is a reading of the bytecode. Release builds of Node.js can't
+  trace which instructions run.
+
+It isn't fixed, because each fix is wrong or costs as much as it saves:
+
+- A Latin-1 character in the URI classes would make `isUri` accept a
+  character that a URI can't have.
+- Validating a URI as an IRI, then checking that it's ASCII, gives the
+  same answers, because a URI is an ASCII IRI. The check is an extra pass
+  that costs about what it saves (see
   [Parsing strategies](../benchmarks/parsing-strategies.md#the-u-flag)).
+
+Dependents call the IRI functions much more than the URI ones, and it's
+the engine's behavior, which can change in any release of V8.
 
 ## Rejected
 
