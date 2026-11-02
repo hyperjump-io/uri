@@ -365,6 +365,12 @@ It's one line, but the line isn't obvious, and getting it wrong breaks
 the normal form. Exporting it also means it can be made faster later,
 and custom schemes get that too.
 
+It's the only step that's exported. The others are used internally,
+like `urn` making hex digits uppercase, since its syntax-based
+normalization is off. Only a custom scheme that turns the syntax-based
+normalization off and allows some of its steps would need them, and
+an export can be added in a minor version, when a scheme does.
+
 ### What isn't normalized
 
 - **Empty ports of other schemes.** RFC 3986 §6.2.3 says not to remove a
@@ -450,6 +456,11 @@ optional port component will not match a URI explicitly declaring port
 - **Not exporting `lowercase`.** Every custom scheme with a
   case-insensitive part would write its own, and some would lowercase hex
   digits or Unicode characters.
+- **Exporting every syntax-based step**, so a custom scheme can rebuild
+  the ones its specification allows. Nothing needs them yet, making hex
+  digits uppercase is simple to write, and decoding would need an API
+  for URIs and IRIs and for each component, designed without a use
+  case. Adding an export later isn't a breaking change.
 - **Removing an empty port for every scheme.** What an empty port means
   is up to the scheme.
 - **Equivalence that isn't a normal form**, like ignoring the r-, q-,
@@ -590,9 +601,6 @@ same way. The user docs show this.
   the library, for every user. The measurements and the case for and
   against are in [IPv6 canonical form](../benchmarks/ipv6-canonical-form.md).
   It only matters if `coap` is built in.
-- Whether the other syntax-based steps are exported, like `lowercase`.
-  `urn` turns off the syntax-based normalization and makes hex
-  digits uppercase itself, and a custom scheme could need to do the same.
 - The name `lowercase`.
 - Which rule strings are exported for custom schemes, since they become
   public API.
