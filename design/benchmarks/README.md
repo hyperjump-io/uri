@@ -5,9 +5,11 @@ Measurements behind the performance decisions in
 was first recorded.
 
 The benchmark code is in `benchmark/`, which isn't committed. It compares
-`src/` here, uncommitted changes included, with v1 as installed in the
-`json-schema` checkout next to this repo
+`src/` here, uncommitted changes included, with the version that parsed
+with capture groups (`benchmark/v2-groups.js`, from `e37b190`), and with
+v1 as installed in the `json-schema` checkout next to this repo
 (`../json-schema/node_modules/@hyperjump/uri`). Run it with
 `node benchmark/compare.js`, and don't run anything else while it runs.
 
 - [Comparison with v1](v1-comparison.md) (2026-11-01)
+- [Parsing strategies](parsing-strategies.md) (2026-11-01)

@@ -14,6 +14,10 @@ Parsing, resolving, and normalizing accept a future IP literal and treat
 it as an ordinary host. They only need to know what the host looks like,
 which the syntax says. Normalizing makes it lowercase, like any host.
 
+A validator only looks for one when the string is valid and has a `[`,
+since that's only allowed in an IP literal (see
+[Parsing](parsing.md#splitting)).
+
 The error has `value`, the identifier, and `host`, the literal with its
 brackets. The message keeps v1's form, with the literal without its
 brackets: `Unsupported IP version in host: v7.future`.

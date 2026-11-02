@@ -2,35 +2,28 @@
 
 First recorded 2026-11-01, against v1 at `1.4.0`.
 
-`benchmark/compare.js` times each IRI function in v1 and v2 on the same
-four identifiers: an `https` URI, one with a query and a fragment, a
-`urn`, and a `file` URI. `resolveIri` resolves four kinds of reference
-against the first. Each row is the median of 5 runs of 200,000
-iterations.
+`benchmark/compare.js` times each IRI function in v1, in v2 when it
+parsed with capture groups, and in v2, on the same four identifiers: an
+`https` URI, one with a query and a fragment, a `urn`, and a `file` URI.
+`resolveIri` resolves four kinds of reference against the first, and
+`toRelativeIri` finds each identifier relative to the first. Times are
+the median of 5 runs of 200,000 iterations, in milliseconds.
 
-| Function | v2/v1 |
-| --- | --- |
-| `parseIri` | 1.17x |
-| `isIri` | 1.00x |
-| `resolveIri` | 0.92x |
-| `toAbsoluteIri` | 1.04x |
-| `normalizeIri` | 1.06x |
+| Function | v1 | v2, capture groups | v2 | v2/v1 |
+| --- | --- | --- | --- | --- |
+| `parseIri` | 196 | 225 | 143 | 0.73x |
+| `isIri` | 185 | 183 | 85 | 0.46x |
+| `resolveIri` | 647 | 605 | 473 | 0.73x |
+| `toAbsoluteIri` | 319 | 330 | 235 | 0.74x |
+| `normalizeIri` | 317 | 331 | 240 | 0.76x |
+| `toRelativeIri` | 1488 | 1547 | 1213 | 0.82x |
 
-- `parseIri` is slower because it builds an object with only the
-  components that are there, instead of returning the regular
-  expression's `groups` (see
+- With capture groups, `parseIri` was 1.15 times slower than v1, because
+  it built an object with only the components that are there, instead of
+  returning the regular expression's `groups` (see
   [Identifiers](../components/identifiers.md#components)).
-- The others parse too, but they're at parity. Composing and normalizing
-  the result is most of their cost.
-
-## Building or deleting
-
-`benchmark/parse-shape.js` compares ways of making the result from a
-simplified pattern's `groups`, on the same four identifiers. Times are
-for 300,000 iterations, in milliseconds.
-
-| Result | Time |
-| --- | --- |
-| v1's `groups`, with `path2` deleted | 231 |
-| A new object with only the components that are there | 279 |
-| `groups` with every `undefined` group deleted | 584 |
+- Validating without captures and then splitting made every function
+  faster than v1 (see [Parsing](../components/parsing.md)). `isIri` gains
+  the most, because it no longer captures anything.
+- The functions that compose an identifier gain less, because composing
+  and normalizing the result is a large part of them.

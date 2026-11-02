@@ -29,52 +29,50 @@ const h16 = `${hexdig}{1,4}`;
 const ls32 = `(?:${h16}:${h16}|${ipV4Address})`;
 const ipV6Address = `(?:(?:${h16}:){6}${ls32}|::(?:${h16}:){5}${ls32}|(?:${h16})?::(?:${h16}:){4}${ls32}|(?:(?:${h16}:){0,1}${h16})?::(?:${h16}:){3}${ls32}|(?:(?:${h16}:){0,2}${h16})?::(?:${h16}:){2}${ls32}|(?:(?:${h16}:){0,3}${h16})?::(?:${h16}:){1}${ls32}|(?:(?:${h16}:){0,4}${h16})?::${ls32}|(?:(?:${h16}:){0,5}${h16})?::${h16}|(?:(?:${h16}:){0,6}${h16})?::)`;
 const ipVFuture = `[vV]${hexdig}+\\.(?:${unreserved}|${subDelims}|:)+`;
-const ipLiteral = `\\[(?:${ipV6Address}|(?<ipVFuture>${ipVFuture}))\\]`;
+const ipLiteral = `\\[(?:${ipV6Address}|${ipVFuture})\\]`;
 const scheme = `[a-zA-Z][a-zA-Z0-9-+.]*`;
-const port = `:(?<port>\\d*)`;
+const port = `\\d*`;
 
 // URI
 const regName = `(?:${unreserved}|${pctEncoded}|${subDelims})*`;
-const host = `(?<host>${ipLiteral}|${ipV4Address}|${regName})`;
-const userinfo = `(?<userinfo>(?:${unreserved}|${pctEncoded}|${subDelims}|:)*)`;
+const host = `(?:${ipLiteral}|${ipV4Address}|${regName})`;
+const userinfo = `(?:${unreserved}|${pctEncoded}|${subDelims}|:)*`;
 const pchar = `(?:${unreserved}|${pctEncoded}|${subDelims}|:|@)`;
 const segment = `${pchar}*`;
 const segmentNz = `${pchar}+`;
 const segmentNzNc = `(?:${unreserved}|${pctEncoded}|${subDelims}|@)+`;
 const pathAbEmpty = `(?:/${segment})*`;
 
-const authority = `(?<authority>(?:${userinfo}@)?${host}(?:${port})?)`;
-const path = `(?<path>${pathAbEmpty})`;
-const pathWithoutAuthority = `(?<path2>(?!//)(?:(?:(?<=${scheme}:)${segmentNz}|${segmentNzNc})${pathAbEmpty}|${pathAbEmpty}))`;
-const query = `(?:\\?(?<query>(?:${pchar}|/|\\?)*))?`;
-const fragment = `(?:#(?<fragment>(?:${pchar}|/|\\?)*))?`;
+const authority = `(?:${userinfo}@)?${host}(?::${port})?`;
+const pathWithoutAuthority = `(?!//)(?:(?:(?<=${scheme}:)${segmentNz}|${segmentNzNc})${pathAbEmpty}|${pathAbEmpty})`;
+const query = `(?:${pchar}|/|\\?)*`;
+const fragment = `(?:${pchar}|/|\\?)*`;
 
-const uri = `^(?<scheme>${scheme}):(?://${authority}${path}|${pathWithoutAuthority})${query}${fragment}$`;
-const uriReference = `^(?:(?<scheme>${scheme}):|)(?://${authority}${path}|${pathWithoutAuthority})${query}${fragment}$`;
-const absoluteUri = `^(?<scheme>${scheme}):(?://${authority}${path}|${pathWithoutAuthority})${query}$`;
+const uri = `^${scheme}:(?://${authority}${pathAbEmpty}|${pathWithoutAuthority})(?:\\?${query})?(?:#${fragment})?$`;
+const uriReference = `^(?:${scheme}:)?(?://${authority}${pathAbEmpty}|${pathWithoutAuthority})(?:\\?${query})?(?:#${fragment})?$`;
+const absoluteUri = `^${scheme}:(?://${authority}${pathAbEmpty}|${pathWithoutAuthority})(?:\\?${query})?$`;
 
 // IRI
 const iunreserved = `[a-zA-Z0-9\\-._~\\u{A0}-\\u{D7FF}\\u{F900}-\\u{FDCF}\\u{FDF0}-\\u{FFEF}\\u{10000}-\\u{1FFFD}\\u{20000}-\\u{2FFFD}\\u{30000}-\\u{3FFFD}\\u{40000}-\\u{4FFFD}\\u{50000}-\\u{5FFFD}\\u{60000}-\\u{6FFFD}\\u{70000}-\\u{7FFFD}\\u{80000}-\\u{8FFFD}\\u{90000}-\\u{9FFFD}\\u{A0000}-\\u{AFFFD}\\u{B0000}-\\u{BFFFD}\\u{C0000}-\\u{CFFFD}\\u{D0000}-\\u{DFFFD}\\u{E1000}-\\u{EFFFD}]`;
 const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFFD}]`;
 
 const iregName = `(?:${iunreserved}|${pctEncoded}|${subDelims})*`;
-const ihost = `(?<host>${ipLiteral}|${ipV4Address}|${iregName})`;
-const iuserinfo = `(?<userinfo>(?:${iunreserved}|${pctEncoded}|${subDelims}|:)*)`;
+const ihost = `(?:${ipLiteral}|${ipV4Address}|${iregName})`;
+const iuserinfo = `(?:${iunreserved}|${pctEncoded}|${subDelims}|:)*`;
 const ipchar = `(?:${iunreserved}|${pctEncoded}|${subDelims}|:|@)`;
 const isegment = `${ipchar}*`;
 const isegmentNz = `${ipchar}+`;
 const isegmentNzNc = `(?:${iunreserved}|${pctEncoded}|${subDelims}|@)+`;
 const ipathAbEmpty = `(?:/${isegment})*`;
 
-const iauthority = `(?<authority>(?:${iuserinfo}@)?${ihost}(?:${port})?)`;
-const ipath = `(?<path>${ipathAbEmpty})`;
-const ipathWithoutAuthority = `(?<path2>(?!//)(?:(?:(?<=${scheme}:)${isegmentNz}|${isegmentNzNc})${ipathAbEmpty}|${ipathAbEmpty}))`;
-const iquery = `(?:\\?(?<query>(?:${ipchar}|${iprivate}|/|\\?)*))?`;
-const ifragment = `(?:#(?<fragment>(?:${ipchar}|/|\\?)*))?`;
+const iauthority = `(?:${iuserinfo}@)?${ihost}(?::${port})?`;
+const ipathWithoutAuthority = `(?!//)(?:(?:(?<=${scheme}:)${isegmentNz}|${isegmentNzNc})${ipathAbEmpty}|${ipathAbEmpty})`;
+const iquery = `(?:${ipchar}|${iprivate}|/|\\?)*`;
+const ifragment = `(?:${ipchar}|/|\\?)*`;
 
-const iri = `^(?<scheme>${scheme}):(?://${iauthority}${ipath}|${ipathWithoutAuthority})${iquery}${ifragment}$`;
-const iriReference = `^(?:(?<scheme>${scheme}):|)(?://${iauthority}${ipath}|${ipathWithoutAuthority})${iquery}${ifragment}$`;
-const absoluteIri = `^(?<scheme>${scheme}):(?://${iauthority}${ipath}|${ipathWithoutAuthority})${iquery}$`;
+const iri = `^${scheme}:(?://${iauthority}${ipathAbEmpty}|${ipathWithoutAuthority})(?:\\?${iquery})?(?:#${ifragment})?$`;
+const iriReference = `^(?:${scheme}:)?(?://${iauthority}${ipathAbEmpty}|${ipathWithoutAuthority})(?:\\?${iquery})?(?:#${ifragment})?$`;
+const absoluteIri = `^${scheme}:(?://${iauthority}${ipathAbEmpty}|${ipathWithoutAuthority})(?:\\?${iquery})?$`;
 
 const uriPattern = new RegExp(uri);
 const uriReferencePattern = new RegExp(uriReference);
@@ -226,15 +224,17 @@ export class UnsupportedIpVersionError extends Error {
  */
 function createValidator(pattern) {
   return (value) => {
-    const match = pattern.exec(value);
-    if (match === null) {
+    if (!pattern.test(value)) {
       return false;
     }
 
-    // An IP literal of a future version has a known syntax, but whether its address is valid can't be known
-    const groups = /** @type Record<string, string | undefined> */ (match.groups);
-    if (groups.ipVFuture !== undefined) {
-      throw new UnsupportedIpVersionError(value, /** @type string */ (groups.host));
+    // An IP literal of a future version has a known syntax, but whether its address is valid can't be known. "[" is
+    // only allowed in an IP literal, so the host is only split out for an identifier that has one.
+    if (value.includes("[")) {
+      const host = /** @type string */ (split(value).host);
+      if (host[1] === "v" || host[1] === "V") {
+        throw new UnsupportedIpVersionError(value, host);
+      }
     }
 
     return true;
@@ -248,40 +248,11 @@ function createValidator(pattern) {
  */
 function createParser(pattern, invalid) {
   return (value) => {
-    const match = pattern.exec(value);
-    if (match === null) {
+    if (!pattern.test(value)) {
       throw invalid(value);
     }
 
-    const groups = /** @type Record<string, string | undefined> */ (match.groups);
-
-    // A component that isn't there isn't a property, so the result can be spread and checked with `in`
-    /** @type Record<string, string> */
-    const components = {};
-    if (groups.scheme !== undefined) {
-      components.scheme = groups.scheme;
-    }
-    if (groups.authority !== undefined) {
-      components.authority = groups.authority;
-      if (groups.userinfo !== undefined) {
-        components.userinfo = groups.userinfo;
-      }
-      components.host = /** @type string */ (groups.host);
-      if (groups.port !== undefined) {
-        components.port = groups.port;
-      }
-      components.path = /** @type string */ (groups.path);
-    } else {
-      components.path = /** @type string */ (groups.path2);
-    }
-    if (groups.query !== undefined) {
-      components.query = groups.query;
-    }
-    if (groups.fragment !== undefined) {
-      components.fragment = groups.fragment;
-    }
-
-    return components;
+    return split(value);
   };
 }
 
@@ -335,6 +306,69 @@ function createEncoder(isAllowed, isAllAllowed) {
     return encoded;
   };
 }
+
+// Splits an identifier that's already known to be valid into its components, by its delimiters (RFC 3986
+// Appendix B). Each delimiter is only allowed where it ends a component: a scheme can't have ":", an authority can't
+// have "/", a path can't have "?", and a query can't have "#". So the first of each is where its component ends. A
+// component that isn't there isn't a property, so the result can be spread and checked with `in`.
+/** @type (value: string) => Record<string, string> */
+const split = (value) => {
+  /** @type Record<string, string> */
+  const components = {};
+
+  const fragmentStart = value.indexOf("#");
+  const queryEnd = fragmentStart === -1 ? value.length : fragmentStart;
+  const queryStart = value.indexOf("?");
+  const pathEnd = queryStart === -1 || queryStart > queryEnd ? queryEnd : queryStart;
+
+  // A relative reference's first segment can't have ":", so a ":" before the first "/" ends a scheme
+  let position = 0;
+  const colon = value.indexOf(":");
+  if (colon !== -1 && colon < pathEnd) {
+    const slash = value.indexOf("/");
+    if (slash === -1 || colon < slash) {
+      components.scheme = value.slice(0, colon);
+      position = colon + 1;
+    }
+  }
+
+  if (value.startsWith("//", position)) {
+    const authorityStart = position + 2;
+    const slash = value.indexOf("/", authorityStart);
+    const authorityEnd = slash === -1 || slash > pathEnd ? pathEnd : slash;
+    const authority = value.slice(authorityStart, authorityEnd);
+    components.authority = authority;
+
+    // Neither userinfo nor host can have "@"
+    const at = authority.indexOf("@");
+    if (at !== -1) {
+      components.userinfo = authority.slice(0, at);
+    }
+
+    // An IP literal has ":"s in it, so the port's ":" is the first one after its "]"
+    const hostStart = at + 1;
+    const portSearchStart = authority.startsWith("[", hostStart) ? authority.indexOf("]", hostStart) : hostStart;
+    const portColon = authority.indexOf(":", portSearchStart);
+    components.host = authority.slice(hostStart, portColon === -1 ? authority.length : portColon);
+    if (portColon !== -1) {
+      components.port = authority.slice(portColon + 1);
+    }
+
+    position = authorityEnd;
+  }
+
+  components.path = value.slice(position, pathEnd);
+
+  if (pathEnd < queryEnd) {
+    components.query = value.slice(pathEnd + 1, queryEnd);
+  }
+
+  if (fragmentStart !== -1) {
+    components.fragment = value.slice(fragmentStart + 1);
+  }
+
+  return components;
+};
 
 /** @type (strategy: Strategy, identifier: string) => string */
 const toAbsolute = (strategy, identifier) => compose(strategy, {

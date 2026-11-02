@@ -13,7 +13,8 @@ an IRI form from RFC 3987:
 
 Each is one regular expression built from the ABNF (see
 [Follow the RFCs](../principles/follow-the-rfcs.md)). IRI patterns use the
-`u` flag for their Unicode ranges.
+`u` flag for their Unicode ranges. The patterns only validate. Parsing
+splits a valid string at its delimiters (see [Parsing](parsing.md)).
 
 A `URI-reference` with a scheme is a `URI`, so the reference pattern makes
 the scheme optional and is otherwise the same.
@@ -43,15 +44,8 @@ The result is an ordinary object, so it can be spread, compared with
 `undefined` for the ones that didn't match, and the internal `path2` and
 `ipVFuture` groups deleted from it.
 
-Building a new object makes `parseIri` about 1.17 times slower than v1
-(see [Comparison with v1](../benchmarks/v1-comparison.md)). Resolving and
-normalizing, which parse internally, are at parity.
-
 ### Rejected
 
 - **Keeping `undefined` properties**, as v1 does. `"query" in components`
   was always `true`, `Object.keys` listed components that aren't there,
   and test assertions had to list every `undefined` component.
-- **Deleting the `undefined` groups from `match.groups`.** It was about
-  twice as slow as building an object, measured on its own, and the
-  result is still a null-prototype object.

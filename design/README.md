@@ -32,8 +32,10 @@ hand and have JSDoc explaining the details. Documentation for users is in
 ## Components
 
 - [Naming](components/naming.md): why the names didn't change
-- [Identifiers](components/identifiers.md): the kinds of identifier,
-  validating, and parsing into components
+- [Identifiers](components/identifiers.md): the kinds of identifier, and
+  their components
+- [Parsing](components/parsing.md): validating without captures, then
+  splitting at delimiters
 - [Future IP versions](components/future-ip-versions.md): why validators
   throw for `[v7.future]`
 - [Resolving](components/resolving.md): `resolve*`, `toRelative*`, and

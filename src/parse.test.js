@@ -392,6 +392,34 @@ describe("parsed components", () => {
     });
   });
 
+  // The components are split at their delimiters, so these are where a delimiter could be mistaken for the end of a
+  // component
+  test.each([
+    ["http://[::1]:8080/a", { scheme: "http", authority: "[::1]:8080", host: "[::1]", port: "8080", path: "/a" }],
+    ["http://[::1]/a", { scheme: "http", authority: "[::1]", host: "[::1]", path: "/a" }],
+    ["http://a:b@example.com/", { scheme: "http", authority: "a:b@example.com", userinfo: "a:b", host: "example.com", path: "/" }],
+    ["http://example.com:/", { scheme: "http", authority: "example.com:", host: "example.com", port: "", path: "/" }],
+    ["file:///a", { scheme: "file", authority: "", host: "", path: "/a" }],
+    ["foo:/.//a", { scheme: "foo", path: "/.//a" }],
+    ["foo:a/b:c", { scheme: "foo", path: "a/b:c" }],
+    ["foo:?a?b:c", { scheme: "foo", path: "", query: "a?b:c" }],
+    ["foo:#a?b:c/d", { scheme: "foo", path: "", fragment: "a?b:c/d" }],
+    ["http://a?b/c", { scheme: "http", authority: "a", host: "a", path: "", query: "b/c" }],
+    ["http://a#b/c", { scheme: "http", authority: "a", host: "a", path: "", fragment: "b/c" }]
+  ])("parseIri(%s)", (value, expected) => {
+    expect(parseIri(value)).to.eql(expected);
+  });
+
+  test.each([
+    ["a/b:c", { path: "a/b:c" }],
+    ["a?b:c", { path: "a", query: "b:c" }],
+    ["a#b:c", { path: "a", fragment: "b:c" }],
+    ["//a:1/b", { authority: "a:1", host: "a", port: "1", path: "/b" }],
+    ["", { path: "" }]
+  ])("parseIriReference(%s)", (value, expected) => {
+    expect(parseIriReference(value)).to.eql(expected);
+  });
+
   test("an IP literal of a future version is parsed", () => {
     expect(parseUri("http://[v7.future]/foo")).to.eql({
       scheme: "http",
