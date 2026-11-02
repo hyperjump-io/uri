@@ -14,6 +14,11 @@ so equivalent identifiers are equal strings:
 `normalizeIri` is the same, but it decodes the Unicode characters an IRI
 allows, and `normalizeUri` doesn't.
 
+Then the scheme of the identifier can add normalizations, like removing
+`:80` from an `http` URI, and turn off ones that its specification
+forbids, like decoding for `urn` (see
+[Schemes](schemes.md#normalizing)). *Designed, not implemented.*
+
 Each step is skipped when it can't change anything, because most
 identifiers don't need it: decoding only runs with a `%`, and dot-segment
 removal only with a dot segment.
