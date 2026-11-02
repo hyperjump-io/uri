@@ -44,6 +44,8 @@ hand and have JSDoc explaining the details. Documentation for users is in
   `toAbsolute*`
 - [Normalizing](components/normalizing.md): `normalize*` and
   `encode*Fragment`
+- [Schemes](components/schemes.md): validating by each scheme's own rules
+  (designed, not implemented)
 - [Errors](components/errors.md)
 - [Types](components/types.md): optional authority, readonly components
 - [What changed from v1](components/v1.md)
