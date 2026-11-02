@@ -25,6 +25,16 @@ fragment. To use an IRI with a fragment as a base, remove the fragment
 first with `toAbsoluteIri`. For more information, see
 [Remove a fragment](#remove-a-fragment).
 
+`resolveIri` checks the base even when the reference has a scheme and the
+base isn't used. If you don't have a base, use `normalizeIri` instead. It
+returns an IRI the same way `resolveIri` does, and throws for a relative
+reference:
+
+```typescript
+normalizeIri("urn:example:foo"); // "urn:example:foo"
+normalizeIri("address.json"); // throws InvalidIriError
+```
+
 `resolveIri` normalizes the result. For more information, see
 [Normalize](normalize.md).
 

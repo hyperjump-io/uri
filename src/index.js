@@ -11,6 +11,7 @@
  *   parse: typeof API.parseUri;
  *   parseReference: typeof API.parseUriReference;
  *   parseAbsolute: typeof API.parseAbsoluteUri;
+ *   isAbsolute: (value: string) => boolean;
  *   normalizePath: (path: string) => string;
  *   normalizeQuery: (query: string) => string;
  *   normalizeFragment: (fragment: string) => string;
@@ -117,6 +118,7 @@ const uriStrategy = {
   parse: createParser(uriPattern, (value) => new InvalidUriError(value, "URI")),
   parseReference: createParser(uriReferencePattern, (value) => new InvalidUriError(value, "URI-reference")),
   parseAbsolute: createParser(absoluteUriPattern, (value) => new InvalidUriError(value, "absolute-URI")),
+  isAbsolute: RegExp.prototype.test.bind(absoluteUriPattern),
   normalizePath: createPathNormalizer(isAllowedInPath),
   normalizeQuery: createQueryNormalizer(isAllowedInQuery),
   normalizeFragment: createQueryNormalizer(isAllowedInQuery)
@@ -127,6 +129,7 @@ const iriStrategy = {
   parse: createParser(iriPattern, (value) => new InvalidIriError(value, "IRI")),
   parseReference: createParser(iriReferencePattern, (value) => new InvalidIriError(value, "IRI-reference")),
   parseAbsolute: createParser(absoluteIriPattern, (value) => new InvalidIriError(value, "absolute-IRI")),
+  isAbsolute: RegExp.prototype.test.bind(absoluteIriPattern),
   normalizePath: createPathNormalizer(isAllowedInIPath),
   normalizeQuery: createQueryNormalizer(isAllowedInIQuery),
   normalizeFragment: createQueryNormalizer(isAllowedInIQuery)
@@ -401,6 +404,12 @@ const resolve = (strategy, reference, base) => {
   const components = strategy.parseReference(reference);
 
   if (components.scheme !== undefined) {
+    // The base isn't used, but it's still checked, so a bad base is reported where it's passed. Testing the pattern
+    // without splitting is cheaper, and parsing a base that fails throws the error.
+    if (!strategy.isAbsolute(base)) {
+      strategy.parseAbsolute(base);
+    }
+
     return compose(strategy, /** @type API.IdentifierComponents */ (components));
   }
 

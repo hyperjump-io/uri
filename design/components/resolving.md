@@ -10,8 +10,45 @@ base with a fragment throws instead of having its fragment stripped,
 because a fragment in a base is usually a mistake, like passing the
 reference and the base in the wrong order. `toAbsoluteUri` strips one.
 
-`base` is only parsed when `reference` has no scheme, because it isn't
-needed otherwise. An invalid base isn't reported then.
+`base` is checked even when `reference` has a scheme and the base isn't
+used, so a bad base is reported where it's passed, not later when a
+different reference needs it. A caller with no base uses `normalizeUri`
+instead. It returns what `resolveUri` would for a reference with a scheme,
+and throws for one without, with `URI` as the rule, which blames the
+reference.
+
+When `reference` has a scheme, the base is only tested with the
+`absolute-URI` pattern, without splitting it, and parsed only if the test
+fails, to throw the error. Checking it makes resolving a reference with a
+scheme 1.5 times slower than not checking it, on Node.js 22. Parsing the
+base was 1.8 times slower. A relative reference costs the same as before,
+because its base was always parsed. It's paid where resolving is called, like compiling a schema or
+making a request, and not where validating is.
+
+### Rejected
+
+- **Not parsing the base when `reference` has a scheme**, as in v1 and
+  before this decision. An invalid base was only reported once a
+  reference without a scheme was resolved against it.
+- **`""` as a base meaning "no base"**, allowed when `reference` has a
+  scheme. An empty base is often the result of a mistake, like a lookup
+  that found nothing, and it would get through until a relative reference
+  came along. RFC 3986 doesn't give `""` that meaning either: it's a
+  reference, not an `absolute-URI`. `normalizeUri` already does what it
+  would.
+- **An optional `base`**, for the same reason. Without a base, it would
+  be `normalizeUri` under another name.
+- **Checking only the base components the result uses.** A base with a
+  character in its path that isn't allowed would resolve `/a`, since an
+  absolute path replaces the base's path. The output would still be valid, but it
+  hides bad data: the same base throws later, with a reference that uses
+  its path. It would also be a second way to validate an `absolute-URI`
+  that has to agree with the pattern.
+- **Repairing invalid input**, like percent-encoding a space. The RFCs
+  don't define recovery, so its rules would be a grammar of this
+  library's own, which nobody could predict from the RFC. That's what
+  WHATWG URL is. Callers who want to fix a value can use the error's
+  span (see [Errors](errors.md)).
 
 Resolving builds a new set of components with spreads instead of changing
 the parsed reference, because parsed components are readonly (see

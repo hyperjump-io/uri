@@ -142,7 +142,9 @@ export const encodeIriFragment: (fragment: string) => string;
 
 /**
  * Resolves a URI-reference against a base URI (RFC 3986 §5.2), and
- * normalizes the result.
+ * normalizes the result. `base` is checked even when `reference` has a
+ * scheme. With no base, use {@link normalizeUri}, which throws if
+ * `reference` isn't a URI.
  *
  * @throws {InvalidUriError} If `reference` isn't a URI-reference, or `base`
  *   isn't an absolute-URI.
@@ -151,6 +153,8 @@ export const resolveUri: (reference: string, base: string) => string;
 
 /**
  * Resolves an IRI-reference against a base IRI, and normalizes the result.
+ * `base` is checked like in {@link resolveUri}. With no base, use
+ * {@link normalizeIri}.
  *
  * @throws {InvalidIriError} If `reference` isn't an IRI-reference, or
  *   `base` isn't an absolute-IRI.

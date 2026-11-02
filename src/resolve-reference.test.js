@@ -45,9 +45,8 @@ const resolveTests = [
   ["http://a/b/c/d;p?q", "g#s/./x", "http://a/b/c/g#s/./x"],
   ["http://a/b/c/d;p?q", "g#s/../x", "http://a/b/c/g#s/../x"],
   ["http://a/b/c/d;p?q", "http:g", "http:g"],
-  ["", "urn:some:ip:prop", "urn:some:ip:prop"],
-  ["#", "urn:some:ip:prop", "urn:some:ip:prop"],
   ["urn:some:ip:prop", "urn:some:ip:prop", "urn:some:ip:prop"],
+  ["http://[v7.future]/a", "urn:some:ip:prop", "urn:some:ip:prop"], // Base with a future IP literal isn't parsed
   ["urn:some:other:prop", "urn:some:ip:prop", "urn:some:ip:prop"],
   ["foo:./a", "", "foo:a"], // Dot segment in a rootless path
   ["foo:../a", "", "foo:a"], // Double dot segment in a rootless path

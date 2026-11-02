@@ -25,6 +25,16 @@ describe("InvalidUriError", () => {
     expect(thrown(() => resolveUri("http://[", "http://example.com"))).to.include({ rule: "URI-reference" });
     expect(thrown(() => resolveUri("foo", "/bar"))).to.include({ rule: "absolute-URI" });
   });
+
+  test("checks the base even when the reference has a scheme", () => {
+    expect(thrown(() => resolveUri("http://example.com", "/bar"))).to.include({ rule: "absolute-URI" });
+    expect(thrown(() => resolveUri("http://example.com", "http://example.com#foo"))).to.include({ rule: "absolute-URI" });
+  });
+
+  test("doesn't allow an empty base", () => {
+    expect(thrown(() => resolveUri("http://example.com", ""))).to.include({ rule: "absolute-URI" });
+    expect(thrown(() => resolveUri("foo", ""))).to.include({ rule: "absolute-URI" });
+  });
 });
 
 describe("InvalidIriError", () => {

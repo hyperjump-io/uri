@@ -25,6 +25,24 @@ the arguments in every call to `toRelativeIri` and `toRelativeUri`. With
 the old order, v2 returns a reference to the base instead of to the IRI.
 If the IRI has a fragment, v2 throws, because a base can't have one.
 
+## `resolveIri` always checks the base
+
+In v1, `resolveIri` and `resolveUri` didn't check the base when the
+reference had a scheme, because the base isn't used then. In v2, a base
+that isn't absolute throws, even if the reference has a scheme:
+
+```typescript
+// v1
+resolveIri("https://example.com/a", "/b"); // "https://example.com/a"
+
+// v2
+resolveIri("https://example.com/a", "/b"); // throws InvalidIriError
+```
+
+That includes an empty string. If you passed `""` because you have no
+base, call `normalizeIri` on the reference instead. For more information,
+see [Resolve references](resolve-references.md).
+
 ## Missing components aren't properties
 
 In v1, the parsing functions returned every component, with `undefined`
