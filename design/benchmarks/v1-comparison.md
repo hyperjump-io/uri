@@ -1,7 +1,8 @@
 # Comparison with v1
 
-First recorded 2026-11-01, against v1 at `1.4.0`. Last run 2026-11-01,
-after `toRelative*` stopped parsing each identifier twice.
+First recorded 2026-11-01, against v1 at `1.4.0`, on Node.js 22.22.1.
+Last run 2026-11-01, after `toRelative*` stopped parsing each identifier
+twice.
 
 `benchmark/compare.js` times each IRI function in v1, in v2 when it
 parsed with capture groups, and in v2, on the same four identifiers: an
