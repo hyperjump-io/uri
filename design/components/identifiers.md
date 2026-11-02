@@ -12,12 +12,9 @@ an IRI form from RFC 3987:
 | `absolute-URI` | Yes | No | `isAbsoluteUri` | `parseAbsoluteUri` |
 
 Each is one regular expression built from the ABNF (see
-[Follow the RFCs](../principles/follow-the-rfcs.md)). IRI patterns use the
-`u` flag for their Unicode ranges. The patterns only validate. Parsing
-splits a valid string at its delimiters (see [Parsing](parsing.md)).
-
-A `URI-reference` with a scheme is a `URI`, so the reference pattern makes
-the scheme optional and is otherwise the same.
+[Grammar](grammar.md)). IRI patterns use the `u` flag for their Unicode
+ranges. The patterns only validate. Parsing splits a valid string at its
+delimiters (see [Parsing](parsing.md)).
 
 ## Strategies
 

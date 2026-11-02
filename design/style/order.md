@@ -18,4 +18,6 @@ are function declarations, so they're hoisted and can come after the
 exports. The other helpers are arrow functions, which are only called
 after the module has loaded. The strategies make their errors in arrow
 functions, because the error classes are exports and aren't defined yet
-when the strategies are.
+when the strategies are. `rules`, which builds the grammar's patterns, is
+an arrow function among the constants, because it belongs to the grammar
+and the module calls it right after defining it.

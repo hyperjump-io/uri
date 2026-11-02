@@ -34,6 +34,8 @@ hand and have JSDoc explaining the details. Documentation for users is in
 - [Naming](components/naming.md): why the names didn't change
 - [Identifiers](components/identifiers.md): the kinds of identifier, and
   their components
+- [Grammar](components/grammar.md): how the patterns are written from the
+  ABNF
 - [Parsing](components/parsing.md): validating without captures, then
   splitting at delimiters
 - [Future IP versions](components/future-ip-versions.md): why validators

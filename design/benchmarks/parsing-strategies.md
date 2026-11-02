@@ -97,3 +97,23 @@ one-character alternatives in one class, like `pchar` as
 - Merging is faster with `u` too, about 12% on Unicode, and 3–7% on
   ASCII, which is close to noise. It isn't done, because the RFC writes
   each of those rules as alternatives, with `pct-encoded` among them.
+
+## The grammar's shape
+
+`benchmark/rfc-grammar.js` writes the grammar rule for rule from the RFCs,
+with `hier-part`, `relative-part`, and `URI-reference` as
+`URI / relative-ref` (see [Grammar](../components/grammar.md)).
+`benchmark/rfc-grammar-time.js` times `test` with it and with the
+patterns before, 300,000 iterations, each in its own process. The
+reference rules are timed on the four identifiers and four references:
+`#/$defs/foo`, `../other.json`, `meta/core`, and `/schemas/person.json?x`.
+
+| Rule | Before | Rule for rule |
+| --- | --- | --- |
+| IRI | 113–115 | 111–112 |
+| IRI-reference | 167 | 166–168 |
+| URI | 159 | 152–154 |
+| URI-reference | 224–225 | 221–225 |
+
+The functions, timed with `benchmark/compare.js`, were the same as in
+[Comparison with v1](v1-comparison.md), within a few milliseconds.

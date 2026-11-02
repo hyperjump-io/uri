@@ -8,11 +8,8 @@ Validating and parsing are two steps:
    which is RFC 3986 Appendix B.
 
 The regular expressions stay the definition of what's valid, and they read
-like the RFC (see [Follow the RFCs](../principles/follow-the-rfcs.md)).
-Each constant holds exactly the rule it's named after: `port` is `*DIGIT`,
-and `query` is `*( pchar / "/" / "?" )`, without the `:` or `?` that comes
-before it. Captures were the most expensive part of matching, and only
-parsing needed them.
+like the RFC (see [Grammar](grammar.md)). Captures were the most expensive
+part of matching, and only parsing needed them.
 
 ## Splitting
 

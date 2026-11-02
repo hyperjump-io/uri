@@ -17,70 +17,90 @@
  * }} Strategy
  */
 
-// Common
-const hexdig = `[a-fA-F0-9]`;
-const unreserved = `[a-zA-Z0-9-._~]`;
+// The grammar, rule for rule from RFC 3986 Appendix A and RFC 3987 §2.2. Each constant is the rule it's named after.
+
+const alpha = `[a-zA-Z]`;
+const digit = `[0-9]`;
+const hexdig = `[0-9a-fA-F]`;
+
+// RFC 3986
+const unreserved = `[a-zA-Z0-9\\-._~]`;
 const subDelims = `[!$&'()*+,;=]`;
 const pctEncoded = `%${hexdig}${hexdig}`;
 
-const decOctet = `(?:\\d|[1-9]\\d|1\\d\\d|2[0-4]\\d|25[0-5])`;
+const scheme = `${alpha}[a-zA-Z0-9+\\-.]*`;
+const port = `${digit}*`;
+
+const decOctet = `(?:${digit}|[1-9]${digit}|1${digit}{2}|2[0-4]${digit}|25[0-5])`;
 const ipV4Address = `${decOctet}\\.${decOctet}\\.${decOctet}\\.${decOctet}`;
 const h16 = `${hexdig}{1,4}`;
 const ls32 = `(?:${h16}:${h16}|${ipV4Address})`;
-const ipV6Address = `(?:(?:${h16}:){6}${ls32}|::(?:${h16}:){5}${ls32}|(?:${h16})?::(?:${h16}:){4}${ls32}|(?:(?:${h16}:){0,1}${h16})?::(?:${h16}:){3}${ls32}|(?:(?:${h16}:){0,2}${h16})?::(?:${h16}:){2}${ls32}|(?:(?:${h16}:){0,3}${h16})?::(?:${h16}:){1}${ls32}|(?:(?:${h16}:){0,4}${h16})?::${ls32}|(?:(?:${h16}:){0,5}${h16})?::${h16}|(?:(?:${h16}:){0,6}${h16})?::)`;
+// Aligned like the RFC. The spaces are only for reading, and are removed.
+const ipV6Address = `(?:${[
+  `                                (?:${h16}:){6}${ls32}`,
+  `                            ::(?:${h16}:){5}${ls32}`,
+  `(?:                ${h16})?::(?:${h16}:){4}${ls32}`,
+  `(?:(?:${h16}:){0,1}${h16})?::(?:${h16}:){3}${ls32}`,
+  `(?:(?:${h16}:){0,2}${h16})?::(?:${h16}:){2}${ls32}`,
+  `(?:(?:${h16}:){0,3}${h16})?::    ${h16}:   ${ls32}`,
+  `(?:(?:${h16}:){0,4}${h16})?::              ${ls32}`,
+  `(?:(?:${h16}:){0,5}${h16})?::              ${h16}`,
+  `(?:(?:${h16}:){0,6}${h16})?::`
+].map((alternative) => alternative.replaceAll(" ", "")).join("|")})`;
 const ipVFuture = `[vV]${hexdig}+\\.(?:${unreserved}|${subDelims}|:)+`;
 const ipLiteral = `\\[(?:${ipV6Address}|${ipVFuture})\\]`;
-const scheme = `[a-zA-Z][a-zA-Z0-9-+.]*`;
-const port = `\\d*`;
 
-// URI
-const regName = `(?:${unreserved}|${pctEncoded}|${subDelims})*`;
-const host = `(?:${ipLiteral}|${ipV4Address}|${regName})`;
-const userinfo = `(?:${unreserved}|${pctEncoded}|${subDelims}|:)*`;
-const pchar = `(?:${unreserved}|${pctEncoded}|${subDelims}|:|@)`;
-const segment = `${pchar}*`;
-const segmentNz = `${pchar}+`;
-const segmentNzNc = `(?:${unreserved}|${pctEncoded}|${subDelims}|@)+`;
-const pathAbEmpty = `(?:/${segment})*`;
-
-const authority = `(?:${userinfo}@)?${host}(?::${port})?`;
-const pathWithoutAuthority = `(?!//)(?:(?:(?<=${scheme}:)${segmentNz}|${segmentNzNc})${pathAbEmpty}|${pathAbEmpty})`;
-const query = `(?:${pchar}|/|\\?)*`;
-const fragment = `(?:${pchar}|/|\\?)*`;
-
-const uri = `^${scheme}:(?://${authority}${pathAbEmpty}|${pathWithoutAuthority})(?:\\?${query})?(?:#${fragment})?$`;
-const uriReference = `^(?:${scheme}:)?(?://${authority}${pathAbEmpty}|${pathWithoutAuthority})(?:\\?${query})?(?:#${fragment})?$`;
-const absoluteUri = `^${scheme}:(?://${authority}${pathAbEmpty}|${pathWithoutAuthority})(?:\\?${query})?$`;
-
-// IRI
-const iunreserved = `[a-zA-Z0-9\\-._~\\u{A0}-\\u{D7FF}\\u{F900}-\\u{FDCF}\\u{FDF0}-\\u{FFEF}\\u{10000}-\\u{1FFFD}\\u{20000}-\\u{2FFFD}\\u{30000}-\\u{3FFFD}\\u{40000}-\\u{4FFFD}\\u{50000}-\\u{5FFFD}\\u{60000}-\\u{6FFFD}\\u{70000}-\\u{7FFFD}\\u{80000}-\\u{8FFFD}\\u{90000}-\\u{9FFFD}\\u{A0000}-\\u{AFFFD}\\u{B0000}-\\u{BFFFD}\\u{C0000}-\\u{CFFFD}\\u{D0000}-\\u{DFFFD}\\u{E1000}-\\u{EFFFD}]`;
+// RFC 3987
+const ucschar = `\\u{A0}-\\u{D7FF}\\u{F900}-\\u{FDCF}\\u{FDF0}-\\u{FFEF}\\u{10000}-\\u{1FFFD}\\u{20000}-\\u{2FFFD}\\u{30000}-\\u{3FFFD}\\u{40000}-\\u{4FFFD}\\u{50000}-\\u{5FFFD}\\u{60000}-\\u{6FFFD}\\u{70000}-\\u{7FFFD}\\u{80000}-\\u{8FFFD}\\u{90000}-\\u{9FFFD}\\u{A0000}-\\u{AFFFD}\\u{B0000}-\\u{BFFFD}\\u{C0000}-\\u{CFFFD}\\u{D0000}-\\u{DFFFD}\\u{E1000}-\\u{EFFFD}`;
+const iunreserved = `[a-zA-Z0-9\\-._~${ucschar}]`;
 const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFFD}]`;
 
-const iregName = `(?:${iunreserved}|${pctEncoded}|${subDelims})*`;
-const ihost = `(?:${ipLiteral}|${ipV4Address}|${iregName})`;
-const iuserinfo = `(?:${iunreserved}|${pctEncoded}|${subDelims}|:)*`;
-const ipchar = `(?:${iunreserved}|${pctEncoded}|${subDelims}|:|@)`;
-const isegment = `${ipchar}*`;
-const isegmentNz = `${ipchar}+`;
-const isegmentNzNc = `(?:${iunreserved}|${pctEncoded}|${subDelims}|@)+`;
-const ipathAbEmpty = `(?:/${isegment})*`;
+// The rules that RFC 3987 defines again for IRIs are RFC 3986's, with iunreserved in place of unreserved, and iprivate
+// allowed in the query. So they're written once, for either.
+/** @type (unreserved: string, iprivate?: string) => { identifier: string; reference: string; absolute: string } */
+const rules = (unreserved, iprivate) => {
+  const regName = `(?:${unreserved}|${pctEncoded}|${subDelims})*`;
+  const host = `(?:${ipLiteral}|${ipV4Address}|${regName})`;
+  const userinfo = `(?:${unreserved}|${pctEncoded}|${subDelims}|:)*`;
+  const authority = `(?:${userinfo}@)?${host}(?::${port})?`;
 
-const iauthority = `(?:${iuserinfo}@)?${ihost}(?::${port})?`;
-const ipathWithoutAuthority = `(?!//)(?:(?:(?<=${scheme}:)${isegmentNz}|${isegmentNzNc})${ipathAbEmpty}|${ipathAbEmpty})`;
-const iquery = `(?:${ipchar}|${iprivate}|/|\\?)*`;
-const ifragment = `(?:${ipchar}|/|\\?)*`;
+  const pchar = `(?:${unreserved}|${pctEncoded}|${subDelims}|:|@)`;
+  const segment = `${pchar}*`;
+  const segmentNz = `${pchar}+`;
+  const segmentNzNc = `(?:${unreserved}|${pctEncoded}|${subDelims}|@)+`;
 
-const iri = `^${scheme}:(?://${iauthority}${ipathAbEmpty}|${ipathWithoutAuthority})(?:\\?${iquery})?(?:#${ifragment})?$`;
-const iriReference = `^(?:${scheme}:)?(?://${iauthority}${ipathAbEmpty}|${ipathWithoutAuthority})(?:\\?${iquery})?(?:#${ifragment})?$`;
-const absoluteIri = `^${scheme}:(?://${iauthority}${ipathAbEmpty}|${ipathWithoutAuthority})(?:\\?${iquery})?$`;
+  const pathAbEmpty = `(?:/${segment})*`;
+  const pathAbsolute = `/(?:${segmentNz}(?:/${segment})*)?`;
+  const pathNoScheme = `${segmentNzNc}(?:/${segment})*`;
+  const pathRootless = `${segmentNz}(?:/${segment})*`;
+  const pathEmpty = ``;
 
-const uriPattern = new RegExp(uri);
-const uriReferencePattern = new RegExp(uriReference);
-const absoluteUriPattern = new RegExp(absoluteUri);
+  const query = iprivate === undefined ? `(?:${pchar}|/|\\?)*` : `(?:${pchar}|${iprivate}|/|\\?)*`;
+  const fragment = `(?:${pchar}|/|\\?)*`;
 
-const iriPattern = new RegExp(iri, "u");
-const iriReferencePattern = new RegExp(iriReference, "u");
-const absoluteIriPattern = new RegExp(absoluteIri, "u");
+  const hierPart = `(?://${authority}${pathAbEmpty}|${pathAbsolute}|${pathRootless}|${pathEmpty})`;
+  const relativePart = `(?://${authority}${pathAbEmpty}|${pathAbsolute}|${pathNoScheme}|${pathEmpty})`;
+
+  const uri = `${scheme}:${hierPart}(?:\\?${query})?(?:#${fragment})?`;
+  const relativeRef = `${relativePart}(?:\\?${query})?(?:#${fragment})?`;
+  const absoluteUri = `${scheme}:${hierPart}(?:\\?${query})?`;
+
+  return {
+    identifier: `^${uri}$`,
+    reference: `^(?:${uri}|${relativeRef})$`,
+    absolute: `^${absoluteUri}$`
+  };
+};
+
+const uriRules = rules(unreserved);
+const uriPattern = new RegExp(uriRules.identifier);
+const uriReferencePattern = new RegExp(uriRules.reference);
+const absoluteUriPattern = new RegExp(uriRules.absolute);
+
+const iriRules = rules(iunreserved, iprivate);
+const iriPattern = new RegExp(iriRules.identifier, "u");
+const iriReferencePattern = new RegExp(iriRules.reference, "u");
+const absoluteIriPattern = new RegExp(iriRules.absolute, "u");
 
 // Characters each component allows without percent-encoding
 const isAllowedInPath = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@]`));

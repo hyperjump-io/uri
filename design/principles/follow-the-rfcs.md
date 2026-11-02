@@ -3,7 +3,7 @@
 Validating and parsing follow the ABNF of RFC 3986 and RFC 3987, rule for
 rule. The names in the code, like `pathAbEmpty` and `segmentNzNc`, are the
 names of the rules they implement, so the grammar can be checked against
-the RFC line by line. Resolving follows RFC 3986 §5.2, and normalizing
+the RFC line by line (see [Grammar](../components/grammar.md)). Resolving follows RFC 3986 §5.2, and normalizing
 follows §6.2.2.
 
 Where the RFC and what's convenient differ, the RFC wins. Someone who
