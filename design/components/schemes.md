@@ -379,6 +379,10 @@ and custom schemes get that too.
   user docs say so, since it's a surprise.
 - **Equivalence without a normal form**, like the order of `sip`
   parameters. See below.
+- **Internationalized domain names.** RFC 3987 §5.3.3 says scheme-based
+  normalization may treat an internationalized domain name and its
+  ASCII-compatible encoding as equivalent, but that needs IDNA tables (see
+  [Domain names](#domain-names)).
 
 `normalize*` checks its result when it removed dot segments, which can
 make a path that a scheme's rule doesn't allow, like merging paths can in
@@ -489,6 +493,61 @@ built in:
 | `coap`, `coaps` | RFC 7252 |
 | `about` | RFC 6694 |
 | `dns` | RFC 4501 |
+
+## Domain names
+
+Hosts aren't checked against the syntax of DNS names, or of
+internationalized domain names, for any scheme. It isn't a MUST-level
+rule:
+
+- RFC 3986 §3.2.2 "does not restrict the syntax of reg-name beyond what
+  is necessary for interoperability". It leaves that to the resolver,
+  which "might use DNS, host tables, yellow pages, NetInfo, WINS, or any
+  other system". DNS syntax is a SHOULD for whoever writes the URI: "URI
+  producers should use names that conform to the DNS syntax".
+- RFC 9110 doesn't add a rule. A registered name in an `http` URI is "an
+  indirect identifier for use with a name resolution service, such as
+  DNS". So `http://my_host/` is a valid `http` URI.
+- RFC 3987 §5.3.3 says internationalized domain names "SHOULD be validated by using the ToASCII
+  operation" of RFC 3490. That's IDNA2003, which IDNA2008 (RFC 5891)
+  replaced, and browsers use UTS #46. They disagree about some names,
+  so which one is right isn't known either.
+
+Checking DNS syntax is a policy, like rejecting `userinfo` in an `http`
+URI. It's also about hosts, not one scheme: every scheme whose host is
+meant for DNS would need it. A caller who wants it checks the host after
+parsing, with whichever IDNA library they choose:
+
+```js
+const { host } = parseIri(value);
+if (host !== undefined && !isDomainName(host)) {
+  ...
+}
+```
+
+A caller who wants it in `resolve*` checks the base and the result the
+same way. The user docs show this.
+
+### Rejected
+
+- **A domain-name check built in, off by default.** The ASCII syntax is
+  one pattern, but internationalized domain names need IDNA tables,
+  which are much larger than the library, and a choice between three
+  standards that disagree.
+- **An option with a function that checks hosts**, like
+  `isRegName: (host) => boolean`, for every scheme. It puts behavior in
+  every call for a policy that the caller can apply to the parsed host
+  without any option.
+- **A host function in a scheme's definition.** Patterns can't express
+  IDNA, so it would bring back predicates for validation. That they
+  can't be checked against the RFC wouldn't matter, since IDNA isn't
+  ABNF. But a caller would have to replace every scheme whose host is
+  meant for DNS to get one policy.
+- **Normalizing internationalized domain names**, so that `http://résumé.example.org` and
+  `http://xn--rsum-bpad.example.org` are equal (RFC 3987 §5.3.3). It's a
+  "may", and it needs the same IDNA tables. Adding it after 2.0.0 is a
+  breaking change, so it's rejected rather than left open. An `equals*`
+  function could do it.
 
 ## Not in scope yet
 
