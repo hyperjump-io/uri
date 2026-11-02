@@ -46,3 +46,31 @@ to compare only how the result is made from `match.groups`:
 
 Splitting replaced all three, so this only matters for the rejected
 alternatives.
+
+## The `u` flag
+
+`benchmark/unicode-flag-one.js` and `benchmark/unicode-flag.js` time
+`test` with the capture-free patterns, 300,000 iterations over the four
+identifiers, each variant in its own process. The Unicode identifiers
+are four of the same shapes, with non-ASCII characters in the host, path,
+query, or fragment.
+
+| ASCII identifiers | Time |
+| --- | --- |
+| The IRI pattern, with the `u` flag | 110–115 |
+| The IRI pattern without the `u` flag, its non-ASCII ranges replaced, for timing only | 113 |
+| The URI pattern, without the `u` flag | 160 |
+| A check for non-ASCII characters, then the URI pattern | 203 |
+
+| Unicode identifiers | Time |
+| --- | --- |
+| The IRI pattern, with the `u` flag | 132 |
+| A check for non-ASCII characters, then the IRI pattern | 166 |
+
+- The `u` flag doesn't make the IRI pattern slower.
+- The URI pattern is slower than the IRI pattern on the same ASCII
+  strings. It isn't the flag: the URI pattern takes the same time with it.
+  It isn't the unescaped `-` in `unreserved` either. Why is an open
+  question.
+- A check with a `charCodeAt` loop was slower than with a regular
+  expression.

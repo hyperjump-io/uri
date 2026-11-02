@@ -49,6 +49,13 @@ Every function is faster than v1, which used capture groups: `isIri` 2.2
 times, the others 1.2–1.4 times (see
 [Comparison with v1](../benchmarks/v1-comparison.md)).
 
+## Open questions
+
+- The URI pattern is about 1.4 times slower than the IRI pattern on the
+  same ASCII strings, so `isUri` is slower than `isIri`. It isn't the `u`
+  flag or the unescaped `-` in `unreserved` (see
+  [Parsing strategies](../benchmarks/parsing-strategies.md#the-u-flag)).
+
 ## Rejected
 
 Measured in [Parsing strategies](../benchmarks/parsing-strategies.md).
@@ -74,6 +81,15 @@ Measured in [Parsing strategies](../benchmarks/parsing-strategies.md).
   was 1.1 times slower with the regular expression and 1.05 times faster
   with `indexOf`. Validating the whole string, then splitting, was 1.4
   times faster.
+- **Checking for non-ASCII characters first**, and validating an ASCII
+  string with the URI pattern, which doesn't need the `u` flag. For an
+  ASCII string, the URI and IRI rules accept the same strings, so it's
+  correct, but it's slower. The `u` flag costs nothing here, the check is
+  an extra pass over the string, and the URI pattern is slower than the
+  IRI pattern even on ASCII. It was 1.8 times slower on ASCII and 1.3 times
+  slower on Unicode. A profile of a dependent project once suggested the
+  `u` flag was slow. That was with capture groups, which were most of the
+  cost of a match.
 - **Deleting the `undefined` groups from `match.groups`**, to leave out
   missing components. It was twice as slow as building a new object, and
   the result is still a null-prototype object.
