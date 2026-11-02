@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { encodeIriFragment, encodeUriFragment, isIri, isUri, normalizeIri, normalizeUri } from "./index.js";
 
-
 const iriFragmentTests = [
   ["", ""],
   ["/$defs/foo", "/$defs/foo"],

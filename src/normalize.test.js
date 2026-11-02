@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { normalizeIri, normalizeUri } from "./index.js";
 
-
 const rootlessPathTests = [
   ["foo:a/b", "foo:a/b"], // No dot segments
   ["foo:./a", "foo:a"], // Leading dot segment

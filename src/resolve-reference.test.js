@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { resolveIri } from "./index.js";
 
-
 const resolveTests = [
   ["http://a/b/c/d;p?q", "g:h", "g:h"],
   ["http://a/b/c/d;p?q", "g:h", "g:h"],
@@ -81,7 +80,8 @@ const resolveTests = [
   ["http://example.com/%C0%AF", "", "http://example.com/%C0%AF"], // Overlong UTF-8 encoding
   ["http://example.com/%ED%A0%80", "", "http://example.com/%ED%A0%80"], // UTF-8 encoded surrogate
   ["http://example.com/%ef%bf%bf", "", "http://example.com/%EF%BF%BF"], // Noncharacter isn't allowed unencoded
-  ["Https://JDesrosiers@Example.com", "", "https://JDesrosiers@example.com"] // Case normalization of authority
+  ["Https://JDesrosiers@Example.com", "", "https://JDesrosiers@example.com"], // Case normalization of authority
+  ["file://", "foo", "file:///foo"] // Empty authority and empty path
 ];
 
 describe("resolveReference", () => {

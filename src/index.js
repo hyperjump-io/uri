@@ -1,24 +1,19 @@
-/**
- * @import * as API from "./index.d.ts"
- */
+/** @import * as API from "./index.d.ts" */
 
 /**
- * @template A
- * @typedef {(value: string) => A} Parser
- */
-
-/**
- * @typedef {(value: string) => string} Normalizer
+ * @typedef {{
+ *   -readonly [Key in keyof API.IdentifierComponents]: API.IdentifierComponents[Key]
+ * }} Components
  */
 
 /**
  * @typedef {{
- *   parseAbsolute: Parser<API.AbsoluteIdentifierComponents>;
- *   parseReference: Parser<API.RelativeIdentifierComponents>;
- *   parse: Parser<API.IdentifierComponents>;
- *   normalizePath: Normalizer;
- *   normalizeQuery: Normalizer;
- *   normalizeFragment: Normalizer;
+ *   parse: typeof API.parseUri;
+ *   parseReference: typeof API.parseUriReference;
+ *   parseAbsolute: typeof API.parseAbsoluteUri;
+ *   normalizePath: (path: string) => string;
+ *   normalizeQuery: (query: string) => string;
+ *   normalizeFragment: (fragment: string) => string;
  * }} Strategy
  */
 
@@ -81,37 +76,305 @@ const iri = `^(?<scheme>${scheme}):(?://${iauthority}${ipath}|${ipathWithoutAuth
 const iriReference = `^(?:(?<scheme>${scheme}):|)(?://${iauthority}${ipath}|${ipathWithoutAuthority})${iquery}${ifragment}$`;
 const absoluteIri = `^(?<scheme>${scheme}):(?://${iauthority}${ipath}|${ipathWithoutAuthority})${iquery}$`;
 
-// Components
-/** @type (strategy: Strategy) => (reference: string, base: string) => string */
-const resolveReference = (strategy) => (reference, base) => {
-  const resolvedComponents = /** @type API.IdentifierComponents */ (strategy.parseReference(reference));
+const uriPattern = new RegExp(uri);
+const uriReferencePattern = new RegExp(uriReference);
+const absoluteUriPattern = new RegExp(absoluteUri);
 
-  if (resolvedComponents.scheme === undefined) {
-    const baseComponents = strategy.parseAbsolute(base);
-    resolvedComponents.scheme = baseComponents.scheme;
+const iriPattern = new RegExp(iri, "u");
+const iriReferencePattern = new RegExp(iriReference, "u");
+const absoluteIriPattern = new RegExp(absoluteIri, "u");
 
-    if (resolvedComponents.authority === undefined) {
-      resolvedComponents.authority = baseComponents.authority;
-      resolvedComponents.userinfo = baseComponents.userinfo;
-      resolvedComponents.host = baseComponents.host;
-      resolvedComponents.port = baseComponents.port;
+// Characters each component allows without percent-encoding
+const isAllowedInPath = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@]`));
+const isAllowedInIPath = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|${subDelims}|[:@]`, "u"));
+const isAllowedInQuery = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@/?]`));
+const isAllowedInIQuery = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|${subDelims}|[:@/?]`, "u"));
 
-      if (resolvedComponents.path === "") {
-        resolvedComponents.path = baseComponents.path;
+const isAllAllowedInFragment = new RegExp(`^(?:${unreserved}|${subDelims}|[:@/?])*$`);
+const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/?])*$`, "u");
 
-        resolvedComponents.query ??= baseComponents.query;
-      } else if (!resolvedComponents.path.startsWith("/")) {
-        resolvedComponents.path = mergePaths(resolvedComponents.path, baseComponents);
-      }
-    }
-  }
-
-  return composeIdentifier(strategy, resolvedComponents);
+// The errors are made in functions because the classes aren't defined until after these are
+/** @type Strategy */
+const uriStrategy = {
+  parse: createParser(uriPattern, (value) => new InvalidUriError(value, "URI")),
+  parseReference: createParser(uriReferencePattern, (value) => new InvalidUriError(value, "URI-reference")),
+  parseAbsolute: createParser(absoluteUriPattern, (value) => new InvalidUriError(value, "absolute-URI")),
+  normalizePath: createPathNormalizer(isAllowedInPath),
+  normalizeQuery: createQueryNormalizer(isAllowedInQuery),
+  normalizeFragment: createQueryNormalizer(isAllowedInQuery)
 };
 
-/** @type (path: string, base: API.IdentifierComponents) => string */
+/** @type Strategy */
+const iriStrategy = {
+  parse: createParser(iriPattern, (value) => new InvalidIriError(value, "IRI")),
+  parseReference: createParser(iriReferencePattern, (value) => new InvalidIriError(value, "IRI-reference")),
+  parseAbsolute: createParser(absoluteIriPattern, (value) => new InvalidIriError(value, "absolute-IRI")),
+  normalizePath: createPathNormalizer(isAllowedInIPath),
+  normalizeQuery: createQueryNormalizer(isAllowedInIQuery),
+  normalizeFragment: createQueryNormalizer(isAllowedInIQuery)
+};
+
+/** @type typeof API.isUri */
+export const isUri = createValidator(uriPattern);
+/** @type typeof API.isUriReference */
+export const isUriReference = createValidator(uriReferencePattern);
+/** @type typeof API.isAbsoluteUri */
+export const isAbsoluteUri = createValidator(absoluteUriPattern);
+
+/** @type typeof API.isIri */
+export const isIri = createValidator(iriPattern);
+/** @type typeof API.isIriReference */
+export const isIriReference = createValidator(iriReferencePattern);
+/** @type typeof API.isAbsoluteIri */
+export const isAbsoluteIri = createValidator(absoluteIriPattern);
+
+/** @type typeof API.parseUri */
+export const parseUri = uriStrategy.parse;
+/** @type typeof API.parseUriReference */
+export const parseUriReference = uriStrategy.parseReference;
+/** @type typeof API.parseAbsoluteUri */
+export const parseAbsoluteUri = uriStrategy.parseAbsolute;
+
+/** @type typeof API.parseIri */
+export const parseIri = iriStrategy.parse;
+/** @type typeof API.parseIriReference */
+export const parseIriReference = iriStrategy.parseReference;
+/** @type typeof API.parseAbsoluteIri */
+export const parseAbsoluteIri = iriStrategy.parseAbsolute;
+
+/** @type typeof API.toAbsoluteUri */
+export const toAbsoluteUri = (uri) => toAbsolute(uriStrategy, uri);
+/** @type typeof API.toAbsoluteIri */
+export const toAbsoluteIri = (iri) => toAbsolute(iriStrategy, iri);
+
+/** @type typeof API.normalizeUri */
+export const normalizeUri = (uri) => compose(uriStrategy, uriStrategy.parse(uri));
+/** @type typeof API.normalizeIri */
+export const normalizeIri = (iri) => compose(iriStrategy, iriStrategy.parse(iri));
+
+/** @type typeof API.encodeUriFragment */
+export const encodeUriFragment = createEncoder(isAllowedInQuery, isAllAllowedInFragment);
+/** @type typeof API.encodeIriFragment */
+export const encodeIriFragment = createEncoder(isAllowedInIQuery, isAllAllowedInIFragment);
+
+/** @type typeof API.resolveUri */
+export const resolveUri = (reference, base) => resolve(uriStrategy, reference, base);
+/** @type typeof API.resolveIri */
+export const resolveIri = (reference, base) => resolve(iriStrategy, reference, base);
+
+/** @type typeof API.toRelativeUri */
+export const toRelativeUri = (uri, base) => toRelative(uriStrategy, uri, base);
+/** @type typeof API.toRelativeIri */
+export const toRelativeIri = (iri, base) => toRelative(iriStrategy, iri, base);
+
+export class InvalidUriError extends Error {
+  /**
+   * @param {string} value
+   * @param {API.UriRule} rule
+   */
+  constructor(value, rule) {
+    super(`Invalid ${rule}: ${value}`);
+    this.name = "InvalidUriError";
+
+    /** @readonly */
+    this.value = value;
+
+    /** @readonly */
+    this.rule = rule;
+  }
+}
+
+export class InvalidIriError extends Error {
+  /**
+   * @param {string} value
+   * @param {API.IriRule} rule
+   */
+  constructor(value, rule) {
+    super(`Invalid ${rule}: ${value}`);
+    this.name = "InvalidIriError";
+
+    /** @readonly */
+    this.value = value;
+
+    /** @readonly */
+    this.rule = rule;
+  }
+}
+
+export class UnsupportedIpVersionError extends Error {
+  /**
+   * @param {string} value
+   * @param {string} host
+   */
+  constructor(value, host) {
+    super(`Unsupported IP version in host: ${host.slice(1, -1)}`);
+    this.name = "UnsupportedIpVersionError";
+
+    /** @readonly */
+    this.value = value;
+
+    /** @readonly */
+    this.host = host;
+  }
+}
+
+// These are called while the module loads, so they're function declarations, which are hoisted
+
+/**
+ * @param {RegExp} pattern
+ * @returns {(value: string) => boolean}
+ */
+function createValidator(pattern) {
+  return (value) => {
+    const match = pattern.exec(value);
+    if (match === null) {
+      return false;
+    }
+
+    // An IP literal of a future version has a known syntax, but whether its address is valid can't be known
+    const groups = /** @type Record<string, string | undefined> */ (match.groups);
+    if (groups.ipVFuture !== undefined) {
+      throw new UnsupportedIpVersionError(value, /** @type string */ (groups.host));
+    }
+
+    return true;
+  };
+}
+
+/**
+ * @param {RegExp} pattern
+ * @param {(value: string) => Error} invalid
+ * @returns {(value: string) => any}
+ */
+function createParser(pattern, invalid) {
+  return (value) => {
+    const match = pattern.exec(value);
+    if (match === null) {
+      throw invalid(value);
+    }
+
+    const groups = /** @type Record<string, string | undefined> */ (match.groups);
+
+    // A component that isn't there isn't a property, so the result can be spread and checked with `in`
+    /** @type Record<string, string> */
+    const components = {};
+    if (groups.scheme !== undefined) {
+      components.scheme = groups.scheme;
+    }
+    if (groups.authority !== undefined) {
+      components.authority = groups.authority;
+      if (groups.userinfo !== undefined) {
+        components.userinfo = groups.userinfo;
+      }
+      components.host = /** @type string */ (groups.host);
+      if (groups.port !== undefined) {
+        components.port = groups.port;
+      }
+      components.path = /** @type string */ (groups.path);
+    } else {
+      components.path = /** @type string */ (groups.path2);
+    }
+    if (groups.query !== undefined) {
+      components.query = groups.query;
+    }
+    if (groups.fragment !== undefined) {
+      components.fragment = groups.fragment;
+    }
+
+    return components;
+  };
+}
+
+// Normalization is skipped when it can't change anything because most identifiers don't need it
+
+// Percent-encoding is normalized before removing dot segments (RFC 3986 §6.2.2) because decoding can produce new dot
+// segments. For example, "/a/%2E%2E/b" becomes "/a/../b", which needs to be normalized to "/b".
+
+/**
+ * @param {(value: string) => boolean} isAllowed
+ * @returns {(path: string) => string}
+ */
+function createPathNormalizer(isAllowed) {
+  const replacer = percentEncodedToChar(isAllowed);
+  return (path) => {
+    if (path.includes("%")) {
+      path = path.replaceAll(percentEncoded, replacer);
+    }
+    return hasDotSegment.test(path) ? removeDotSegments(path) : path;
+  };
+}
+
+/**
+ * @param {(value: string) => boolean} isAllowed
+ * @returns {(query: string) => string}
+ */
+function createQueryNormalizer(isAllowed) {
+  const replacer = percentEncodedToChar(isAllowed);
+  return (query) => query.includes("%") ? query.replaceAll(percentEncoded, replacer) : query;
+}
+
+// Encoding produces the same percent-encoding normalization does. A character is encoded if and only if it isn't
+// allowed unescaped, so an encoded fragment is already normalized.
+
+/**
+ * @param {(value: string) => boolean} isAllowed
+ * @param {RegExp} isAllAllowed
+ * @returns {(value: string) => string}
+ */
+function createEncoder(isAllowed, isAllAllowed) {
+  return (value) => {
+    if (isAllAllowed.test(value)) {
+      return value;
+    }
+
+    let encoded = "";
+    for (const char of value) {
+      encoded += isAllowed(char) ? char : encodeOctets([...textEncoder.encode(char)]);
+    }
+
+    return encoded;
+  };
+}
+
+/** @type (strategy: Strategy, identifier: string) => string */
+const toAbsolute = (strategy, identifier) => compose(strategy, {
+  ...strategy.parse(identifier),
+  fragment: undefined
+});
+
+/** @type (strategy: Strategy, reference: string, base: string) => string */
+const resolve = (strategy, reference, base) => {
+  const components = strategy.parseReference(reference);
+
+  if (components.scheme !== undefined) {
+    return compose(strategy, /** @type API.IdentifierComponents */ (components));
+  }
+
+  const baseComponents = strategy.parseAbsolute(base);
+
+  if (components.authority !== undefined) {
+    return compose(strategy, { ...components, scheme: baseComponents.scheme });
+  }
+
+  if (components.path === "") {
+    return compose(strategy, {
+      ...baseComponents,
+      query: components.query ?? baseComponents.query,
+      fragment: components.fragment
+    });
+  }
+
+  return compose(strategy, {
+    ...baseComponents,
+    path: components.path.startsWith("/") ? components.path : mergePaths(components.path, baseComponents),
+    query: components.query,
+    fragment: components.fragment
+  });
+};
+
+/** @type (path: string, base: API.AbsoluteIdentifierComponents) => string */
 const mergePaths = (path, base) => {
-  if (base.authority && base.path === "") {
+  if (base.authority !== undefined && base.path === "") {
     return "/" + path;
   } else {
     const position = base.path.lastIndexOf("/");
@@ -147,27 +410,32 @@ const removeDotSegments = (path) => {
   return output;
 };
 
-/** @type (strategy: Strategy, components: API.IdentifierComponents) => string */
-const composeIdentifier = (strategy, components) => {
-  let resolved = components.scheme.toLowerCase() + ":";
-  resolved += components.authority === undefined ? "" : "//"
-    + (components.userinfo === undefined ? "" : components.userinfo + "@")
-    + components.host.toLowerCase()
-    + (components.port === undefined ? "" : ":" + components.port);
+/** @type (strategy: Strategy, components: Components) => string */
+const compose = (strategy, components) => {
+  let composed = components.scheme.toLowerCase() + ":";
+  if (components.authority !== undefined) {
+    composed += "//";
+    composed += components.userinfo === undefined ? "" : components.userinfo + "@";
+    composed += /** @type string */ (components.host).toLowerCase();
+    composed += components.port === undefined ? "" : ":" + components.port;
+  }
   const path = strategy.normalizePath(components.path);
   // Without an authority, a path starting with "//" would be parsed as an authority. Prefixing "/." keeps it a path.
-  resolved += components.authority === undefined && path.startsWith("//") ? "/." + path : path;
-  resolved += components.query === undefined ? "" : "?" + strategy.normalizeQuery(components.query);
-  resolved += components.fragment === undefined ? "" : "#" + strategy.normalizeFragment(components.fragment);
+  composed += components.authority === undefined && path.startsWith("//") ? "/." + path : path;
+  composed += components.query === undefined ? "" : "?" + strategy.normalizeQuery(components.query);
+  composed += components.fragment === undefined ? "" : "#" + strategy.normalizeFragment(components.fragment);
 
-  return resolved;
+  return composed;
 };
+
+const hasDotSegment = /(?:^|\/)\.\.?(?:\/|$)/;
 
 // Consecutive percent-encoded octets are matched together because a non-ASCII character is encoded as a multi-octet
 // UTF-8 sequence. For example, "é" is encoded as "%C3%A9".
 const percentEncoded = new RegExp(`(?:${pctEncoded})+`, "g");
 
 const utf8Decoder = new TextDecoder("utf-8", { fatal: true });
+const textEncoder = new TextEncoder();
 
 /** @type (octet: number) => number */
 const utf8SequenceLength = (octet) => {
@@ -196,211 +464,48 @@ const decodeUtf8 = (octets) => {
 
 /** @type (octets: number[]) => string */
 const encodeOctets = (octets) => octets
-  .map((octet) => "%" + octet.toString(16).toUpperCase().padStart(2, "0"))
+  .map((octet) => "%" + octet.toString(16)
+    .toUpperCase()
+    .padStart(2, "0"))
   .join("");
 
-/** @type (isAllowed: (value: string) => boolean) => (match: string) => string */
-const percentEncodedToChar = (isAllowed) => (match) => {
-  const octets = match.slice(1).split("%").map((hex) => parseInt(hex, 16));
-
-  let result = "";
-  let position = 0;
-  while (position < octets.length) {
-    const length = utf8SequenceLength(octets[position]);
-    const sequence = octets.slice(position, position + length);
-    const char = length > 0 && sequence.length === length ? decodeUtf8(sequence) : undefined;
-
-    if (char === undefined) {
-      // Octets that aren't valid UTF-8 can't be decoded, so they stay encoded
-      result += encodeOctets([octets[position]]);
-      position += 1;
-    } else {
-      result += isAllowed(char) ? char : encodeOctets(sequence);
-      position += length;
-    }
-  }
-
-  return result;
-};
-
-const isAllowedUnescapedInPath = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@]`));
-const isAllowedUnescapedInIPath = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|${subDelims}|[:@]`, "u"));
-
-// Normalization is skipped when it can't change anything because most identifiers don't need it
-
-const hasDotSegment = /(?:^|\/)\.\.?(?:\/|$)/;
-
-// Percent-encoding is normalized before removing dot segments (RFC 3986 §6.2.2) because decoding can produce new dot
-// segments. For example, "/a/%2E%2E/b" becomes "/a/../b", which needs to be normalized to "/b".
-
-/** @type (isAllowed: (value: string) => boolean) => (segment: string) => string */
-const normalizePath = (isAllowed) => {
-  const replacer = percentEncodedToChar(isAllowed);
-  return (segment) => {
-    if (segment.includes("%")) {
-      segment = segment.replaceAll(percentEncoded, replacer);
-    }
-    return hasDotSegment.test(segment) ? removeDotSegments(segment) : segment;
-  };
-};
-
-const isAllowedUnescapedInQuery = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@/?]`));
-const isAllowedUnescapedInIQuery = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|${subDelims}|[:@/?]`, "u"));
-
-/** @type (isAllowed: (value: string) => boolean) => (segment: string) => string */
-const normalizeQuery = (isAllowed) => {
-  const replacer = percentEncodedToChar(isAllowed);
-  return (query) => query.includes("%") ? query.replaceAll(percentEncoded, replacer) : query;
-};
-
-// Encoding produces the same percent-encoding normalization does. A character is encoded if and only if it isn't
-// allowed unescaped, so an encoded fragment is already normalized.
-
-const textEncoder = new TextEncoder();
-
-/** @type (isAllowed: (value: string) => boolean, isAllAllowed: RegExp) => (value: string) => string */
-const encodeComponent = (isAllowed, isAllAllowed) => (value) => {
-  if (isAllAllowed.test(value)) {
-    return value;
-  }
-
-  let encoded = "";
-  for (const char of value) {
-    encoded += isAllowed(char) ? char : encodeOctets([...textEncoder.encode(char)]);
-  }
-
-  return encoded;
-};
-
-const isAllAllowedInFragment = new RegExp(`^(?:${unreserved}|${subDelims}|[:@/?])*$`);
-const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/?])*$`, "u");
-
-// API
-/** @type (match: RegExpMatchArray) => void */
-const throwOnUnsupportedIpVersion = (match) => {
-  const { ipVFuture } = /** @type Record<string, string> */ (match.groups);
-  if (ipVFuture !== undefined) {
-    throw Error(`Unsupported IP version in host: ${ipVFuture}`);
-  }
-};
-
-/** @type (pattern: RegExp) => (value: string) => boolean */
-const createValidator = (pattern) => (value) => {
-  const match = pattern.exec(value);
-  if (match === null) {
-    return false;
-  }
-  throwOnUnsupportedIpVersion(match);
-
-  return true;
-};
-
-/** @type API.isUri */
-export const isUri = createValidator(new RegExp(uri));
-/** @type API.isUriReference */
-export const isUriReference = createValidator(new RegExp(uriReference));
-/** @type API.isAbsoluteUri */
-export const isAbsoluteUri = createValidator(new RegExp(absoluteUri));
-
-/** @type API.isIri */
-export const isIri = createValidator(new RegExp(iri, "u"));
-/** @type API.isIriReference */
-export const isIriReference = createValidator(new RegExp(iriReference, "u"));
-/** @type API.isAbsoluteIri */
-export const isAbsoluteIri = createValidator(new RegExp(absoluteIri, "u"));
-
 /**
- * @type (pattern: RegExp, type: string) => (value: string) => any
+ * @param {(value: string) => boolean} isAllowed
+ * @returns {(match: string) => string}
  */
-const createParser = (pattern, type) => (value) => {
-  const match = pattern.exec(value);
-  if (match === null) {
-    throw Error(`Invalid ${type}: ${value}`);
-  }
-  const groups = /** @type Record<string, string> */ (match.groups);
-  if (groups.authority === undefined) {
-    groups.path = groups.path2;
-  }
-  delete groups.path2;
-  delete groups.ipVFuture;
+function percentEncodedToChar(isAllowed) {
+  return (match) => {
+    const octets = match.slice(1)
+      .split("%")
+      .map((hex) => parseInt(hex, 16));
 
-  return groups;
-};
+    let result = "";
+    let position = 0;
+    while (position < octets.length) {
+      const length = utf8SequenceLength(octets[position]);
+      const sequence = octets.slice(position, position + length);
+      const char = length > 0 && sequence.length === length ? decodeUtf8(sequence) : undefined;
 
-/** @type API.parseUri */
-export const parseUri = createParser(new RegExp(uri), "URI");
-/** @type API.parseUriReference */
-export const parseUriReference = createParser(new RegExp(uriReference), "URI-reference");
-/** @type API.parseAbsoluteUri */
-export const parseAbsoluteUri = createParser(new RegExp(absoluteUri), "absolute-URI");
+      if (char === undefined) {
+        // Octets that aren't valid UTF-8 can't be decoded, so they stay encoded
+        result += encodeOctets([octets[position]]);
+        position += 1;
+      } else {
+        result += isAllowed(char) ? char : encodeOctets(sequence);
+        position += length;
+      }
+    }
 
-/** @type API.parseIri */
-export const parseIri = createParser(new RegExp(iri, "u"), "IRI");
-/** @type API.parseIriReference */
-export const parseIriReference = createParser(new RegExp(iriReference, "u"), "IRI-reference");
-/** @type API.parseAbsoluteIri */
-export const parseAbsoluteIri = createParser(new RegExp(absoluteIri, "u"), "absolute-IRI");
+    return result;
+  };
+}
 
-/** @type Record<string, Strategy> */
-const strategies = {
-  uri: {
-    parseAbsolute: parseAbsoluteUri,
-    parseReference: parseUriReference,
-    parse: parseUri,
-    normalizePath: normalizePath(isAllowedUnescapedInPath),
-    normalizeQuery: normalizeQuery(isAllowedUnescapedInQuery),
-    normalizeFragment: normalizeQuery(isAllowedUnescapedInQuery)
-  },
-  iri: {
-    parseAbsolute: parseAbsoluteIri,
-    parseReference: parseIriReference,
-    parse: parseIri,
-    normalizePath: normalizePath(isAllowedUnescapedInIPath),
-    normalizeQuery: normalizeQuery(isAllowedUnescapedInIQuery),
-    normalizeFragment: normalizeQuery(isAllowedUnescapedInIQuery)
-  }
-};
-
-/** @type (strategy: Strategy) => (identifier: string) => string */
-const toAbsolute = (strategy) => (identifier) => {
-  const components = strategy.parse(identifier);
-  delete components.fragment;
-  return composeIdentifier(strategy, components);
-};
-
-/** @type API.toAbsoluteUri */
-export const toAbsoluteUri = toAbsolute(strategies.uri);
-/** @type API.toAbsoluteIri */
-export const toAbsoluteIri = toAbsolute(strategies.iri);
-
-/** @type (strategy: Strategy) => (identifier: string) => string */
-const normalize = (strategy) => (identifier) => {
-  const components = strategy.parse(identifier);
-  return composeIdentifier(strategy, components);
-};
-
-/** @type API.normalizeUri */
-export const normalizeUri = normalize(strategies.uri);
-/** @type API.normalizeIri */
-export const normalizeIri = normalize(strategies.iri);
-
-/** @type API.encodeUriFragment */
-export const encodeUriFragment = encodeComponent(isAllowedUnescapedInQuery, isAllAllowedInFragment);
-/** @type API.encodeIriFragment */
-export const encodeIriFragment = encodeComponent(isAllowedUnescapedInIQuery, isAllAllowedInIFragment);
-
-/** @type API.resolveUri */
-export const resolveUri = resolveReference(strategies.uri);
-/** @type API.resolveIri */
-export const resolveIri = resolveReference(strategies.iri);
-
-/** @type (strategy: Strategy) => (uri: string, relativeTo: string) => string */
-const toRelative = (strategy) => (uri, relativeTo) => {
+/** @type (strategy: Strategy, uri: string, base: string) => string */
+const toRelative = (strategy, uri, base) => {
   // Both identifiers are normalized so that equivalent identifiers compare equal and the result resolves to the
   // normalized target
-  const from = composeIdentifier(strategy, strategy.parseAbsolute(uri));
-  const to = composeIdentifier(strategy, strategy.parse(relativeTo));
-  const fromUri = strategy.parseAbsolute(from);
+  const fromUri = strategy.parseAbsolute(compose(strategy, strategy.parseAbsolute(base)));
+  const to = compose(strategy, strategy.parse(uri));
   const toUri = strategy.parse(to);
 
   if (toUri.scheme !== fromUri.scheme) {
@@ -471,8 +576,3 @@ const relativePath = (from, to) => {
   // Prefix "./" when the reference would otherwise be empty, start with an empty segment, or look like a scheme
   return result === "" || result.startsWith("/") || hasSchemeLikeSegment.test(result) ? "./" + result : result;
 };
-
-/** @type API.toRelativeUri */
-export const toRelativeUri = toRelative(strategies.uri);
-/** @type API.toRelativeIri */
-export const toRelativeIri = toRelative(strategies.iri);

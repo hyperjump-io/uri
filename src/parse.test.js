@@ -4,7 +4,6 @@ import {
   parseIri, parseIriReference, parseAbsoluteIri
 } from "./index.js";
 
-
 describe("parseUri", () => {
   test("Full", () => {
     expect(parseUri("https://jason@example.com:80/foo?bar#baz")).to.eql({
@@ -23,12 +22,9 @@ describe("parseUri", () => {
     expect(parseUri("https://example.org?bar")).to.eql({
       scheme: "https",
       authority: "example.org",
-      userinfo: undefined,
       host: "example.org",
-      port: undefined,
       path: "",
-      query: "bar",
-      fragment: undefined
+      query: "bar"
     });
   });
 
@@ -36,11 +32,8 @@ describe("parseUri", () => {
     expect(parseUri("https://example.org#baz")).to.eql({
       scheme: "https",
       authority: "example.org",
-      userinfo: undefined,
       host: "example.org",
-      port: undefined,
       path: "",
-      query: undefined,
       fragment: "baz"
     });
   });
@@ -53,10 +46,6 @@ describe("parseUri", () => {
   test("No authority", () => {
     expect(parseUri("uri:/foo?bar#baz")).to.eql({
       scheme: "uri",
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "/foo",
       query: "bar",
       fragment: "baz"
@@ -66,10 +55,6 @@ describe("parseUri", () => {
   test("Rootless path", () => {
     expect(parseUri("uri:foo?bar#baz")).to.eql({
       scheme: "uri",
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "foo",
       query: "bar",
       fragment: "baz"
@@ -82,7 +67,7 @@ describe("parseUri", () => {
   });
 });
 
-describe("isUriReference", () => {
+describe("parseUriReference", () => {
   test("Full", () => {
     expect(parseUriReference("https://jason@example.com:80/foo?bar#baz")).to.eql({
       scheme: "https",
@@ -100,12 +85,9 @@ describe("isUriReference", () => {
     expect(parseUriReference("https://example.org?bar")).to.eql({
       scheme: "https",
       authority: "example.org",
-      userinfo: undefined,
       host: "example.org",
-      port: undefined,
       path: "",
-      query: "bar",
-      fragment: undefined
+      query: "bar"
     });
   });
 
@@ -113,22 +95,16 @@ describe("isUriReference", () => {
     expect(parseUriReference("https://example.org#baz")).to.eql({
       scheme: "https",
       authority: "example.org",
-      userinfo: undefined,
       host: "example.org",
-      port: undefined,
       path: "",
-      query: undefined,
       fragment: "baz"
     });
   });
 
   test("No scheme with authority", () => {
     expect(parseUriReference("//example.com/foo?bar#baz")).to.eql({
-      scheme: undefined,
       authority: "example.com",
-      userinfo: undefined,
       host: "example.com",
-      port: undefined,
       path: "/foo",
       query: "bar",
       fragment: "baz"
@@ -137,11 +113,6 @@ describe("isUriReference", () => {
 
   test("No double slash", () => {
     expect(parseUriReference("example.com/foo?bar#baz")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "example.com/foo",
       query: "bar",
       fragment: "baz"
@@ -150,11 +121,6 @@ describe("isUriReference", () => {
 
   test("No authority", () => {
     expect(parseUriReference("/foo?bar#baz")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "/foo",
       query: "bar",
       fragment: "baz"
@@ -163,11 +129,6 @@ describe("isUriReference", () => {
 
   test("No path", () => {
     expect(parseUriReference("?bar#baz")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "",
       query: "bar",
       fragment: "baz"
@@ -176,27 +137,14 @@ describe("isUriReference", () => {
 
   test("No query", () => {
     expect(parseUriReference("#baz")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "",
-      query: undefined,
       fragment: "baz"
     });
   });
 
   test("Empty", () => {
     expect(parseUriReference("")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
-      path: "",
-      query: undefined,
-      fragment: undefined
+      path: ""
     });
   });
 
@@ -206,7 +154,7 @@ describe("isUriReference", () => {
   });
 });
 
-describe("isAbsoluteUri", () => {
+describe("parseAbsoluteUri", () => {
   test("Full", () => {
     expect(parseAbsoluteUri("https://jason@example.com:80/foo?bar")).to.eql({
       scheme: "https",
@@ -253,12 +201,9 @@ describe("parseIri", () => {
     expect(parseIri("http://examplé.org?fóo")).to.eql({
       scheme: "http",
       authority: "examplé.org",
-      userinfo: undefined,
       host: "examplé.org",
-      port: undefined,
       path: "",
-      query: "fóo",
-      fragment: undefined
+      query: "fóo"
     });
   });
 
@@ -266,11 +211,8 @@ describe("parseIri", () => {
     expect(parseIri("http://examplé.org#bár")).to.eql({
       scheme: "http",
       authority: "examplé.org",
-      userinfo: undefined,
       host: "examplé.org",
-      port: undefined,
       path: "",
-      query: undefined,
       fragment: "bár"
     });
   });
@@ -283,10 +225,6 @@ describe("parseIri", () => {
   test("No authority", () => {
     expect(parseIri("uri:/rosé?fóo#bár")).to.eql({
       scheme: "uri",
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "/rosé",
       query: "fóo",
       fragment: "bár"
@@ -296,10 +234,6 @@ describe("parseIri", () => {
   test("Rootless path", () => {
     expect(parseIri("uri:rosé?fóo#bár")).to.eql({
       scheme: "uri",
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "rosé",
       query: "fóo",
       fragment: "bár"
@@ -330,12 +264,9 @@ describe("parseIriReference", () => {
     expect(parseIriReference("http://examplé.org?fóo")).to.eql({
       scheme: "http",
       authority: "examplé.org",
-      userinfo: undefined,
       host: "examplé.org",
-      port: undefined,
       path: "",
-      query: "fóo",
-      fragment: undefined
+      query: "fóo"
     });
   });
 
@@ -343,22 +274,16 @@ describe("parseIriReference", () => {
     expect(parseIriReference("http://examplé.org#bár")).to.eql({
       scheme: "http",
       authority: "examplé.org",
-      userinfo: undefined,
       host: "examplé.org",
-      port: undefined,
       path: "",
-      query: undefined,
       fragment: "bár"
     });
   });
 
   test("No scheme with authority", () => {
     expect(parseIriReference("//examplé.org/rosé?fóo#bár")).to.eql({
-      scheme: undefined,
       authority: "examplé.org",
-      userinfo: undefined,
       host: "examplé.org",
-      port: undefined,
       path: "/rosé",
       query: "fóo",
       fragment: "bár"
@@ -367,11 +292,6 @@ describe("parseIriReference", () => {
 
   test("No double slash", () => {
     expect(parseIriReference("examplé.org/rosé?fóo#bár")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "examplé.org/rosé",
       query: "fóo",
       fragment: "bár"
@@ -380,11 +300,6 @@ describe("parseIriReference", () => {
 
   test("No authority", () => {
     expect(parseIriReference("/rosé?fóo#bár")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "/rosé",
       query: "fóo",
       fragment: "bár"
@@ -393,11 +308,6 @@ describe("parseIriReference", () => {
 
   test("Rootless path", () => {
     expect(parseIriReference("rosé?fóo#bár")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "rosé",
       query: "fóo",
       fragment: "bár"
@@ -406,11 +316,6 @@ describe("parseIriReference", () => {
 
   test("Query and fragment", () => {
     expect(parseIriReference("?fóo#bár")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "",
       query: "fóo",
       fragment: "bár"
@@ -419,40 +324,21 @@ describe("parseIriReference", () => {
 
   test("Query only", () => {
     expect(parseIriReference("?fóo")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "",
-      query: "fóo",
-      fragment: undefined
+      query: "fóo"
     });
   });
 
   test("Fragment only", () => {
     expect(parseIriReference("#bár")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
       path: "",
-      query: undefined,
       fragment: "bár"
     });
   });
 
   test("Empty", () => {
     expect(parseIriReference("")).to.eql({
-      scheme: undefined,
-      authority: undefined,
-      userinfo: undefined,
-      host: undefined,
-      port: undefined,
-      path: "",
-      query: undefined,
-      fragment: undefined
+      path: ""
     });
   });
 });
@@ -483,5 +369,35 @@ describe("parseAbsoluteIri", () => {
   test("Unicode is not allowed in scheme", () => {
     expect(() => parseAbsoluteIri("examplé://examplé.org/rosé"))
       .to.throw(Error, "Invalid absolute-IRI: examplé://examplé.org/rosé");
+  });
+});
+
+describe("parsed components", () => {
+  test("a component that isn't there isn't a property", () => {
+    const components = parseUri("urn:example:foo");
+    expect(Object.keys(components)).to.eql(["scheme", "path"]);
+    expect("authority" in components).to.equal(false);
+  });
+
+  test("an empty component is an empty string", () => {
+    expect(parseUri("https://@example.com:?#")).to.eql({
+      scheme: "https",
+      authority: "@example.com:",
+      userinfo: "",
+      host: "example.com",
+      port: "",
+      path: "",
+      query: "",
+      fragment: ""
+    });
+  });
+
+  test("an IP literal of a future version is parsed", () => {
+    expect(parseUri("http://[v7.future]/foo")).to.eql({
+      scheme: "http",
+      authority: "[v7.future]",
+      host: "[v7.future]",
+      path: "/foo"
+    });
   });
 });

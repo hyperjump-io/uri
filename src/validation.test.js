@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { isUri, isUriReference, isAbsoluteUri, isIri, isIriReference, isAbsoluteIri } from "./index.js";
 
-
 describe("isUri", () => {
   test("Full", () => {
     expect(isUri("https://jason@example.com:80/foo?bar#baz")).to.equal(true);
