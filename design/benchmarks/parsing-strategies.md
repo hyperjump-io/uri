@@ -74,3 +74,26 @@ query, or fragment.
   question.
 - A check with a `charCodeAt` loop was slower than with a regular
   expression.
+
+## The `v` flag
+
+`benchmark/v-grammar.js` writes the IRI grammar for the `v` flag, and
+`benchmark/v-flag-time.js` times it with `test`, 300,000 iterations over
+the same identifiers as [The `u` flag](#the-u-flag), each variant in its
+own process. Both `v` versions and the merged `u` version accepted the
+same strings as the current pattern, on 300,000 random strings, 104,634
+of them valid (`benchmark/v-flag.js`). "Merged" puts each rule's
+one-character alternatives in one class, like `pchar` as
+`[unreserved sub-delims : @]` or `pct-encoded`.
+
+| | ASCII | Unicode |
+| --- | --- | --- |
+| `u`, as written | 111 | 129 |
+| `v`, the same structure | 139 | 134 |
+| `v`, merged | 132 | 125 |
+| `u`, merged, with the nested classes flattened | 104–108 | 113 |
+
+- `v` is slower on ASCII, whichever way the grammar is written.
+- Merging is faster with `u` too, about 12% on Unicode, and 3–7% on
+  ASCII, which is close to noise. It isn't done, because the RFC writes
+  each of those rules as alternatives, with `pct-encoded` among them.

@@ -90,6 +90,17 @@ Measured in [Parsing strategies](../benchmarks/parsing-strategies.md).
   slower on Unicode. A profile of a dependent project once suggested the
   `u` flag was slow. That was with capture groups, which were most of the
   cost of a match.
+- **The `v` flag** instead of `u`. Nested classes would let
+  `iunreserved` be `[${unreserved}${ucschar}]`, the way RFC 3987 defines
+  it, but `u` can get the same named `ucschar` by keeping its ranges
+  unbracketed. The set operations don't help, because the ABNF never
+  subtracts or intersects sets, and `pchar` includes `pct-encoded`, which
+  isn't one character. Inside a class, `v` needs `(`, `)`, `-`, and `/`
+  escaped, so `sub-delims` reads less like the RFC. It was 1.25 times
+  slower on ASCII, and about the same on Unicode. It needs Node.js 20,
+  Chrome 112, Firefox 116, or Safari 17, and the patterns are built when
+  the module loads, so on anything older, importing the package throws a
+  `SyntaxError`.
 - **Deleting the `undefined` groups from `match.groups`**, to leave out
   missing components. It was twice as slow as building a new object, and
   the result is still a null-prototype object.
