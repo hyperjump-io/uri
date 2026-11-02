@@ -79,6 +79,14 @@ isIriReference("//example.com/a", { scheme: "https" });
   without looking the scheme up. A rule that's only about the absolute
   form, like `http` requiring an authority, doesn't apply to a reference
   that doesn't have one.
+- A scheme's path rule applies only to a path that is the path of what
+  the reference resolves to, apart from removing dot segments. That's a
+  reference with a scheme or an authority. Any other path is relative,
+  and gets the generic syntax only. `schema.json` isn't `file`'s
+  `path-absolute`, but against `file:///a/b.json` it resolves to
+  `file:///a/schema.json`, which is. The path it resolves to is checked
+  when it's resolved (see
+  [Resolving, relativizing, and normalizing](#resolving-relativizing-and-normalizing)).
 - One of a scheme's rules is its name: a scheme component, if there is
   one, is the scheme's name. So a reference with a different scheme of its
   own fails the given scheme's rules.
@@ -97,6 +105,68 @@ isIriReference("//example.com/a", { scheme: "https" });
   adds nothing.
 - **A separate rule that a different scheme is invalid.** The scheme's
   name is one of its rules, so it isn't a rule of its own.
+- **A scheme's path rule for every path a reference has.** A relative
+  path is only part of the path it resolves to, so the rule asks the
+  wrong question of it. `isIriReference("schema.json", { scheme: "file" })`
+  would be `false`, for a reference that resolves to a valid `file` URI.
+
+## Resolving, relativizing, and normalizing
+
+`resolve*`, `toRelative*`, `toAbsolute*`, and `normalize*` check scheme
+rules too, as strictly as the validators. Looser checks would hide broken
+data, which is why `resolve*` checks its base even when it isn't used
+(see [Resolving](resolving.md)). They take `customSchemes`, `schemes`, and
+`allowUnknownScheme`, which mean what they mean for the validators. They
+don't take `scheme`, because what they work on always has a scheme of its
+own: a base, a `URI`, or what a reference resolves to.
+
+`resolve*` checks:
+
+1. The base, with its scheme's rules, whether the reference uses it or
+   not.
+2. The reference, with the generic syntax only.
+3. The result, with its scheme's rules.
+
+The result is checked instead of the reference because resolving makes a
+path that neither input has. Resolving `b` against `urn:example:a` merges
+the paths into `urn:b`, which has no namespace-specific string. Checking
+the result also catches what the reference brings: `//` against
+`http://a/b` is `http://`, which has an empty host. Every part of the
+reference that's kept is in the result, so checking the reference against
+the scheme as well would add nothing.
+
+A result that fails can only be the reference's fault, since the base has
+already passed, so the error is about the reference. Its `value` is the
+reference, and its `rule` is the scheme's rule. A component the result has
+from the reference is spanned in the reference. A merged path spans the
+reference's path, because no one place in the reference made it. A
+reference with a scheme of its own that's unknown throws
+`UnknownSchemeError`, unless `allowUnknownScheme` is `true`.
+
+RFC 8141 §4.3 says resolving a relative reference against a `urn` URI "is
+problematic", and that applications "should generally avoid" it. It also
+says resolving with the generic algorithm "should work predictably" for
+`urn` URIs. So
+resolving against a URN isn't an error: the result is checked like any
+other. `c` against `urn:example:a/b` is `urn:example:a/c`, which is valid.
+
+`toRelative*` checks `uri` and `base` with their schemes' rules. Its
+result resolves to `uri`, which has passed, so it isn't checked.
+`toAbsolute*` and `normalize*` check what they're given.
+
+### Rejected
+
+- **The generic syntax only.** A base like `http:///a` would resolve
+  references, and the problem would show up later, if at all: `//host/x`
+  against it gives a valid result. Valid inputs can also make an invalid
+  result, like `//` against `http://a/b`.
+- **Checking the reference against the base's scheme, instead of the
+  result.** It misses the merged path, which only the result has.
+- **A rule that a scheme doesn't allow relative references.** RFC 8141's
+  "should generally avoid" is advice to whoever writes the identifiers,
+  not a syntax rule, and only MUST-level rules are built in. RFC 4151
+  doesn't mention relative references for `tag`. Checking the result
+  already rejects references that make an invalid identifier.
 
 ## Defining a scheme
 
@@ -234,15 +304,15 @@ built in:
   comparing JSON Schema identifiers, so it's a decision of its own.
 - URN namespaces, like `urn:uuid:` (RFC 9562), which add rules for the
   namespace a URN names. `urn`'s definition shouldn't rule them out.
-- Scheme options for `resolve*`, `toRelative*`, `normalize*`, and
-  `toAbsolute*`. Whether those should be more tolerant than the
-  validators is a separate question.
 
 ## What changes for callers
 
 - `isIri("http:///a")` is `false`, and `isIri("foo:bar")` throws
   `UnknownSchemeError`, where both were `true` in v1. Migrate from v1
   lists it.
+- `resolveIri("foo:bar", "https://a/")` throws `UnknownSchemeError`, and
+  so does a base with an unknown scheme. Callers that resolve identifiers
+  with schemes that aren't built in pass options.
 - The JSON Schema `uri` and `iri` formats are the generic syntax, so
   `json-schema-formats` passes `{ schemes: [], allowUnknownScheme: true }`.
 
@@ -260,6 +330,9 @@ built in:
   wording on empty hosts.
 - How expensive the default path is, with a scheme lookup and that
   scheme's rules on every call. To be measured before choosing how the
-  built-ins are compiled.
+  built-ins are compiled. `resolve*` checks two identifiers with their
+  schemes' rules, the base and the result.
+- Whether `normalize*` checks its result too. Removing dot segments
+  could break a scheme's path rule, the way merging paths can.
 - Which rule strings are exported for custom schemes, since they become
   public API.

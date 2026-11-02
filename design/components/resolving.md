@@ -54,6 +54,16 @@ Resolving builds a new set of components with spreads instead of changing
 the parsed reference, because parsed components are readonly (see
 [Types](types.md)).
 
+### Schemes
+
+*Designed, not implemented.*
+
+The base and the result are checked with their schemes' rules too, and
+the reference with the generic syntax only. The result is checked
+instead of the reference because resolving can merge paths into one that
+neither input has. See
+[Schemes](schemes.md#resolving-relativizing-and-normalizing).
+
 ### The base's authority
 
 The test for whether the base has an authority is
