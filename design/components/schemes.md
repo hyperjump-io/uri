@@ -56,7 +56,8 @@ isIri(value, { schemes: [], allowUnknownScheme: true }); // generic syntax only
    doesn't reliably have one.
 2. Its scheme's rules, if the scheme is known. An identifier that fails
    them is invalid, and the parser's error has the scheme's rule, like
-   `"http-URI"`.
+   `"http-URI"`, and says which of its rules failed (see
+   [Errors](#errors)).
 3. Otherwise, the scheme is unknown. It throws `UnknownSchemeError`, with
    `value` and `scheme`, from validators and parsers, unless
    `allowUnknownScheme` is `true`.
@@ -107,7 +108,10 @@ const tagScheme = defineScheme({
   name: "tag",
   rule: "tagURI",
   authority: "forbidden",
-  path: (rules) => `...`
+  path: {
+    pattern: (rules) => `...`,
+    description: "a tagging entity, a date, \":\", and a name, like example.com,2004:a"
+  }
 });
 ```
 
@@ -123,6 +127,8 @@ const tagScheme = defineScheme({
   [Grammar](grammar.md#uris-and-iris)), so one definition covers both. For
   IRIs, `pchar` is `ipchar`, so a scheme doesn't have to know which it's
   compiled for.
+- A pattern can be given by itself, or with a `description` of what the
+  component has to be, for error messages (see [Errors](#errors)).
 - Fragments have rules like any other component. RFC 8141 defines the
   fragment of a URN as `f-component`, and a scheme can forbid fragments.
 - `defineScheme` compiles the patterns when it's called, so a bad pattern
@@ -152,6 +158,40 @@ can be checked against it like the generic grammar.
 - **A way to register schemes**, so that every call knows them. A call's
   result would depend on what some other module registered. Code that
   uses the same options in many places wraps the functions instead.
+
+## Errors
+
+An identifier that fails its scheme's rules gets the same error fields as
+one that fails the generic syntax (see [Errors](errors.md)): a `reason`,
+the `component`, and a span. The message is made from the scheme's
+definition, so a custom scheme's errors are as useful as a built-in's:
+
+| `reason` | Message |
+| --- | --- |
+| `missing-component` | `an http URI must have an authority` |
+| `forbidden-component` | `a tag URI can't have an authority` |
+| `component-mismatch` | `a tag URI's path must be a tagging entity, a date, ":", and a name, like example.com,2004:a` |
+| `wrong-scheme` | `the scheme must be file` |
+
+The scheme's name in a message is its `name`. A pattern without a
+`description` falls back to the rule: `the path doesn't match tagURI`.
+
+A `component-mismatch` spans the whole component, not a character in it.
+The generic syntax is checked first, so a character that no component of
+that kind can have has already been reported, at its position. What a
+scheme's pattern adds is structure, like a date where the path starts,
+and a description of the structure says more than a position in it would.
+
+### Rejected
+
+- **Positions inside a scheme's pattern**, with the longest prefix that
+  matches, as the generic diagnosis does. It's only exact for a
+  repetition of characters. For a pattern with structure, like `tag`'s
+  path, the longest match can end well before the mistake, and the
+  position would point at the wrong place.
+- **Messages without a description**, from the scheme's rule name only.
+  "Doesn't match tagURI" is the same message that the generic errors
+  were changed to get rid of.
 
 ## Built-in schemes
 
