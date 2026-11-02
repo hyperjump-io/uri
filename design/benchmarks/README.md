@@ -13,3 +13,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 
 - [Comparison with v1](v1-comparison.md) (2026-11-01)
 - [Parsing strategies](parsing-strategies.md) (2026-11-01)
+- [Other implementations](other-implementations.md) (2026-11-01)
