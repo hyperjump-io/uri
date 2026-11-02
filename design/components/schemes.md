@@ -583,16 +583,13 @@ same way. The user docs show this.
   schemes' rules, the base and the result.
 - Whether `coap` puts IPv6 literals in RFC 5952 form, which RFC 7252
   §6.3 says is the normal form, like `2001:db8::1` for
-  `2001:DB8:0:0:0:0:0:1`. No other candidate licenses it. A prototype
-  (`benchmark/ipv6-canonical.js`, uncommitted) matches Node's `URL` on
-  300,000 random addresses, and writes IPv4-mapped addresses in mixed
-  notation as RFC 5952 §5 says. It's 732 bytes gzipped, before
-  minifying, on top of 6,464 for `src/index.js`. An identifier without
-  an IPv6 literal only pays for checking for `[`, which can't be
-  measured. One with an IPv6 literal pays 430 to 660 nanoseconds, where
-  `normalizeIri` takes about 360 nanoseconds for the whole identifier, but the
-  prototype makes arrays, and one pass over the string should cost a
-  fraction of that. Adding it after 2.0.0 is a breaking change.
+  `2001:DB8:0:0:0:0:0:1`. It follows the rule for built-in
+  normalization, and adding it after 2.0.0 is a breaking change. A
+  one-pass prototype costs 80 to 360 nanoseconds for each IPv6 literal,
+  only in a `coap` identifier, and about 620 bytes gzipped, or 10% of
+  the library, for every user. The measurements and the case for and
+  against are in [IPv6 canonical form](../benchmarks/ipv6-canonical-form.md).
+  It only matters if `coap` is built in.
 - Whether the other syntax-based steps are exported, like `lowercase`.
   `urn` turns off the syntax-based normalization and makes hex
   digits uppercase itself, and a custom scheme could need to do the same.
