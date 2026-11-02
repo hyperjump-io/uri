@@ -154,7 +154,8 @@ other. `c` against `urn:example:a/b` is `urn:example:a/c`, which is valid.
 result resolves to `uri`, which has passed, so it isn't checked.
 `toAbsolute*` and `normalize*` check what they're given. `normalize*`
 also checks its result, but only when it removed dot segments, because
-that's the only step that can break a scheme's rule (see
+that's the only step of the built-in normalization that can break a
+scheme's rule (see
 [Normalizing](#normalizing)).
 
 ### Rejected
@@ -269,10 +270,10 @@ and a description of the structure says more than a position in it would.
 ## Normalizing
 
 Every function that returns an identifier normalizes it with its scheme's
-rules too, after the syntax-based normalization (RFC 3986 §6.2.3). It's in
-2.0.0 because adding it later would change what `resolve*`, `toRelative*`,
-and `normalize*` return, the way adding a built-in scheme would. It also
-makes `https://example.com` and `https://example.com/` the same `$id`.
+rules too (RFC 3986 §6.2.3). It's in 2.0.0 because adding it later would
+change what `resolve*`, `toRelative*`, and `normalize*` return, the way
+adding a built-in scheme would. It also makes `https://example.com` and
+`https://example.com/` the same `$id`.
 
 A scheme's specification can add normalizations and take away
 syntax-based ones, because the scheme is the second layer of the syntax
@@ -281,55 +282,139 @@ syntax-based ones, because the scheme is the second layer of the syntax
 | Scheme | Normalization | Specification |
 | --- | --- | --- |
 | `http`, `https` | The default port, `80` or `443`, and an empty port are removed. An empty path is `/`. | RFC 9110 §4.2.3, RFC 3986 §6.2.3 |
-| `ws`, `wss` | The same as `http` and `https` | RFC 6455 |
-| `file` | An authority of `localhost` is removed, since RFC 8089 reads it "exactly as if no authority were present" | RFC 8089 §2 |
-| `urn` | Percent-encoded characters aren't decoded: "Percent-encoded characters MUST NOT be decoded." Their hex digits are still made uppercase. | RFC 8141 §3.1 |
-| `tag` | None at all, syntax-based included. Tags are equal "if and only if they are completely indistinguishable". | RFC 4151 §2.4 |
+| `file` | A host of `localhost` is empty: "When a scheme defines a default for authority […] the reference should be normalized to an empty authority." RFC 8089 reads `localhost` "exactly as if no authority were present". | RFC 3986 §6.2.3, RFC 8089 §2 |
+| `urn` | Only the scheme and the NID are lowercased, and hex digits are made uppercase. Percent-encoded characters aren't decoded ("MUST NOT be decoded"), and dot segments aren't removed, since a URN is compared "octet-by-octet" after case normalization. | RFC 8141 §3.1 |
+| `tag` | Only the scheme is lowercased. Tags are equal "if and only if they are completely indistinguishable". | RFC 4151 §2.4 |
 
 So `normalizeIri("urn:example:%41")` is `urn:example:%41`, where it was
-`urn:example:A` before scheme rules.
+`urn:example:A` before scheme rules, and `file://localhost/a` is
+`file:///a`.
 
-A scheme declares its normalization as data in `defineScheme`, like its
-validation rules:
+### Order
+
+The syntax-based normalization runs first, then the scheme's. That's the
+order of RFC 3986's comparison ladder (§6.2), which climbs from
+syntax-based to scheme-based. So a scheme's functions see the host
+lowercased, hex digits uppercase, and unreserved characters decoded, and
+they only have to leave percent-encoded characters alone.
+
+Scheme names are lowercased whatever the scheme says, `tag` included.
+RFC 4151 governs what comes after the scheme. Which specification applies
+is decided by the scheme name, which is case-insensitive for every URI
+(RFC 3986 §3.1). `TAG:x` is a valid tag too, since a quoted string in
+ABNF is case-insensitive (RFC 5234 §2.3).
+
+### Defining it
+
+A scheme declares its normalization with a function for each component in
+`defineScheme`, and with `syntaxNormalization: false` to turn off the
+syntax-based normalization:
 
 ```js
 defineScheme({
   name: "http",
   rule: "http-URI",
-  authority: "required",
-  defaultPort: 80,
-  emptyPath: "/",
+  normalize: {
+    port: (port) => port === "80" || port === "" ? undefined : port,
+    path: (path) => path === "" ? "/" : path
+  },
+  ...
+});
+
+defineScheme({
+  name: "urn",
+  rule: "namestring",
+  syntaxNormalization: false,
+  normalize: {
+    path: (path) => ... // lowercase the NID, uppercase hex digits
+  },
   ...
 });
 ```
 
-- `defaultPort` is the port that's removed. A scheme with a default port
-  also has an empty port removed, since an empty port means the default.
-- `emptyPath` is what an empty path is normalized to.
-- An authority that means the same as none, like `file`'s `localhost`.
-- Steps of the syntax-based normalization that the scheme turns off, like
-  decoding for `urn`, or all of them for `tag`.
+- A function takes its component and returns the normalized component,
+  or `undefined` to remove it, like a default port.
+- A function only runs when its component is there, so it can't add one.
+- A function gets only its own component. None of the built-ins need
+  more, and passing all the components could be added later without
+  breaking anything.
+- There's no function for the fragment: "The fragment component is not
+  subject to any scheme-based normalization" (RFC 3986 §6.2.3).
+- `syntaxNormalization` is `true` by default. `false` turns off every
+  syntax-based step but making the scheme lowercase. A scheme whose
+  specification allows some of the steps does them in its functions,
+  like `urn` making hex digits uppercase.
+- Functions aren't checked against the scheme's rules. The built-ins are
+  tested so that they never break them, and a custom scheme's function
+  that does is the scheme's own bug.
 
-What isn't normalized:
+### `lowercase`
 
-- **Fragments.** "The fragment component is not subject to any
-  scheme-based normalization" (RFC 3986 §6.2.3), so `defineScheme` has no
-  fragment normalization, even though a fragment can have rules.
+Making a case-insensitive part of a component lowercase is the most common
+normalization, for the NID of a URN, a `mailto` domain, or all of a `tel`
+URI. The library exports a `lowercase` function that does it, so a custom
+scheme doesn't have to get it right itself:
+
+- It changes ASCII letters only. Case-insensitivity in the RFCs is
+  about ASCII, and `toLowerCase` changes Unicode characters an IRI can
+  have, like `İ`.
+- It leaves percent-encoded characters alone, so `%2F` stays `%2F` and
+  doesn't become `%2f`.
+
+It's one line, but the line isn't obvious, and getting it wrong breaks
+the normal form. Exporting it also means it can be made faster later,
+and custom schemes get that too.
+
+### What isn't normalized
+
 - **Empty ports of other schemes.** RFC 3986 §6.2.3 says not to remove a
   delimiter whose component is empty "unless licensed to do so by the
   scheme specification". An empty port means the default port, so it's
-  removed only for a scheme that has one. `foo://a:/` keeps its `:`
+  removed only by a scheme that has one. `foo://a:/` keeps its `:`
   (see [Answer only what's known](../principles/answer-only-whats-known.md)).
 - **Unknown schemes.** With `allowUnknownScheme`, an identifier whose
   scheme is unknown gets the syntax-based normalization only, the way it
   gets the generic syntax only. So `normalizeIri("urn:example:%41",
   { schemes: [], allowUnknownScheme: true })` is `urn:example:A`. The
   user docs say so, since it's a surprise.
+- **Equivalence without a normal form**, like the order of `sip`
+  parameters. See below.
 
 `normalize*` checks its result when it removed dot segments, which can
 make a path that a scheme's rule doesn't allow, like merging paths can in
-`resolve*`. Dropping a port, removing an authority, or making an empty
-path `/` can't break a rule, so other results aren't checked.
+`resolve*`. The built-in functions can't break a rule, so other results
+aren't checked.
+
+### Built-in normalization
+
+Normalization can be partial: it must never make identifiers equal that
+a specification says are different, but it doesn't have to catch every
+equivalent pair. Adding a normalization after 2.0.0 is a breaking change,
+though. So the rule is that what a component function can express is
+built in, and anything else is left to an `equals*` function, which could
+be added later without breaking anything.
+
+For the candidate schemes that aren't in the table above:
+
+| Scheme | Built in | Left to `equals*` |
+| --- | --- | --- |
+| `ws`, `wss` | Ports `80` and `443` removed, empty path `/` (RFC 6455 §3) | |
+| `coap`, `coaps` | Ports `5683` and `5684` removed, empty path `/` (RFC 7252 §6.3) | IPv6 literals in RFC 5952 form, unless that's built in (see [Open questions](#open-questions)) |
+| `ftp` | Port `21` removed, empty path `/` (RFC 1738) | |
+| `ldap` | Port `389` removed, empty path `/` (RFC 4516) | Trailing `?`s, which RFC 4516 §6 says are equivalent |
+| `nntp` | Port `119` removed (RFC 5538) | |
+| `mailto` | Domains and header names lowercased (RFC 3986 §6.2.3, RFC 6068 §2) | Recipients split between the path and `?to=` |
+| `tel` | All of it lowercased: "URI comparisons are case-insensitive" (RFC 3966 §4) | Visual separators, parameter order |
+| `dns` | All of it lowercased: "Strings are not case sensitive" (RFC 4501 §3) | |
+| `sip`, `sips` | The host lowercased | Parameters, many of which are case-sensitive "explicitly". Equality isn't even transitive, so there's no normal form. |
+| `geo` | Parameter names lowercased (RFC 5870 §3.3) | Numbers, the poles, the date line (§3.4.4) |
+| `xmpp` | None | Comparing XMPP addresses, which RFC 5122 does with Unicode profiles that aren't regular |
+| `news`, `about` | None | |
+| `data` | To be checked against RFC 2397 and RFC 2045 | |
+
+`sip` has no default port: RFC 3261 §19.1.4 says "a URI omitting the
+optional port component will not match a URI explicitly declaring port
+5060", because they can resolve to different ports.
 
 ### Rejected
 
@@ -341,10 +426,26 @@ path `/` can't break a rule, so other results aren't checked.
   decoding, and RFC 4151 forbids any change. The scheme's specification
   is the RFC that applies, so it wins (see
   [Follow the RFCs](../principles/follow-the-rfcs.md)).
-- **A normalization function**, `(components) => components`. It's pure
-  and more flexible, but it can't be checked against the specification
-  like data can, and it could break the scheme's own rules, so every
-  result would have to be checked. It can be added if a scheme needs it.
+- **The scheme's normalization first.** It isn't the order of the
+  comparison ladder, and decoding after the scheme's functions could
+  undo what they did, like `%41` becoming `A` in a part they lowercased.
+- **Data fields**, like `defaultPort: 80` and `emptyPath: "/"`. They read
+  like the specifications, but they can't say that part of a component
+  is case-insensitive, like the NID in the path of a URN.
+- **A list of case-insensitive components**, lowercased by the library.
+  `urn`, `mailto`, and `sip` have case-insensitive parts of a component,
+  not whole ones.
+- **Patterns that pick out the case-insensitive part** of a component.
+  They cover the cases that a list can't, but functions cover those and
+  everything else, with one concept instead of several.
+- **A flag for each syntax-based step**, like `decode: false`. One flag is
+  enough, since a scheme can do the steps it does allow in its functions.
+- **Checking a function's result**, as strictly as the validators. It
+  would cost on every call for a scheme with functions, to catch bugs in
+  the scheme's definition, not in the identifier.
+- **Not exporting `lowercase`.** Every custom scheme with a
+  case-insensitive part would write its own, and some would lowercase hex
+  digits or Unicode characters.
 - **Removing an empty port for every scheme.** What an empty port means
   is up to the scheme.
 - **Equivalence that isn't a normal form**, like ignoring the r-, q-,
@@ -421,15 +522,21 @@ built in:
   scheme's rules on every call. To be measured before choosing how the
   built-ins are compiled. `resolve*` checks two identifiers with their
   schemes' rules, the base and the result.
-- How a scheme says that part of a component is case-insensitive, so
-  it's made lowercase. RFC 8141 makes the NID of a URN case-insensitive, and
-  the NID is in the path. RFC 3986 §6.2.3 gives `mailto` as another
-  example. The data in [Normalizing](#normalizing) doesn't cover it yet.
-- The names of the normalization fields in `defineScheme`.
-- Whether a `tag` URI's scheme is lowercased. RFC 3986 makes the scheme
-  case-insensitive for every URI, and RFC 4151 says tags are compared
-  without any change. The design follows RFC 4151 for now.
-- Normalization rules for the other candidates, like `mailto`'s domain,
-  checked against each specification with its syntax.
+- Whether `coap` puts IPv6 literals in RFC 5952 form, which RFC 7252
+  §6.3 says is the normal form, like `2001:db8::1` for
+  `2001:DB8:0:0:0:0:0:1`. No other candidate licenses it. A prototype
+  (`benchmark/ipv6-canonical.js`, uncommitted) matches Node's `URL` on
+  300,000 random addresses, and writes IPv4-mapped addresses in mixed
+  notation as RFC 5952 §5 says. It's 732 bytes gzipped, before
+  minifying, on top of 6,464 for `src/index.js`. An identifier without
+  an IPv6 literal only pays for checking for `[`, which can't be
+  measured. One with an IPv6 literal pays 430 to 660 nanoseconds, where
+  `normalizeIri` takes about 360 nanoseconds for the whole identifier, but the
+  prototype makes arrays, and one pass over the string should cost a
+  fraction of that. Adding it after 2.0.0 is a breaking change.
+- Whether the other syntax-based steps are exported, like `lowercase`.
+  `urn` turns off the syntax-based normalization and makes hex
+  digits uppercase itself, and a custom scheme could need to do the same.
+- The name `lowercase`.
 - Which rule strings are exported for custom schemes, since they become
   public API.
