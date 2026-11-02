@@ -464,23 +464,51 @@ const removeDotSegments = (path) => {
   return output;
 };
 
-/** @type (strategy: Strategy, components: Components) => string */
-const compose = (strategy, components) => {
-  let composed = components.scheme.toLowerCase() + ":";
+// Normalizing makes components that are the same as parsing the normalized identifier would, so an identifier can be
+// normalized and then compared without parsing it again
+/** @type (strategy: Strategy, components: Components) => Components */
+const normalizeComponents = (strategy, components) => {
+  /** @type Components */
+  const normalized = { scheme: components.scheme.toLowerCase(), path: "" };
+
   if (components.authority !== undefined) {
-    composed += "//";
-    composed += components.userinfo === undefined ? "" : components.userinfo + "@";
-    composed += /** @type string */ (components.host).toLowerCase();
-    composed += components.port === undefined ? "" : ":" + components.port;
+    const host = /** @type string */ (components.host).toLowerCase();
+    normalized.authority = (components.userinfo === undefined ? "" : components.userinfo + "@")
+      + host
+      + (components.port === undefined ? "" : ":" + components.port);
+    if (components.userinfo !== undefined) {
+      normalized.userinfo = components.userinfo;
+    }
+    normalized.host = host;
+    if (components.port !== undefined) {
+      normalized.port = components.port;
+    }
   }
+
   const path = strategy.normalizePath(components.path);
   // Without an authority, a path starting with "//" would be parsed as an authority. Prefixing "/." keeps it a path.
-  composed += components.authority === undefined && path.startsWith("//") ? "/." + path : path;
-  composed += components.query === undefined ? "" : "?" + strategy.normalizeQuery(components.query);
-  composed += components.fragment === undefined ? "" : "#" + strategy.normalizeFragment(components.fragment);
+  normalized.path = components.authority === undefined && path.startsWith("//") ? "/." + path : path;
 
-  return composed;
+  if (components.query !== undefined) {
+    normalized.query = strategy.normalizeQuery(components.query);
+  }
+
+  if (components.fragment !== undefined) {
+    normalized.fragment = strategy.normalizeFragment(components.fragment);
+  }
+
+  return normalized;
 };
+
+/** @type (components: Components) => string */
+const recompose = (components) => components.scheme + ":"
+  + (components.authority === undefined ? "" : "//" + components.authority)
+  + components.path
+  + (components.query === undefined ? "" : "?" + components.query)
+  + (components.fragment === undefined ? "" : "#" + components.fragment);
+
+/** @type (strategy: Strategy, components: Components) => string */
+const compose = (strategy, components) => recompose(normalizeComponents(strategy, components));
 
 const hasDotSegment = /(?:^|\/)\.\.?(?:\/|$)/;
 
@@ -558,9 +586,9 @@ function percentEncodedToChar(isAllowed) {
 const toRelative = (strategy, uri, base) => {
   // Both identifiers are normalized so that equivalent identifiers compare equal and the result resolves to the
   // normalized target
-  const fromUri = strategy.parseAbsolute(compose(strategy, strategy.parseAbsolute(base)));
-  const to = compose(strategy, strategy.parse(uri));
-  const toUri = strategy.parse(to);
+  const fromUri = normalizeComponents(strategy, strategy.parseAbsolute(base));
+  const toUri = normalizeComponents(strategy, strategy.parse(uri));
+  const to = recompose(toUri);
 
   if (toUri.scheme !== fromUri.scheme) {
     return to;

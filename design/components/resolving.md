@@ -35,7 +35,12 @@ what's worked on, then what it's relative to. v1 had them the other way
 around, `toRelativeUri(base, uri)`, while declaring the parameters
 `(uri, relativeTo)`, which read as the opposite of what it did.
 
-Both are normalized first, so equivalent identifiers compare equal. If no
+Both are normalized first, so equivalent identifiers compare equal.
+They're normalized as components, with `normalizeComponents`, which makes
+the components that parsing the normalized identifier would. Composing
+each into a string and parsing it again, as before, parsed each one twice,
+and made `toRelative*` 1.8 times slower (see
+[Comparison with v1](../benchmarks/v1-comparison.md)). If no
 relative reference reaches `uri`, it returns `uri`, normalized, which is
 always a valid reference. That's the case for a different scheme or
 authority, a rootless path that would have to go above its first segment,

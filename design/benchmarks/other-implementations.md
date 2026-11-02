@@ -28,7 +28,7 @@ of 5 runs, in milliseconds.
 | Normalize, ASCII | 229 | 1283 | 1899 | 2595 | 160 |
 | Normalize, Unicode | 297 | 1408 | 2516 | 5134 | 363 |
 | Resolve | 508 | 1905 | 2769 | 3162 | 350 |
-| To relative | 1570 | 2125 | | | |
+| To relative | 868 | 1992 | | | |
 
 - The ASCII inputs are the four in [Comparison with v1](v1-comparison.md).
   The Unicode inputs have the same shapes with non-ASCII characters in the
@@ -37,6 +37,9 @@ of 5 runs, in milliseconds.
   `https://example.com/x` against
   `https://json-schema.org/draft/2020-12/schema`. To relative finds four
   targets relative to the same base.
+- To relative was run again after `toRelative*` stopped parsing each
+  identifier twice. Before, it was 1570 for `@hyperjump/uri` and 2125 for
+  identifier-js.
 - fast-uri and uri-js have no relative form. Each library's validate is
   its validator, or parsing without an error for fast-uri and uri-js,
   which have none.
@@ -84,4 +87,4 @@ match about 2.4 times as slow here (see
 [Parsing strategies](parsing-strategies.md#where-the-time-goes)). It also
 chooses a grammar by scheme on every call, which makes a new `RegExp`.
 
-It was 2.5–5.6 times slower, except to relative, at 1.35 times.
+It was 2.3–5.6 times slower.

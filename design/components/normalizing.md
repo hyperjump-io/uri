@@ -21,6 +21,16 @@ removal only with a dot segment.
 Every function that returns an identifier normalizes it, so its results
 can be compared with each other and with `normalize*`'s.
 
+## Components
+
+`normalizeComponents` normalizes parsed components, and `recompose` joins
+components into a string without changing them. `compose` is both. The
+normalized components are the ones parsing the normalized identifier
+would make: `authority` is rebuilt with the host in lowercase, and a path
+that starts with `//` without an authority has `/.` in front of it. So
+`toRelative*` can compare normalized identifiers without parsing them
+again (see [Resolving](resolving.md#torelativeuriuri-base)).
+
 ## Encoding fragments
 
 `encodeUriFragment` percent-encodes every character a fragment doesn't
