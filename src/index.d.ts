@@ -225,6 +225,26 @@ export type UriRule = "URI" | "URI-reference" | "absolute-URI";
 /** The rules of RFC 3987 that an IRI can be checked against. */
 export type IriRule = "IRI" | "IRI-reference" | "absolute-IRI";
 
+/**
+ * What's wrong with a value that isn't a valid URI or IRI.
+ *
+ * - `invalid-character`: a character the component doesn't allow.
+ * - `invalid-percent-encoding`: a `%` that isn't followed by two hex digits.
+ * - `invalid-ip-literal`: a host in brackets that isn't an IPv6 address or
+ *   an `IPvFuture`.
+ * - `missing-scheme`: a value without a scheme, for a rule that needs one.
+ * - `fragment-not-allowed`: a fragment, for an absolute rule.
+ * - `colon-in-first-segment`: a relative reference with `:` in its first
+ *   segment, which would make it look like a scheme. Prefix it with `./`.
+ */
+export type InvalidIdentifierReason
+  = "invalid-character"
+    | "invalid-percent-encoding"
+    | "invalid-ip-literal"
+    | "missing-scheme"
+    | "fragment-not-allowed"
+    | "colon-in-first-segment";
+
 /** A value isn't the kind of URI that it was expected to be. */
 export class InvalidUriError extends Error {
   /** The value that isn't valid. */
@@ -232,6 +252,25 @@ export class InvalidUriError extends Error {
 
   /** The rule that `value` doesn't match. */
   readonly rule: UriRule;
+
+  /** What's wrong with `value`. */
+  readonly reason: InvalidIdentifierReason;
+
+  /** The component that's wrong. */
+  readonly component: keyof IdentifierComponents;
+
+  /**
+   * Where the problem starts in `value`, as a UTF-16 index like any index
+   * of a JavaScript string. The problem is `value.slice(start, end)`.
+   */
+  readonly start: number;
+
+  /**
+   * Where the problem ends in `value`, exclusive. Something that's missing,
+   * like a scheme, is empty where it would go, with `start` and `end` the
+   * same.
+   */
+  readonly end: number;
 
   private constructor();
 }
@@ -243,6 +282,25 @@ export class InvalidIriError extends Error {
 
   /** The rule that `value` doesn't match. */
   readonly rule: IriRule;
+
+  /** What's wrong with `value`. */
+  readonly reason: InvalidIdentifierReason;
+
+  /** The component that's wrong. */
+  readonly component: keyof IdentifierComponents;
+
+  /**
+   * Where the problem starts in `value`, as a UTF-16 index like any index
+   * of a JavaScript string. The problem is `value.slice(start, end)`.
+   */
+  readonly start: number;
+
+  /**
+   * Where the problem ends in `value`, exclusive. Something that's missing,
+   * like a scheme, is empty where it would go, with `start` and `end` the
+   * same.
+   */
+  readonly end: number;
 
   private constructor();
 }

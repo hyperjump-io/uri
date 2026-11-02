@@ -71,9 +71,15 @@ changes. For more information, see
 
 The functions throw an `InvalidUriError`, an `InvalidIriError`, or an
 `UnsupportedIpVersionError` instead of an `Error`. Each one extends
-`Error`, and the messages are the same as v1's, so code that catches them
-keeps working. To tell them apart, use `instanceof` instead of checking
-the message. For more information, see
+`Error`, so code that catches them keeps working. To tell them apart, use
+`instanceof` instead of checking the message.
+
+The messages of `InvalidUriError` and `InvalidIriError` start with v1's
+message, then say what's wrong, like
+`Invalid URI: /foo — a URI has to have a scheme`. Code that checks how a
+message starts keeps working, but code that compares a whole message
+doesn't. The errors also have properties that say what's wrong and
+where. For more information, see
 [Errors](validate-and-parse.md#errors).
 
 ## Types

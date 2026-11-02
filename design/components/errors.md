@@ -1,7 +1,5 @@
 # Errors
 
-*The diagnosis is designed, not implemented.*
-
 Each error is its own class, so it can be told apart with `instanceof`
 instead of by its message.
 
@@ -22,7 +20,10 @@ The rest say what's wrong and where:
 - `reason` is a code from the list in [Reasons](#reasons).
 - `component` is the component the problem is in: `"scheme"`,
   `"authority"`, `"userinfo"`, `"host"`, `"port"`, `"path"`, `"query"`, or
-  `"fragment"`.
+  `"fragment"`. Its type is `keyof IdentifierComponents`, which is that
+  list, so it needs no name of its own. The generic diagnosis never says
+  `"authority"`, because each of the authority's parts has its own rule.
+  It's for scheme rules, like a scheme that requires an authority.
 - `start` and `end` are the part of `value` that's wrong, as
   `value.slice(start, end)`. They're UTF-16 indexes, like every index of a
   JavaScript string, and like positions in the Language Server Protocol.
@@ -40,12 +41,25 @@ A message is v1's, then what's wrong and where:
 ```text
 InvalidIriError: Invalid IRI: http://exa mple.com — " " isn't allowed in a host, at 10
 InvalidUriError: Invalid absolute-URI: http://a/b#c — an absolute-URI can't have a fragment
-InvalidUriError: Invalid URI: http://a/é — "é" isn't allowed in a URI; percent-encode it or use the IRI functions
+InvalidUriError: Invalid URI: http://a/é — "é" isn't allowed in a URI, at 9; percent-encode it or use the IRI functions
 InvalidUriError: Invalid URI: http://a/%zz — "%" must be followed by two hex digits, at 9
+InvalidUriError: Invalid URI: 1a:b — a scheme has to start with a letter, at 0
 ```
 
 A character that can't be seen, like a space other than U+0020 or a
-control character, is written as its code point, like `U+00A0`.
+control character, is written as its code point, like `U+00A0`. Visible
+means a letter, mark, number, punctuation, symbol, or U+0020.
+
+Every reason about a character or a part of the value gives where it
+starts, including the hint for a character an IRI allows. The position
+comes before the hint, which ends the message because it says what to do
+about it. A reason about the rule's shape, like a missing scheme or a
+fragment in an absolute rule, has no position, since the problem isn't a
+character.
+
+A scheme that starts with something other than a letter says so, instead
+of naming the character. `"1" isn't allowed in a scheme` would be wrong,
+since a scheme can have digits after its first character.
 
 ## Diagnosing
 
@@ -55,7 +69,10 @@ Validators return `false` without it, and a valid value never reaches it.
 
 1. **Split** the value with RFC 3986 Appendix B's regular expression,
    which matches any string. A value that isn't valid still has
-   components, by where its delimiters are.
+   components, by where its delimiters are. The `d` flag gives each
+   component's indexes. Appendix B needs at least one character before a
+   scheme's `:`, so `:a` has no scheme, and is a `missing-scheme` for the
+   URI and absolute functions.
 2. **Check the rule's shape.** An `absolute-URI` can't have a fragment, a
    `URI` has to have a scheme, and a relative reference's first segment
    can't have a `:`.
@@ -64,6 +81,27 @@ Validators return `false` without it, and a valid value never reaches it.
    For the first one that fails, the longest prefix that its rule's
    characters match ends where the bad character is. A `%` there is
    `invalid-percent-encoding`, and anything else is `invalid-character`.
+   A scheme and a port can't be percent-encoded, so a `%` in either is
+   `invalid-character`.
+
+The rule's shape is checked before the characters, so
+`parseAbsoluteUri("http://a b/#c")` is `fragment-not-allowed`, not the
+space. The fragment is wrong whatever else is fixed.
+
+`rules()` returns the component rules with the three whole patterns, and
+each is compiled as `^(?:rule)` to match the longest prefix it allows.
+Every one is greedy, so the first match is the longest. The path rule is
+picked the way `hier-part` and `relative-part` pick it: `path-abempty`
+after an authority, `path-absolute` for a path that starts with `/`,
+`path-rootless` after a scheme, and `path-noscheme` otherwise. A host
+that isn't an IP literal is checked with `reg-name`, which allows every
+`IPv4address`, so it fails exactly when `host` does.
+
+The authority is split like `split()` splits it. The first `@` ends the
+userinfo, since neither part can have one, so `http://a@b@c` is an
+`invalid-character` at the second `@`, in the host. A host that starts
+with `[` ends at the first `:` after its `]`. Without a `]`, the rest of
+the authority is the literal that's wrong.
 
 Every component except an IP literal is a repetition of characters and
 `pct-encoded`, so the longest prefix finds the exact character. An IP
@@ -80,6 +118,14 @@ It can still disagree with the patterns. It has to find a problem in
 every value the pattern rejects, and none in a value the pattern accepts.
 It's checked that way by differential testing, on the same random inputs
 as the grammar (see [Grammar](grammar.md#changes-are-checked-by-differential-testing)).
+For each of the six rules, on 377,747 strings and two seeds, the parser
+threw exactly when the validator returned `false`, every span was inside
+the value, and the errors matched a prototype written before the port.
+Every reason came up more than 80,000 times.
+
+The parser's error says it found a problem, without checking. A value its
+pattern rejects always has one, and checking would be code that the
+differential test shows can't run.
 
 A URI given a character that's allowed in an IRI gets a hint to
 percent-encode it or use the IRI functions, since that's the usual mistake.
@@ -103,6 +149,18 @@ is `invalid-character` in the scheme, as Appendix B reads it. The URI and
 absolute functions don't allow a relative path, so for them it's always
 the scheme.
 
+The span is the first segment, up to its `/`, so `1a:b/c` is `1a:b`. The
+scheme reading says what's wrong with the scheme, which isn't always its
+first character. A scheme can't have `_` but a segment can, so:
+
+```text
+InvalidIriError: Invalid IRI-reference: a_b:c — "a_b" isn't a scheme, which can't have "_", and a relative path can't have ":" in its first segment unless it starts with "./"
+```
+
+A reference like `:a/b` has nothing before the `:`, so Appendix B gives
+it no scheme, and there's only the path reading. It has a position, like
+the other reasons about a part of the value.
+
 ## Reasons
 
 | `reason` | Span | Example |
@@ -121,10 +179,12 @@ the scheme.
 The last four are for scheme rules (see
 [Schemes](schemes.md#errors)).
 
-`reason` is a union of these strings in the declarations, so a caller can
-`switch` on it and TypeScript checks every case. Adding one later breaks
-that `switch`, so the list is settled before 2.0.0, with the scheme
-reasons in it.
+`reason` is a union of these strings in the declarations,
+`InvalidIdentifierReason`, so a caller can `switch` on it and TypeScript
+checks every case. Adding one later breaks that `switch`, so the list is
+settled before 2.0.0, with the scheme reasons in it. The declarations only
+have the first six for now, the ones that can be thrown. The scheme
+reasons are added with scheme validation, which is in 2.0.0 too.
 
 ## Rejected
 
@@ -159,3 +219,18 @@ reasons in it.
   Callers couldn't `switch` on it with the types' help.
 - **Picking one reading of `1a:b`.** Either one is wrong for the callers
   who meant the other.
+- **"Has to start with a letter" for every scheme reading of a `:`.** It's
+  wrong for `a_b:c`, where the first character is fine.
+- **The position at the end, after the hint.** "Use the IRI functions, at
+  9" reads as if the functions are at 9.
+- **The last `@` ending the userinfo.** It would put the error in the
+  userinfo instead of the host. Neither is better, and the first `@`
+  is how `split()` reads a valid authority.
+- **`invalid-character` after an IP literal's `]`**, for `[::1]x`. The
+  literal is the whole host, so it's `invalid-ip-literal` over all of it,
+  as for any literal that fails.
+- **Checking the characters before the rule's shape.** A fragment in an
+  absolute-URI is wrong however its characters are fixed, so it's said
+  first.
+- **The scheme reasons in the declarations now**, before they can be
+  thrown. A caller would `switch` on reasons that never happen.

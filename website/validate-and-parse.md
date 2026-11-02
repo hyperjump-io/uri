@@ -100,6 +100,53 @@ try {
 }
 ```
 
+### What's wrong and where
+
+`InvalidUriError` and `InvalidIriError` also say what's wrong with the
+string, and where:
+
+- `reason` is a code for what's wrong, like `"invalid-character"`.
+- `component` is the component with the problem, like `"host"`.
+- `start` and `end` are where the problem is in the string, so
+  `value.slice(start, end)` is the part that's wrong.
+
+The message says the same thing, after the rule and the string:
+
+```typescript
+try {
+  parseIri("https://exa mple.com/");
+} catch (error) {
+  if (error instanceof InvalidIriError) {
+    error.message; // 'Invalid IRI: https://exa mple.com/ — " " isn't allowed in a host, at 11'
+    error.reason; // "invalid-character"
+    error.component; // "host"
+    error.value.slice(error.start, error.end); // " "
+  }
+}
+```
+
+`reason` is one of the following codes:
+
+| `reason` | What's wrong | Example |
+| --- | --- | --- |
+| `invalid-character` | A character that the component doesn't allow | `https://exa mple.com` |
+| `invalid-percent-encoding` | A `%` that isn't followed by two hex digits | `https://example.com/%zz` |
+| `invalid-ip-literal` | A host in brackets that isn't an IP address | `https://[::g]/` |
+| `missing-scheme` | No scheme, for a function that needs one | `/foo` passed to `parseIri` |
+| `fragment-not-allowed` | A fragment, for a function that needs an absolute identifier | `https://example.com#foo` passed to `parseAbsoluteIri` |
+| `colon-in-first-segment` | A relative reference with `:` before its first `/`, which reads like a scheme | `1a:b`, which you can write as `./1a:b` |
+
+A missing scheme is an empty span at the start of the string, with `start`
+and `end` both `0`.
+
+`start` and `end` count UTF-16 code units, like every index of a
+JavaScript string, and like positions in the Language Server Protocol. A
+character outside the Basic Multilingual Plane, like an emoji, counts as
+two.
+
+The validation functions return `false` without saying why. To find out
+why, catch the error that the parsing function throws.
+
 ## Future IP versions
 
 RFC 3986 reserves a syntax for IP addresses of versions after IPv6, like

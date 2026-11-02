@@ -8,6 +8,32 @@
 
 /**
  * @typedef {{
+ *   reason: API.InvalidIdentifierReason;
+ *   component: keyof API.IdentifierComponents;
+ *   start: number;
+ *   end: number;
+ *   scheme?: { start: number; end: number };
+ *   iriOnly?: boolean;
+ * }} Problem
+ */
+
+/**
+ * @typedef {{
+ *   scheme: RegExp;
+ *   userinfo: RegExp;
+ *   regName: RegExp;
+ *   port: RegExp;
+ *   pathAbEmpty: RegExp;
+ *   pathAbsolute: RegExp;
+ *   pathNoScheme: RegExp;
+ *   pathRootless: RegExp;
+ *   query: RegExp;
+ *   fragment: RegExp;
+ * }} ComponentMatchers
+ */
+
+/**
+ * @typedef {{
  *   parse: typeof API.parseUri;
  *   parseReference: typeof API.parseUriReference;
  *   parseAbsolute: typeof API.parseAbsoluteUri;
@@ -57,8 +83,16 @@ const iunreserved = `[a-zA-Z0-9\\-._~${ucschar}]`;
 const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFFD}]`;
 
 // The rules that RFC 3987 defines again for IRIs are RFC 3986's, with iunreserved in place of unreserved, and iprivate
-// allowed in the query. So they're written once, for either.
-/** @type (unreserved: string, iprivate?: string) => { identifier: string; reference: string; absolute: string } */
+// allowed in the query. So they're written once, for either. The component rules are for diagnosing why a value
+// doesn't match.
+/**
+ * @type (unreserved: string, iprivate?: string) => {
+ *   identifier: string;
+ *   reference: string;
+ *   absolute: string;
+ *   components: Record<keyof ComponentMatchers, string>;
+ * }
+ */
 const rules = (unreserved, iprivate) => {
   const regName = `(?:${unreserved}|${pctEncoded}|${subDelims})*`;
   const host = `(?:${ipLiteral}|${ipV4Address}|${regName})`;
@@ -89,7 +123,8 @@ const rules = (unreserved, iprivate) => {
   return {
     identifier: `^${uri}$`,
     reference: `^(?:${uri}|${relativeRef})$`,
-    absolute: `^${absoluteUri}$`
+    absolute: `^${absoluteUri}$`,
+    components: { scheme, userinfo, regName, port, pathAbEmpty, pathAbsolute, pathNoScheme, pathRootless, query, fragment }
   };
 };
 
@@ -103,6 +138,15 @@ const iriPattern = new RegExp(iriRules.identifier, "u");
 const iriReferencePattern = new RegExp(iriRules.reference, "u");
 const absoluteIriPattern = new RegExp(iriRules.absolute, "u");
 
+// Each component's rule, matching the longest prefix of a component that it allows
+const uriMatchers = prefixMatchers(uriRules.components, "");
+const iriMatchers = prefixMatchers(iriRules.components, "u");
+const ipLiteralPattern = new RegExp(`^${ipLiteral}$`);
+
+// Characters an IRI allows that a URI doesn't, for the hint to percent-encode them or use the IRI functions
+const isUcschar = new RegExp(`^[${ucschar}]$`, "u");
+const isIprivate = new RegExp(`^${iprivate}$`, "u");
+
 // Characters each component allows without percent-encoding
 const isAllowedInPath = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@]`));
 const isAllowedInIPath = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|${subDelims}|[:@]`, "u"));
@@ -115,9 +159,9 @@ const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/
 // The errors are made in functions because the classes aren't defined until after these are
 /** @type Strategy */
 const uriStrategy = {
-  parse: createParser(uriPattern, (value) => new InvalidUriError(value, "URI")),
-  parseReference: createParser(uriReferencePattern, (value) => new InvalidUriError(value, "URI-reference")),
-  parseAbsolute: createParser(absoluteUriPattern, (value) => new InvalidUriError(value, "absolute-URI")),
+  parse: createParser(uriPattern, (value) => new InvalidUriError(value, "URI", diagnose("URI", value))),
+  parseReference: createParser(uriReferencePattern, (value) => new InvalidUriError(value, "URI-reference", diagnose("URI-reference", value))),
+  parseAbsolute: createParser(absoluteUriPattern, (value) => new InvalidUriError(value, "absolute-URI", diagnose("absolute-URI", value))),
   isAbsolute: RegExp.prototype.test.bind(absoluteUriPattern),
   normalizePath: createPathNormalizer(isAllowedInPath),
   normalizeQuery: createQueryNormalizer(isAllowedInQuery),
@@ -126,9 +170,9 @@ const uriStrategy = {
 
 /** @type Strategy */
 const iriStrategy = {
-  parse: createParser(iriPattern, (value) => new InvalidIriError(value, "IRI")),
-  parseReference: createParser(iriReferencePattern, (value) => new InvalidIriError(value, "IRI-reference")),
-  parseAbsolute: createParser(absoluteIriPattern, (value) => new InvalidIriError(value, "absolute-IRI")),
+  parse: createParser(iriPattern, (value) => new InvalidIriError(value, "IRI", diagnose("IRI", value))),
+  parseReference: createParser(iriReferencePattern, (value) => new InvalidIriError(value, "IRI-reference", diagnose("IRI-reference", value))),
+  parseAbsolute: createParser(absoluteIriPattern, (value) => new InvalidIriError(value, "absolute-IRI", diagnose("absolute-IRI", value))),
   isAbsolute: RegExp.prototype.test.bind(absoluteIriPattern),
   normalizePath: createPathNormalizer(isAllowedInIPath),
   normalizeQuery: createQueryNormalizer(isAllowedInIQuery),
@@ -192,9 +236,12 @@ export class InvalidUriError extends Error {
   /**
    * @param {string} value
    * @param {API.UriRule} rule
+   * @param {Problem | undefined} problem
    */
-  constructor(value, rule) {
-    super(`Invalid ${rule}: ${value}`);
+  constructor(value, rule, problem) {
+    // A value that a pattern rejects always has a problem, which is checked by differential testing
+    const { reason, component, start, end } = /** @type Problem */ (problem);
+    super(`Invalid ${rule}: ${value} — ${describe(rule, value, /** @type Problem */ (problem))}`);
     this.name = "InvalidUriError";
 
     /** @readonly */
@@ -202,6 +249,18 @@ export class InvalidUriError extends Error {
 
     /** @readonly */
     this.rule = rule;
+
+    /** @readonly */
+    this.reason = reason;
+
+    /** @readonly */
+    this.component = component;
+
+    /** @readonly */
+    this.start = start;
+
+    /** @readonly */
+    this.end = end;
   }
 }
 
@@ -209,9 +268,12 @@ export class InvalidIriError extends Error {
   /**
    * @param {string} value
    * @param {API.IriRule} rule
+   * @param {Problem | undefined} problem
    */
-  constructor(value, rule) {
-    super(`Invalid ${rule}: ${value}`);
+  constructor(value, rule, problem) {
+    // A value that a pattern rejects always has a problem, which is checked by differential testing
+    const { reason, component, start, end } = /** @type Problem */ (problem);
+    super(`Invalid ${rule}: ${value} — ${describe(rule, value, /** @type Problem */ (problem))}`);
     this.name = "InvalidIriError";
 
     /** @readonly */
@@ -219,6 +281,18 @@ export class InvalidIriError extends Error {
 
     /** @readonly */
     this.rule = rule;
+
+    /** @readonly */
+    this.reason = reason;
+
+    /** @readonly */
+    this.component = component;
+
+    /** @readonly */
+    this.start = start;
+
+    /** @readonly */
+    this.end = end;
   }
 }
 
@@ -277,6 +351,16 @@ function createParser(pattern, invalid) {
 
     return split(value);
   };
+}
+
+/**
+ * @param {Record<keyof ComponentMatchers, string>} components
+ * @param {string} flags
+ * @returns {ComponentMatchers}
+ */
+function prefixMatchers(components, flags) {
+  const entries = Object.entries(components).map(([name, rule]) => [name, new RegExp(`^(?:${rule})`, flags)]);
+  return /** @type ComponentMatchers */ (Object.fromEntries(entries));
 }
 
 // Normalization is skipped when it can't change anything because most identifiers don't need it
@@ -666,4 +750,243 @@ const relativePath = (from, to) => {
 
   // Prefix "./" when the reference would otherwise be empty, start with an empty segment, or look like a scheme
   return result === "" || result.startsWith("/") || hasSchemeLikeSegment.test(result) ? "./" + result : result;
+};
+
+// Diagnosing why a value doesn't match a rule. The patterns only say whether it matches, so this finds what's wrong,
+// from the same component rules. It's only called for a value that a pattern rejected.
+
+// RFC 3986 Appendix B, which matches any string, so a value that isn't valid still has components. "d" gives each
+// component's indexes, and "s" lets "." match line breaks.
+const appendixB = /^(?:([^:/?#]+):)?(?:\/\/([^/?#]*))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/ds;
+
+const firstSegmentEnd = /[/?#]|$/;
+
+/** @type (rule: API.UriRule | API.IriRule, value: string) => Problem | undefined */
+const diagnose = (rule, value) => {
+  const isIri = rule.includes("IRI");
+  const matchers = isIri ? iriMatchers : uriMatchers;
+  const isAbsoluteRule = rule.startsWith("absolute-");
+  const isReferenceRule = rule.endsWith("-reference");
+
+  const match = /** @type RegExpExecArray & { indices: Array<[number, number] | undefined> } */ (appendixB.exec(value));
+  const [, scheme, authority, path, query, fragment] = match;
+  const [, , authorityAt, pathAt, queryAt, fragmentAt] = match.indices;
+
+  // The rule's shape comes first
+  if (isAbsoluteRule && fragmentAt !== undefined) {
+    return { reason: "fragment-not-allowed", component: "fragment", start: fragmentAt[0] - 1, end: value.length };
+  }
+
+  if (scheme === undefined && !isReferenceRule) {
+    return { reason: "missing-scheme", component: "scheme", start: 0, end: 0 };
+  }
+
+  if (scheme !== undefined) {
+    const problem = checkComponent(matchers.scheme, "scheme", scheme, 0, isIri);
+    if (problem !== undefined) {
+      // A reference like "1a:b" can also be read as a relative path with ":" in its first segment. When the ":" is
+      // the only thing wrong with that reading, both are said.
+      if (isReferenceRule) {
+        const segmentEnd = value.search(firstSegmentEnd);
+        const pathProblem = checkComponent(matchers.pathNoScheme, "path", value.slice(0, segmentEnd), 0, isIri);
+        if (pathProblem?.start === scheme.length) {
+          return {
+            reason: "colon-in-first-segment",
+            component: "path",
+            start: 0,
+            end: segmentEnd,
+            scheme: { start: problem.start, end: problem.end }
+          };
+        }
+      }
+
+      return problem;
+    }
+  }
+
+  if (authority !== undefined && authorityAt !== undefined) {
+    const problem = diagnoseAuthority(matchers, authority, authorityAt[0], isIri);
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+
+  const pathStart = /** @type [number, number] */ (pathAt)[0];
+  const pathMatcher = pathRule(matchers, scheme, authority, path);
+  const pathProblem = checkComponent(pathMatcher, "path", path, pathStart, isIri);
+  if (pathProblem !== undefined) {
+    // Only a ":" can stop path-noscheme's first segment where path-rootless's wouldn't
+    const slash = path.indexOf("/");
+    if (pathMatcher === matchers.pathNoScheme && value[pathProblem.start] === ":" && (slash === -1 || pathStart + slash > pathProblem.start)) {
+      return {
+        reason: "colon-in-first-segment",
+        component: "path",
+        start: pathStart,
+        end: slash === -1 ? pathStart + path.length : pathStart + slash
+      };
+    }
+
+    return pathProblem;
+  }
+
+  if (query !== undefined && queryAt !== undefined) {
+    const problem = checkComponent(matchers.query, "query", query, queryAt[0], isIri);
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+
+  if (fragment !== undefined && fragmentAt !== undefined) {
+    const problem = checkComponent(matchers.fragment, "fragment", fragment, fragmentAt[0], isIri);
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+
+  return undefined;
+};
+
+// Which path rule applies depends on whether there is a scheme or an authority, like in hier-part and relative-part
+/** @type (matchers: ComponentMatchers, scheme: string | undefined, authority: string | undefined, path: string) => RegExp */
+const pathRule = (matchers, scheme, authority, path) => {
+  if (authority !== undefined) {
+    return matchers.pathAbEmpty;
+  } else if (path.startsWith("/")) {
+    return matchers.pathAbsolute;
+  } else if (scheme !== undefined) {
+    return matchers.pathRootless;
+  } else {
+    return matchers.pathNoScheme;
+  }
+};
+
+/** @type (matchers: ComponentMatchers, authority: string, authorityStart: number, isIri: boolean) => Problem | undefined */
+const diagnoseAuthority = (matchers, authority, authorityStart, isIri) => {
+  // Neither userinfo nor host can have "@", so the first one ends the userinfo, like when splitting
+  const at = authority.indexOf("@");
+  if (at !== -1) {
+    const problem = checkComponent(matchers.userinfo, "userinfo", authority.slice(0, at), authorityStart, isIri);
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+
+  const hostStart = at + 1;
+  let hostEnd;
+  if (authority.startsWith("[", hostStart)) {
+    // An IP literal ends at its "]". Without one, the rest of the authority is the literal that's wrong.
+    const close = authority.indexOf("]", hostStart);
+    const colon = close === -1 ? -1 : authority.indexOf(":", close);
+    hostEnd = colon === -1 ? authority.length : colon;
+    if (!ipLiteralPattern.test(authority.slice(hostStart, hostEnd))) {
+      return {
+        reason: "invalid-ip-literal",
+        component: "host",
+        start: authorityStart + hostStart,
+        end: authorityStart + hostEnd
+      };
+    }
+  } else {
+    // A host that isn't an IP literal matches host exactly when it matches reg-name, which allows any IPv4address
+    const colon = authority.indexOf(":", hostStart);
+    hostEnd = colon === -1 ? authority.length : colon;
+    const host = authority.slice(hostStart, hostEnd);
+    const problem = checkComponent(matchers.regName, "host", host, authorityStart + hostStart, isIri);
+    if (problem !== undefined) {
+      return problem;
+    }
+  }
+
+  if (hostEnd < authority.length) {
+    return checkComponent(matchers.port, "port", authority.slice(hostEnd + 1), authorityStart + hostEnd + 1, isIri);
+  }
+
+  return undefined;
+};
+
+// Every component rule is a repetition of characters and pct-encoded, so the longest prefix it matches ends at the
+// character that's wrong
+/** @type (matcher: RegExp, component: keyof API.IdentifierComponents, text: string, textStart: number, isIri: boolean) => Problem | undefined */
+const checkComponent = (matcher, component, text, textStart, isIri) => {
+  const length = matcher.exec(text)?.[0].length ?? 0;
+  if (length === text.length) {
+    return undefined;
+  }
+
+  const start = textStart + length;
+  if (text[length] === "%" && component !== "scheme" && component !== "port") {
+    // The "%" and up to two characters after it, without splitting a surrogate pair
+    let end = length + 1;
+    for (let count = 0; count < 2 && end < text.length; count++) {
+      end += /** @type number */ (text.codePointAt(end)) > 0xFFFF ? 2 : 1;
+    }
+    return { reason: "invalid-percent-encoding", component, start, end: textStart + end };
+  }
+
+  const char = String.fromCodePoint(/** @type number */ (text.codePointAt(length)));
+  /** @type Problem */
+  const problem = { reason: "invalid-character", component, start, end: start + char.length };
+  if (!isIri && (isUcschar.test(char) || (component === "query" && isIprivate.test(char)))) {
+    problem.iriOnly = true;
+  }
+
+  return problem;
+};
+
+/** @type Record<keyof API.IdentifierComponents, string> */
+const inComponent = {
+  scheme: "in a scheme",
+  authority: "in an authority",
+  userinfo: "in userinfo",
+  host: "in a host",
+  port: "in a port",
+  path: "in a path",
+  query: "in a query",
+  fragment: "in a fragment"
+};
+
+// A character that can't be seen, like a control character or a space other than U+0020, is written as its code point
+const isVisible = /^(?: |[\p{L}\p{M}\p{N}\p{P}\p{S}])$/u;
+
+/** @type (char: string) => string */
+const show = (char) => isVisible.test(char)
+  ? JSON.stringify(char)
+  : "U+" + /** @type number */ (char.codePointAt(0)).toString(16)
+    .toUpperCase()
+    .padStart(4, "0");
+
+/** @type (rule: API.UriRule | API.IriRule, value: string, problem: Problem) => string */
+const describe = (rule, value, problem) => {
+  const span = value.slice(problem.start, problem.end);
+
+  switch (problem.reason) {
+    case "invalid-character":
+      if (problem.iriOnly) {
+        return `${show(span)} isn't allowed in a URI, at ${problem.start}; percent-encode it or use the IRI functions`;
+      } else if (problem.component === "scheme" && problem.start === 0) {
+        return "a scheme has to start with a letter, at 0";
+      } else {
+        return `${show(span)} isn't allowed ${inComponent[problem.component]}, at ${problem.start}`;
+      }
+    case "invalid-percent-encoding":
+      return `"%" must be followed by two hex digits, at ${problem.start}`;
+    case "invalid-ip-literal":
+      return `${JSON.stringify(span)} isn't a valid IP literal, at ${problem.start}`;
+    case "missing-scheme":
+      return `${rule.startsWith("absolute-") ? "an" : "a"} ${rule} has to have a scheme`;
+    case "fragment-not-allowed":
+      return `an ${rule} can't have a fragment`;
+    case "colon-in-first-segment": {
+      const relative = `a relative path can't have ":" in its first segment unless it starts with "./"`;
+      if (problem.scheme === undefined) {
+        return `${relative}, at ${problem.start}`;
+      }
+
+      const scheme = value.slice(0, value.indexOf(":"));
+      const why = problem.scheme.start === 0
+        ? "which has to start with a letter"
+        : `which can't have ${show(value.slice(problem.scheme.start, problem.scheme.end))}`;
+      return `${JSON.stringify(scheme)} isn't a scheme, ${why}, and ${relative}`;
+    }
+  }
 };

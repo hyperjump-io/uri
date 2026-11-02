@@ -1,5 +1,5 @@
 import { InvalidUriError, UnsupportedIpVersionError, parseAbsoluteUri, parseUri, parseUriReference } from "./index.js";
-import type { IriRule, UriRule } from "./index.d.ts";
+import type { IdentifierComponents, IriRule, UriRule } from "./index.d.ts";
 
 // A URI doesn't have to have an authority, so its parts can be missing
 const components = parseUri("urn:example:foo");
@@ -31,6 +31,26 @@ if (error instanceof InvalidUriError) {
   error.rule satisfies UriRule;
   // @ts-expect-error An InvalidUriError's rule is a URI rule
   error.rule satisfies IriRule;
+}
+
+// The errors say what's wrong and where
+if (error instanceof InvalidUriError) {
+  error.component satisfies keyof IdentifierComponents;
+  error.start satisfies number;
+  error.end satisfies number;
+  switch (error.reason) {
+    case "invalid-character":
+    case "invalid-percent-encoding":
+    case "invalid-ip-literal":
+    case "missing-scheme":
+    case "fragment-not-allowed":
+    case "colon-in-first-segment":
+      break;
+    default:
+      error.reason satisfies never;
+  }
+  // @ts-expect-error A reason is one of the listed codes
+  error.reason satisfies "not-a-reason";
 }
 if (error instanceof UnsupportedIpVersionError) {
   error.host satisfies string;

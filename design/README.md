@@ -47,6 +47,6 @@ hand and have JSDoc explaining the details. Documentation for users is in
 - [Schemes](components/schemes.md): validating by each scheme's own rules
   (designed, not implemented)
 - [Errors](components/errors.md): error classes, and diagnosing what's wrong
-  and where (designed, not implemented)
+  and where
 - [Types](components/types.md): optional authority, readonly components
 - [What changed from v1](components/v1.md)
