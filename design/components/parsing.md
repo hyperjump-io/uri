@@ -1,19 +1,52 @@
 # Parsing
 
-Validating and parsing are two steps:
+*Designed, not implemented:* `parseIri` only splits. `src/` still
+validates first, as described in [Validating, then splitting](#validating-then-splitting).
+
+## Splitting only
+
+`parseIri` takes an identifier that's been checked (see [Trust](trust.md))
+and splits it into its components at its delimiters, which is RFC 3986
+Appendix B, with the authority split into `userinfo`, `host`, and `port`.
+It doesn't validate, and it never throws: Appendix B's regular expression
+matches any string. A caller who doesn't trust a value calls `assertIri`
+or `isIri` first (see
+[Pay only for what you ask for](../principles/pay-only-for-what-you-ask-for.md)).
+
+Splitting doesn't depend on which characters are allowed, so the URI and
+IRI forms of `parse` are one function, and the reference, full, and
+absolute forms are its overloads, which differ only in their return
+types. `parseUri` and the rest were the same function under other names.
+
+The validators still test the whole rule's pattern, built from the ABNF
+with no capture groups (see [Grammar](grammar.md)). The patterns stay the
+definition of what's valid, and only `is*`, `assert*`, and `normalize*`
+need them, so a caller who only splits and resolves doesn't load them.
+
+### Rejected
+
+- **Validating while parsing**, as before. A caller who'd checked a value
+  paid for the pattern again on every parse, and `resolve*` and
+  `normalize*` paid for it on every call, since they parse. Most of the
+  time in a parse was the pattern.
+- **Three parse functions with no brands**, and **one returning the
+  reference shape**. See [Trust](trust.md#rejected).
+
+## Validating, then splitting
+
+How `src/` parses now, and how the validators find future IP literals:
 
 1. **Validate** with the rule's regular expression, built from the ABNF
    with no capture groups, using `test`.
-2. **Split** the valid string into its components at its delimiters,
-   which is RFC 3986 Appendix B.
+2. **Split** the valid string into its components at its delimiters.
 
-The regular expressions stay the definition of what's valid, and they read
-like the RFC (see [Grammar](grammar.md)). Captures were the most expensive
-part of matching, and only parsing needed them.
+Captures were the most expensive part of matching, and only parsing
+needed them.
 
 ## Splitting
 
-`split` only runs on a string that its rule's pattern has accepted. Then
+`split` only runs on a string that its rule's pattern has accepted, or,
+in the new design, that's trusted to be one. Then
 each delimiter can only be where its component ends, so the first one of
 each kind ends that component:
 

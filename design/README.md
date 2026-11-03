@@ -36,16 +36,18 @@ hand and have JSDoc explaining the details. Documentation for users is in
   their components
 - [Grammar](components/grammar.md): how the patterns are written from the
   ABNF
-- [Parsing](components/parsing.md): validating without captures, then
-  splitting at delimiters
+- [Trust](components/trust.md): which functions check, which trust, and
+  the branded types between them (designed, not implemented)
+- [Parsing](components/parsing.md): splitting at delimiters, and
+  validating without captures
 - [Future IP versions](components/future-ip-versions.md): why validators
   throw for `[v7.future]`
 - [Resolving](components/resolving.md): `resolve*`, `toRelative*`, and
   `toAbsolute*`
 - [Normalizing](components/normalizing.md): `normalize*` and
   `encode*Fragment`
-- [Schemes](components/schemes.md): validating by each scheme's own rules
-  (designed, not implemented)
+- [Schemes](components/schemes.md): each scheme's own rules and
+  normalization, and unknown schemes (designed, not implemented)
 - [Errors](components/errors.md): error classes, and diagnosing what's wrong
   and where
 - [Types](components/types.md): optional authority, readonly components

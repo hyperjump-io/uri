@@ -11,7 +11,11 @@ version, and that can't be known, so the answer is "I don't know", not
 [Answer only what's known](../principles/answer-only-whats-known.md)).
 
 Parsing, resolving, and normalizing accept a future IP literal and treat
-it as an ordinary host. They only need to know what the host looks like,
+it as an ordinary host. *Designed, not implemented:* they take only
+values a validator has accepted (see [Trust](trust.md)), and no validator
+accepts one, so they only see one through a cast. Whether
+`allowUnknownIpLiteral`, which would let a validator accept one, is in
+2.0.0 is open (see [Schemes](schemes.md#which-functions-know-schemes)). They only need to know what the host looks like,
 which the syntax says. Normalizing makes it lowercase, like any host.
 
 A validator only looks for one when the string is valid and has a `[`,

@@ -30,3 +30,11 @@ isn't readonly.
 The error classes have private constructors in the declarations. Only this
 package throws them, and a public constructor would make its arguments part
 of the API (see [Errors](errors.md)).
+
+## Brands
+
+*Designed, not implemented.* Identifiers that have been checked are
+branded strings, like `Iri` and `AbsoluteIri`, and the functions that
+trust their input take them (see [Trust](trust.md)). `parseIri` is
+overloaded on them, so a full IRI's components have a `scheme: string`
+and an absolute one's have no `fragment`.

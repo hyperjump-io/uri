@@ -11,6 +11,11 @@ an IRI form from RFC 3987:
 | `URI-reference` | Maybe | Yes | `isUriReference` | `parseUriReference` |
 | `absolute-URI` | Yes | No | `isAbsoluteUri` | `parseAbsoluteUri` |
 
+*Designed, not implemented:* each rule also gets an `assert*` function,
+and a brand, like `AbsoluteUri`. The parse functions become `parseIri`,
+overloaded on the brands, since splitting is the same for every rule (see
+[Trust](trust.md)).
+
 Each is one regular expression built from the ABNF (see
 [Grammar](grammar.md)). IRI patterns use the `u` flag for their Unicode
 ranges. The patterns only validate. Parsing splits a valid string at its
@@ -21,7 +26,9 @@ delimiters (see [Parsing](parsing.md)).
 The URI and IRI forms of each function differ only in which patterns and
 which characters they allow, so each function is written once and given a
 strategy: `uriStrategy` or `iriStrategy`. A strategy is a record of the
-three parsers and the three normalizers for a form. It's a value, not an
+three parsers and the three normalizers for a form. *Designed, not
+implemented:* only the validators, `assert*`, `normalize*`, and
+`encode*Fragment` depend on the form, so the parsers leave the strategy. It's a value, not an
 interface, so nothing implements it but the two records.
 
 ## Components

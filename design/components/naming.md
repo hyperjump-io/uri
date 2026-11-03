@@ -19,3 +19,14 @@ The error classes name what went wrong: `InvalidUriError`,
   already follow. `json-pointer` rejected verb first because `getPointer`
   reads as getting a pointer. `parseUri` does parse a URI, so the reason
   doesn't apply here.
+
+## Merged functions
+
+*Open question.* `parse`, `resolve`, `toRelative`, and `toAbsolute` are one
+function each for URIs and IRIs (see [Trust](trust.md)). A name without
+its kind of identifier, like `parse`, breaks the rule above: it doesn't
+make sense imported by itself. The design docs use the IRI names,
+`parseIri`, `resolveIri`, `toRelativeIri`, and `toAbsoluteIri`, because
+every URI is an IRI, the overloads keep a `Uri` a `Uri`, and the
+dependents already call the IRI forms most. Whether the URI names stay
+too, as the same functions, is the question.

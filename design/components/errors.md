@@ -8,12 +8,21 @@ instead of by its message.
 | `InvalidUriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of URI a function needs |
 | `InvalidIriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of IRI a function needs |
 | `UnsupportedIpVersionError` | `Error` | `value`, `host` | A validator is given a future IP literal (see [Future IP versions](future-ip-versions.md)) |
+| `UnknownSchemeError` | `Error` | `value`, `scheme` | A function that needs a scheme's rules is given one it doesn't know (see [Schemes](schemes.md#unknown-schemes)). *Designed, not implemented.* |
+
+*Designed, not implemented:* `InvalidUriError` and `InvalidIriError` are
+thrown by `assert*`, which checks like `is*` does, and by `resolveIri`
+for a result that breaks its scheme's rules. Parsers don't validate any
+more, so they don't throw (see [Trust](trust.md)).
 
 `value` is the string that was given. `rule` is the RFC rule it doesn't
 match: `"URI"`, `"URI-reference"`, or `"absolute-URI"`, or their IRI
 forms. When a function takes two identifiers, like `resolveUri`, the rule
 says which one was wrong: the reference is a `URI-reference` and the base
-is an `absolute-URI`.
+is an `absolute-URI`. *Designed, not implemented:* `resolveIri` trusts
+both, and its only error is a result that breaks its scheme's rules,
+which is about the reference, with the scheme's rule (see
+[Schemes](schemes.md#resolving)).
 
 The rest say what's wrong and where:
 
@@ -66,6 +75,7 @@ since a scheme can have digits after its first character.
 The patterns only say whether a value matches. When a parser's pattern
 fails, a second step finds out why. Only the error path runs it.
 Validators return `false` without it, and a valid value never reaches it.
+*Designed, not implemented:* `assert*` runs it, in place of the parsers.
 
 1. **Split** the value with RFC 3986 Appendix B's regular expression,
    which matches any string. A value that isn't valid still has
@@ -174,9 +184,8 @@ the other reasons about a part of the value.
 | `missing-component` | Empty, where it would go | `http:/a`, by `http`'s rules |
 | `forbidden-component` | The component | A query on a scheme that forbids one |
 | `component-mismatch` | The component | A component that doesn't match its scheme's pattern |
-| `wrong-scheme` | The scheme | `isIriReference("http://a/b", { scheme: "file" })` |
 
-The last four are for scheme rules (see
+The last three are for scheme rules (see
 [Schemes](schemes.md#errors)).
 
 `reason` is a union of these strings in the declarations,
@@ -202,10 +211,15 @@ reasons are added with scheme validation, which is in 2.0.0 too.
   on the start of it still works.
 - **A message only.** A language server needs a span to underline, and
   shouldn't have to parse a message to get one.
-- **A diagnosis function for validators**, like `explainIri`, for a
-  caller who got `false` and wants to know why. That's six more exports,
-  or one that takes a rule name. A caller who wants the reason calls the
-  parser and catches the error.
+- **Parsers as the way to get a reason**, which was the decision before
+  parsers stopped validating: a caller who wanted to know why calls the
+  parser and catches the error. `assert*` is that, as six exports: the
+  same answers as `is*`, as errors (see [Trust](trust.md)).
+- **Parsers that check known schemes' rules** and let unknown schemes
+  through, so they could still give reasons. A caller who trusts a value
+  would pay for the check on every parse.
+- **An option on the parsers to validate.** A flag that changes what a
+  function does is two functions in one.
 - **Diagnosing in validators.** They return a boolean, and JSON Schema's
   format validation calls them on every value.
 - **A second grammar for diagnosing**, such as a recursive-descent parser

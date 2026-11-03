@@ -23,8 +23,23 @@ Each step is skipped when it can't change anything, because most
 identifiers don't need it: decoding only runs with a `%`, and dot-segment
 removal only with a dot segment.
 
-Every function that returns an identifier normalizes it, so its results
-can be compared with each other and with `normalize*`'s.
+*Designed, not implemented:*
+
+- `normalize*` is the only function that normalizes. `resolveIri`,
+  `toAbsoluteIri`, and `toRelativeIri` don't (see
+  [Resolving](resolving.md)), so nobody pays for normalizing who doesn't
+  ask for it (see
+  [Pay only for what you ask for](../principles/pay-only-for-what-you-ask-for.md)).
+- It takes a branded identifier and returns it with the `NormalizedIri`
+  brand too, which `toRelativeIri` requires (see [Trust](trust.md)). It
+  doesn't check its input.
+- It takes `customSchemes`, and throws `UnknownSchemeError` for a scheme
+  it doesn't know.
+- It returns its input when a scan finds nothing to change: no `%`, no
+  uppercase letter in the scheme or host, no dot segment, and nothing the
+  scheme normalizes. Most registry keys are like that. To be measured.
+- It keeps its URI and IRI forms, because they decode different
+  characters.
 
 ## Components
 
@@ -32,9 +47,10 @@ can be compared with each other and with `normalize*`'s.
 components into a string without changing them. `compose` is both. The
 normalized components are the ones parsing the normalized identifier
 would make: `authority` is rebuilt with the host in lowercase, and a path
-that starts with `//` without an authority has `/.` in front of it. So
-`toRelative*` can compare normalized identifiers without parsing them
-again (see [Resolving](resolving.md#torelativeuriuri-base)).
+that starts with `//` without an authority has `/.` in front of it.
+`toRelative*` uses them now to compare normalized identifiers without
+parsing them again. In the new design it takes normalized identifiers, so
+only `normalize*` needs them.
 
 ## Encoding fragments
 
