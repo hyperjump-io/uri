@@ -27,14 +27,14 @@ of 5 runs, in milliseconds.
 
 | Operation | v1 | v2, before schemes | v2, predicates | v2 | identifier-js | fast-uri | uri-js | `URL` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Validate, ASCII | 206 | 104 | 337 | 151 | 273 | 927 | 1192 | 75 |
-| Validate, Unicode | 255 | 115 | 334 | 134 | 342 | 1264 | 2461 | 157 |
-| Parse, ASCII | 231 | 167 | 64 | 65 | 534 | 993 | 1125 | 169 |
-| Parse, Unicode | 249 | 207 | 90 | 90 | 663 | 1246 | 2393 | 364 |
-| Normalize, ASCII | 337 | 240 | 201 | 197 | 1398 | 2105 | 2827 | 172 |
-| Normalize, Unicode | 406 | 315 | 203 | 199 | 1527 | 2730 | 5183 | 376 |
-| Resolve | 765 | 603 | 382 | 415 | 2111 | 3456 | 3362 | 388 |
-| To relative | 2019 | 1018 | 442 | 460 | 3006 | | | |
+| Validate, ASCII | 207 | 104 | 333 | 130 | 265 | 909 | 1041 | 70 |
+| Validate, Unicode | 224 | 109 | 317 | 126 | 332 | 1129 | 2161 | 151 |
+| Parse, ASCII | 221 | 160 | 57 | 58 | 505 | 928 | 1049 | 154 |
+| Parse, Unicode | 234 | 196 | 84 | 86 | 601 | 1132 | 2142 | 339 |
+| Normalize, ASCII | 317 | 225 | 184 | 181 | 1249 | 1906 | 2608 | 157 |
+| Normalize, Unicode | 376 | 295 | 191 | 191 | 1399 | 2484 | 5267 | 365 |
+| Resolve | 847 | 644 | 877 | 415 | 2456 | 2981 | 3752 | 844 |
+| To relative | 2587 | 999 | 941 | 487 | 2137 | | | |
 
 - The ASCII inputs are the four in [Comparison with v1](v1-comparison.md).
   The Unicode inputs have the same shapes with non-ASCII characters in the
@@ -48,10 +48,12 @@ of 5 runs, in milliseconds.
   identifier-js's. Its other functions trust their input, so they don't
   check it, and resolve and to relative don't normalize. v1 and v2 before
   schemes do both.
-- Resolve is bimodal from one run to the next: v2 with predicates took
-  826, then 346 and 340, in three runs of the same cell. Differences of
-  10–50% between runs, like the other libraries' resolve times against
-  2026-11-01's, are noise.
+- Resolve and to relative are bimodal from one run to the next, for
+  every library. In four more runs of resolve, v2 took 357, 333, 788, and
+  791, v2 with predicates 340, 372, 342, and 336, and `URL` 344 to 372, so
+  on a fast run v2's resolve is about as fast as `URL`'s. To relative
+  took v2 390 to 452, and 867 once, and v2 with predicates 394 to 432.
+  Differences that size between runs are noise.
 - fast-uri and uri-js have no relative form. Each library's validate is
   its validator, or parsing without an error for fast-uri and uri-js,
   which have none.
@@ -100,5 +102,5 @@ match about 2.4 times as slow here (see
 chooses a grammar by scheme on every call, which makes a new `RegExp`.
 
 It was 2.3–5.6 times slower than v2 before schemes. Against v2 now, it's
-1.8 times slower to validate ASCII and 2.6 times slower for Unicode, and
-5.1–8.2 times slower at everything else.
+2.0 times slower to validate ASCII and 2.6 times slower for Unicode, and
+4.4–8.7 times slower at everything else.

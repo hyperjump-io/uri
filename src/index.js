@@ -140,13 +140,12 @@ const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFF
 
 // The rules that RFC 3987 defines again for IRIs are RFC 3986's, with iunreserved in place of unreserved, and iprivate
 // allowed in the query. So they're written once, for either. The component rules are for diagnosing why a value
-// doesn't match, and pchar is for the built-in schemes.
+// doesn't match, and the parts are what schemes' patterns are built from.
 /**
  * @type (unreserved: string, iprivate?: string) => {
  *   identifier: string;
  *   reference: string;
  *   absolute: string;
- *   pchar: string;
  *   components: Record<keyof ComponentMatchers, string>;
  *   parts: GrammarParts;
  * }
@@ -183,10 +182,9 @@ const rules = (unreserved, iprivate) => {
     identifier: `^${uri}$`,
     reference: `^(?:${uri}|${relativeRef})$`,
     absolute: `^${absoluteUri}$`,
-    pchar,
     components: { scheme, userinfo, regName, port, pathAbEmpty, pathAbsolute, pathNoScheme, pathRootless, query, fragment },
-    // A scheme's pattern is built from these. Its host has no IP literal of a future version, so one fails the
-    // scheme's pattern and is looked at again, where it throws.
+    // A scheme's host has no IP literal of a future version, so one fails the scheme's pattern and is looked at again,
+    // where it throws
     parts: { userinfo, host: hostWithoutFuture, port, pathAbEmpty, pathAbsolute, pathRootless, query, fragment }
   };
 };
@@ -244,9 +242,10 @@ const schemeName = new RegExp(`^${scheme}$`);
 // The symbol a defined scheme keeps its compiled patterns behind
 const compiled = Symbol("compiled");
 
-// The built-in schemes, written from their RFCs' ABNF with the same rule strings as the generic grammar. A pattern only
-// checks structure, because the generic syntax has already checked the characters, so the IRI rule strings are right
-// for either form. A urn is ASCII even in an IRI, so its patterns use the URI rule strings.
+// The built-in schemes, written from their RFCs' ABNF. A pattern only checks structure, because the generic syntax has
+// already checked the characters, so where the ABNF has the generic syntax's rules, like pchar, a pattern only has
+// what's left of them, like a character that isn't a delimiter. Checking the characters again cost as much as the
+// generic syntax. A urn is ASCII even in an IRI.
 
 // RFC 9110 §4.2.1: http-URI = "http" "://" authority path-abempty [ "?" query ]. "A sender MUST NOT generate an "http"
 // URI with an empty host identifier." The default port and an empty path are normalized (§4.2.3). The host's pattern
@@ -267,14 +266,15 @@ const httpScheme = (name, rule, defaultPort) => compileScheme({
 
 // RFC 8089 §2: file-URI = file-scheme ":" file-hier-part, where file-hier-part = ( "//" auth-path ) / local-path,
 // auth-path = [ file-auth ] path-absolute, local-path = path-absolute, and file-auth = "localhost" / host. So there's
-// no userinfo, port, or query, and the path is path-absolute. A host of "localhost" is the same as none.
+// no userinfo, port, or query, and the path is path-absolute, which is a path that starts with "/" and not "//". A host
+// of "localhost" is the same as none.
 const fileScheme = compileScheme({
   name: "file",
   rule: "file-URI",
   validate: {
     userinfo: "forbidden",
     port: "forbidden",
-    path: { pattern: new RegExp(iriRules.components.pathAbsolute, "u"), description: "an absolute path, like /a/b" },
+    path: { pattern: /\/(?!\/)[^?#]*/u, description: "an absolute path, like /a/b" },
     query: "forbidden"
   },
   normalize: {
@@ -282,8 +282,9 @@ const fileScheme = compileScheme({
   }
 }, undefined);
 
-// RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ]. The "?" that specific allows starts the
-// generic query, which has the same characters, so only the path has a pattern. Tags are equal "if and only if they
+// RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ], where specific = *( pchar / "/" / "?" ).
+// The "?" that specific allows starts the generic query, which has the same characters, so only the path has a pattern,
+// and what's after the ":" is anything the generic path allows. Tags are equal "if and only if they
 // are completely indistinguishable" (§2.4), so nothing but the scheme is normalized.
 const alphaNum = `[a-zA-Z0-9]`;
 const dnsComp = `${alphaNum}(?:(?:${alphaNum}|-)*${alphaNum})?`;
@@ -300,31 +301,32 @@ const tagScheme = compileScheme({
   validate: {
     authority: "forbidden",
     path: {
-      pattern: new RegExp(`${taggingEntity}:(?:${iriRules.pchar}|/)*`, "u"),
+      pattern: new RegExp(`${taggingEntity}:[^?#]*`, "u"),
       description: `a domain name or an email address, ",", a date, and ":", like example.com,2004:a`
     }
   }
 }, undefined);
 
 // RFC 8141 §2: namestring = assigned-name [ rq-components ] [ "#" f-component ], where assigned-name = "urn" ":" NID
-// ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components.
+// ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components. NSS = pchar *( pchar /
+// "/" ), so an NSS is ASCII that doesn't start with "/". rq-components = [ "?+" r-component ] [ "?=" q-component ], and
+// both are pchar *( pchar / "/" / "?" ). An r-component can have "?=", so a query is "+" or "=", then ASCII that doesn't
+// start with "/" or "?".
 const alphanum = `[a-zA-Z0-9]`;
 const ldh = `[a-zA-Z0-9-]`;
 const nid = `${alphanum}${ldh}{0,30}${alphanum}`;
-const nss = `${uriRules.pchar}(?:${uriRules.pchar}|/)*`;
-const rComponent = `${uriRules.pchar}(?:${uriRules.pchar}|/|\\?)*`;
-const qComponent = `${uriRules.pchar}(?:${uriRules.pchar}|/|\\?)*`;
 const nidPattern = new RegExp(`^${nid}$`);
+const nonAscii = `\\u{80}-\\u{10FFFF}`;
 
 /** @type API.SchemeDefinition["validate"] */
 const urnValidate = {
   authority: "forbidden",
-  path: { pattern: new RegExp(`${nid}:${nss}`, "u"), description: `a NID, ":", and an NSS, in ASCII, like example:a` },
+  path: { pattern: new RegExp(`${nid}:[^/?#${nonAscii}][^?#${nonAscii}]*`, "u"), description: `a NID, ":", and an NSS, in ASCII, like example:a` },
   query: {
-    pattern: new RegExp(`\\+${rComponent}(?:\\?=${qComponent})?|=${qComponent}`, "u"),
+    pattern: new RegExp(`[+=][^/?#${nonAscii}][^#${nonAscii}]*`, "u"),
     description: `"+" and an r-component, "=" and a q-component, or both, like +r?=q`
   },
-  fragment: { pattern: new RegExp(uriRules.components.fragment, "u"), description: "ASCII, with other characters percent-encoded" }
+  fragment: { pattern: new RegExp(`[^${nonAscii}]*`, "u"), description: "ASCII, with other characters percent-encoded" }
 };
 
 // RFC 8141 §3.1: only the scheme and the NID are case-insensitive, and percent-encoded characters "MUST NOT be
@@ -1314,8 +1316,11 @@ const resolve = (reference, base, options) => {
 
   const ref = split(reference);
 
+  // A result that has the base's authority only needs its path, query, and fragment checked, since rules are per
+  // component and the base's are trusted
   /** @type Components */
   let target;
+  let names = allComponents;
   if (ref.scheme !== undefined) {
     // It passed a validator with its scheme when it got its brand, so without dot segments it's already the result
     if (!hasDotSegment.test(ref.path)) {
@@ -1330,9 +1335,11 @@ const resolve = (reference, base, options) => {
       target = { ...ref, scheme: baseScheme, path: withoutDotSegments(ref.path) };
     } else if (ref.path === "") {
       target = { ...baseComponents, query: ref.query ?? baseComponents.query, fragment: ref.fragment };
+      names = pathQueryAndFragment;
     } else {
       const path = ref.path.startsWith("/") ? ref.path : mergePaths(ref.path, baseComponents);
       target = { ...baseComponents, path: withoutDotSegments(path), query: ref.query, fragment: ref.fragment };
+      names = pathQueryAndFragment;
     }
   }
 
@@ -1342,7 +1349,7 @@ const resolve = (reference, base, options) => {
   }
 
   const result = recompose(target);
-  checkResolved(result, target, allComponents, reference, result, options);
+  checkResolved(result, target, names, reference, result, options);
   return result;
 };
 
@@ -1350,6 +1357,8 @@ const resolve = (reference, base, options) => {
 const fragmentOnly = ["fragment"];
 /** @type readonly SchemeComponent[] */
 const queryAndFragment = ["query", "fragment"];
+/** @type readonly SchemeComponent[] */
+const pathQueryAndFragment = ["path", "query", "fragment"];
 
 // A result that breaks its scheme's rules can only be the reference's fault, because the base has a brand, so the
 // error is about the reference, spanned in it

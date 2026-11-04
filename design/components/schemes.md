@@ -172,8 +172,8 @@ The generic syntax has already checked the characters, in the URI or the
 IRI form. A pattern doesn't need to know which form it's checking, and it
 can write `.*` or `[^:]*` where the ABNF says `segment`. So the library's
 rule strings aren't exported, and a pattern is the same for both
-forms. `urn` checks that it's ASCII, with `[!-~]`, which is true in both
-forms.
+forms. `urn` checks that it's ASCII, with `[^\u{80}-\u{10FFFF}]`, which
+is true in both forms.
 
 A pattern ends where what can follow its component starts: `:`, `/`,
 `?`, `#`, or the end of the value for a host, `?`, `#`, or the end for a
@@ -190,8 +190,16 @@ isn't empty. The differential test against the predicates found it (see
 [`defineScheme`](../benchmarks/define-scheme.md)).
 
 The built-ins are written from their RFC's ABNF, with internal rule
-strings for the structure, like `tag`'s `dnsName` and `date`. So they
-read like the ABNF and can be checked against it.
+strings for the structure, like `tag`'s `dnsName` and `date`. Where the
+ABNF uses the generic syntax's rules, like `pchar`, a pattern has only
+what's left of them once the characters are checked: `urn`'s NSS, `pchar
+*( pchar / "/" )`, is ASCII that doesn't start with `/`, and `file`'s
+`path-absolute` is a path that starts with `/` and not `//`. The
+comments next to them give the ABNF, so they can be checked against it.
+
+They were written with the generic rules at first, which checked each
+character a second time. Without them, `isIri` of a `urn:uuid` went
+from 140 milliseconds to 112, and of a `file` URI from 101 to 76.
 
 ### `defineScheme`
 
@@ -584,6 +592,12 @@ The check is skipped where it can't fail:
   are the base's, still hold.
 - A reference with a scheme and no dot segments is returned as it is, and
   passed a validator when it got its brand.
+- A reference without an authority, which is merged with the base,
+  checks only the path's, the query's, and the fragment's rules. The
+  result's authority is the base's. For `http` and `https`, which have
+  rules only for the authority and the host, that's nothing, and
+  `resolveIri` of `../other.json` went from 862 milliseconds to 805,
+  where it took 814 with predicates, which checked every component.
 
 A result that fails can only be the reference's fault, since the base has
 a brand, so the error is about the reference. Its `value` is the
@@ -887,11 +901,12 @@ if (host !== undefined && !isDomainName(host)) {
 
 Measured when it was built (see
 [`defineScheme`](../benchmarks/define-scheme.md)). `isIri` of the four
-benchmark identifiers takes 138 milliseconds, where it took 312 with
-predicates and 81 with the generic syntax only, before schemes. It's 0.8
+benchmark identifiers takes 119 milliseconds, where it took 315 with
+predicates and 81 with the generic syntax only, before schemes. It's 0.7
 times v1's, where it was 1.7 times. A value that's invalid takes 1.2
 times as long as with predicates, since it's tested against its scheme's
-pattern first. The other functions take what they did with predicates.
+pattern first. The other functions take what they did with predicates,
+or less.
 
 The predicates this design had first were measured when they were built
 (see [Schemes and trust](../benchmarks/schemes-and-trust.md)). The lookup
