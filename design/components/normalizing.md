@@ -58,3 +58,9 @@ only `normalize*` needs them.
 allow, including `%`, and nothing else. A character is encoded if and only
 if normalizing wouldn't decode it, so the result is already normalized.
 It's for putting something like a JSON Pointer in a fragment.
+
+*Designed, not implemented:* it returns a plain `string`, with no brand.
+The brands are for identifiers, and a fragment isn't always a valid
+reference by itself: `a:b` is a fragment, and as a reference it has the
+scheme `a`. A caller puts it after a `#`, and that string is checked like
+any other.

@@ -22,11 +22,31 @@ The error classes name what went wrong: `InvalidUriError`,
 
 ## Merged functions
 
-*Open question.* `parse`, `resolve`, `toRelative`, and `toAbsolute` are one
-function each for URIs and IRIs (see [Trust](trust.md)). A name without
-its kind of identifier, like `parse`, breaks the rule above: it doesn't
-make sense imported by itself. The design docs use the IRI names,
-`parseIri`, `resolveIri`, `toRelativeIri`, and `toAbsoluteIri`, because
-every URI is an IRI, the overloads keep a `Uri` a `Uri`, and the
-dependents already call the IRI forms most. Whether the URI names stay
-too, as the same functions, is the question.
+*Designed, not implemented.* `parse`, `resolve`, `toRelative`, and
+`toAbsolute` are one function each for URIs and IRIs (see
+[Trust](trust.md)). They have only the IRI names: `parseIri`,
+`resolveIri`, `toRelativeIri`, and `toAbsoluteIri`. Every URI is an IRI,
+and the overloads keep a `Uri` a `Uri`, like
+`resolveIri(reference: UriReference, base: AbsoluteUri): Uri`, so a caller
+with URIs loses nothing in the types. The dependents already call only the
+IRI forms.
+
+That leaves `isUri`, `assertUri`, and `normalizeUri` without a matching
+`parseUri`, since those functions do differ for URIs. A caller may wonder
+whether `parseIri` takes a URI. The overloads answer it in an editor's
+completions, and the docs say it at the top of each page that uses the
+merged functions. v1's `parseUri` and `resolveUri` are a rename in
+Migrate from v1.
+
+### Rejected
+
+- **The URI names too, as aliases**, like `parseUri = parseIri`. They cost
+  nothing at runtime and remove the asymmetry, but two names for one
+  function make a reader ask how they differ, and the answer is that they
+  don't.
+- **Generic names, `*Identifier` or `*Id`**, like `parseIdentifier`. They
+  have the same asymmetry with `isUri` and `isIri`, and they bring a term
+  the RFCs don't use, so "what's an identifier?" replaces "does it take a
+  URI?"
+- **Names without the kind of identifier**, like `parse`. They don't make
+  sense imported by themselves, which breaks the rule above.

@@ -13,10 +13,8 @@ version, and that can't be known, so the answer is "I don't know", not
 Parsing, resolving, and normalizing accept a future IP literal and treat
 it as an ordinary host. *Designed, not implemented:* they take only
 values a validator has accepted (see [Trust](trust.md)), and no validator
-accepts one, so they only see one through a cast. Whether
-`allowUnknownIpLiteral`, which would let a validator accept one, is in
-2.0.0 is open (see [Schemes](schemes.md#which-functions-know-schemes)). They only need to know what the host looks like,
-which the syntax says. Normalizing makes it lowercase, like any host.
+accepts one, so they only see one through a cast. They only need to know
+what the host looks like, which the syntax says. Normalizing makes it lowercase, like any host.
 
 A validator only looks for one when the string is valid and has a `[`,
 since that's only allowed in an IP literal (see
@@ -28,6 +26,10 @@ brackets: `Unsupported IP version in host: v7.future`.
 
 ## Rejected
 
+- **`allowUnknownIpLiteral` in 2.0.0**, an option for validators to
+  accept one. It's the guess `allowUnknownScheme` was rejected for, as an
+  option, and nothing needs it. It's an option, so it can be added in a
+  minor version if a caller does.
 - **Returning `true`.** The syntax matches, but saying it's valid is a
   guess about addresses that don't exist yet.
 - **Returning `false`.** It isn't known to be invalid either. `false`

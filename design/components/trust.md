@@ -16,7 +16,8 @@ string, and only a function that checks gives one.
 `is*` and `assert*` give the same answers. `is*` returns a boolean and is
 a type guard. `assert*` throws an error that says what's wrong and where
 (see [Errors](errors.md)), and is an assertion function. Both throw
-`UnknownSchemeError` for a scheme they don't know, and
+`UnknownSchemeError` for a scheme they don't know,
+`UnknownUrnNamespaceError` for a URN namespace they don't know, and
 `UnsupportedIpVersionError` for a future IP literal, because "I don't
 know" isn't `true` or `false` (see
 [Answer only what's known](../principles/answer-only-whats-known.md)).
@@ -57,7 +58,7 @@ The URI and IRI forms of `parse`, `resolve`, `toRelative`, and
 normalizing, since they don't depend on which characters are allowed (RFC
 3987 §6.5 says resolving is the same). Each keeps the `Uri` brands with
 overloads, like `resolveIri(reference: UriReference, base: AbsoluteUri): Uri`.
-What they're called is an open question (see
+They have only the IRI names (see
 [Naming](naming.md#merged-functions)).
 
 ## What a brand says

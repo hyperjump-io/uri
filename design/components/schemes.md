@@ -40,7 +40,7 @@ Not supported on purpose:
 
 | Function | What it does with the scheme | Options |
 | --- | --- | --- |
-| `is*`, `assert*` | Checks its rules | `customSchemes`, `allowUnknownIpLiteral` |
+| `is*`, `assert*` | Checks its rules | `customSchemes` |
 | `resolveIri` | Checks the result's rules (see [Resolving](#resolving)) | `customSchemes` |
 | `normalizeUri`, `normalizeIri` | Applies its normalization (see [Normalizing](#normalizing)) | `customSchemes` |
 | `parseIri`, `toAbsoluteIri`, `toRelativeIri` | Nothing | None |
@@ -49,7 +49,8 @@ The others trust what they're given (see [Trust](trust.md)), and a value
 only has a brand if its scheme passed a validator, so they don't need to
 look it up.
 
-`customSchemes` is a list of schemes made with `defineScheme`. A custom
+`customSchemes` is a list of schemes, each a plain object (see
+[Custom schemes](#custom-schemes)). A custom
 scheme with a built-in's name replaces the built-in. That's how a
 built-in's rules are turned off, too: a custom scheme with its name and no
 rules. There's no option for turning off scheme checks, because that's a
@@ -97,10 +98,85 @@ only turns an `UnknownSchemeError` into an answer.
 
 ## Custom schemes
 
-`defineScheme` makes a scheme from its name, its rules, and its
-normalization. Most callers will never need one, so it's an escape hatch,
-and its ergonomics aren't optimized. What it looks like is an open
-question (see [Open questions](#open-questions)).
+A scheme is a plain object with its name, the rule its specification
+names it by, rules for its components, and its normalization. Most
+callers will never need one, so it's an escape hatch, and its ergonomics
+aren't optimized. The built-ins are made the same way.
+
+```js
+const httpScheme = {
+  name: "http",
+  rule: "http-URI",
+  validate: {
+    authority: "required",
+    host: { test: (host) => host !== "", description: "a host" }
+  },
+  normalize: {
+    port: (port) => port === "80" || port === "" ? undefined : port,
+    path: (path) => path === "" ? "/" : path
+  }
+};
+
+const tagScheme = {
+  name: "tag",
+  rule: "tagURI",
+  syntaxNormalization: false,
+  validate: {
+    authority: "forbidden",
+    query: "forbidden",
+    path: {
+      test: (path) => tagPath.test(path),
+      description: "a tagging entity, a date, \":\", and a name, like example.com,2004:a"
+    }
+  }
+};
+```
+
+*Designed, not implemented.* The top level has only what's about the
+whole scheme: `name`, `rule`, and `syntaxNormalization`. The rules and the
+normalization are each an object keyed by component, `validate` and
+`normalize`, and both are optional. A scheme with neither is known and
+adds nothing: `{ name: "data", rule: "dataurl" }`.
+
+`validate` can name any component but `scheme`, which the name decides.
+That includes `fragment`: `urn` tests that it's ASCII, and a scheme can
+forbid one. Each component's rule is one of:
+
+- Left out: no rule. The component can be there or not, and anything the
+  generic syntax allows.
+- `"required"` or `"forbidden"`: it has to be there, or can't be. These
+  give `missing-component` and `forbidden-component` (see
+  [Errors](#errors)).
+- `{ test, description? }`: a predicate on the component's string, run
+  when the component is there. `false` gives `component-mismatch`, with
+  the `description` in the message when there is one.
+
+A predicate only checks structure. The generic syntax is checked first, so
+the component already has only the characters it's allowed, in its URI or
+its IRI form. It doesn't need to know which form it's checking, and it can
+write `[^:]*` where the ABNF says `segment`. `urn` checks that it's ASCII,
+which is true in both forms.
+
+The built-ins are written from their RFC's ABNF, with the same rule
+strings as the generic grammar, and wrapped in `test`. So they read like
+the ABNF and can be checked against it, without the rule strings being
+exported.
+
+There's no `defineScheme`. Nothing has to compile or prepare a scheme, so
+it's a value, and its type checks its shape.
+
+No built-in needs a component that's required and tested at once:
+`http`'s required authority and its tested host are different components,
+and a path is always there. If a custom scheme needs it,
+`{ required: true, test }` can be added in a minor version.
+
+Rules are per component, not for the whole identifier, because of two
+things the built-ins need:
+
+- `assert*` says which component failed and why, with a span (see
+  [Errors](#errors)).
+- `resolveIri`'s `#f` shortcut checks only the fragment's rule (see
+  [Resolving](#resolving)).
 
 A custom scheme carries normalization as well as rules, because
 `normalize*` should do its best for any scheme it's given, and a caller
@@ -111,6 +187,32 @@ syntax-based normalization off, which `urn` and `tag` need (see
 
 ### Rejected
 
+- **A pattern for each component**, a regular expression source written
+  with exported rule strings like `pchar`, so a scheme reads like its
+  ABNF. The rule strings, in URI and IRI forms, would be public API that a
+  rename breaks, and each pattern would be compiled once for URIs and once
+  for IRIs. The generic syntax has already checked the characters, so a
+  scheme's rules only need structure, and the built-ins keep the ABNF
+  reading inside.
+- **One predicate on all the components**, `(components) => boolean`. It
+  can't say which component failed, so `assert*` would lose its reasons
+  unless the predicate returned them, which rebuilds the rules per
+  component inside a callback. And `#f` would check the whole identifier
+  again.
+- **A `defineScheme` function.** It was there to compile patterns. With
+  predicates there's nothing to compile, and a bad definition is a type
+  error.
+- **`true` and `false` instead of `"required"` and `"forbidden"`.**
+  Leaving a component out is the third state, anything goes, so `true`
+  could be read as "may have one", which is a no-op.
+- **Component rules at the top level**, next to `name` and `rule`. Every
+  component name would sit with the scheme's own properties, and the
+  type would mix them. Grouped, rules and normalization have the same
+  shape.
+- **`rules` for the group.** It's too close to `rule`, the RFC rule's
+  name. `validate` pairs with `normalize`.
+- **A bare `RegExp` for `test`.** One with the `g` flag keeps `lastIndex`
+  between calls, and gives the wrong answer the second time.
 - **Composing functions instead**, like checking the scheme from
   `parseIri` and calling a checker of the caller's own for it. Every
   caller would write the dispatch, and to add one scheme they'd have to
@@ -140,6 +242,42 @@ normalization. The namespace the NID names defines the rest. So:
 - `parseUrn` splits a URN into its NID, NSS, and the r-, q-, and
   f-components, for any namespace.
 
+*Designed, not implemented.* The factory is `urnScheme`, and it takes
+namespaces keyed by NID:
+
+```js
+import { urnScheme } from "@hyperjump/uri";
+
+const urn = urnScheme({
+  isbn: {
+    test: (nss) => isbnPattern.test(nss),
+    description: "an ISBN, like 0-395-36341-1",
+    normalize: (nss) => nss.replaceAll("-", "")
+  },
+  example: {}
+});
+
+isIri(value, { customSchemes: [urn] });
+```
+
+- NIDs match without case, as RFC 8141 compares them.
+- A namespace is `{ test?, description?, normalize? }`, all on the NSS,
+  like a component's rule and its normalization. `{}` is a namespace
+  that's known and adds nothing.
+- `uuid` is included unless a namespace of that name replaces it. The
+  built-in `urn` is `urnScheme({})`.
+- RFC 8141's rules are checked first, then the namespace's `test`.
+  `urn`'s normalization runs first, then the namespace's: `uuid`'s is
+  `lowercaseComponent(nss)`.
+- A NID it doesn't know throws `UnknownUrnNamespaceError`, with `value`
+  and `nid` (see [Errors](errors.md)). The factory does it
+  with the library's internals, which a component's `test` can't. A
+  custom `urn` is made with the same factory, so it's made the way the
+  built-in is.
+- Only the NSS has a namespace's rules. RFC 8141 says the f-component
+  doesn't depend on the namespace. Keys for the r- and q-components can
+  be added in a minor version if a namespace needs them.
+
 `urn:example` (RFC 6963), which is for documentation, isn't built in.
 Checking a documentation example is the only use for it, and the factory
 covers that.
@@ -149,6 +287,14 @@ covers that.
 - **No built-in `urn`**, with every caller defining it. The RFC 8141
   layer would be written again by everyone, and `uuid`'s rules would have
   to be exported.
+- **A `test` that can answer "I don't know"**, by returning `undefined`.
+  It would be generic, and `info:` (RFC 4452) and `did:` methods have
+  namespaces too, but the library couldn't say what it doesn't know: the
+  error would say a scheme is unknown when a namespace is. Only `urn` needs it
+  now, and it can be added if a built-in needs it.
+- **A `namespaces` field on the scheme**, extended by spreading the
+  exported built-in. The library would read a field that only means
+  something for `urn`, and every caller would write the spread.
 - **A separate option for namespaces.** The factory is one way to extend
   `urn`, and replacing the built-in is already how a scheme is changed.
 
@@ -161,10 +307,85 @@ Only MUST-level rules are built in. A SHOULD, like RFC 9110 saying a
 recipient should treat `userinfo` in an `http` URI as an error, is a
 policy that differs by caller.
 
+What the specifications say, for the rules that took looking up:
+
+- **`http` and `https` need a host.** "A sender MUST NOT generate an
+  "http" URI with an empty host identifier. A recipient that processes
+  such a URI reference MUST reject it as invalid." (RFC 9110 §4.2.1, and
+  §4.2.2 for `https`.)
+- **`file` allows a fragment but not a query.** RFC 8089's `file-URI` has
+  neither, and doesn't mention them. A fragment is allowed anyway:
+  fragment semantics "are independent of the URI scheme and thus cannot be
+  redefined by scheme specifications" (RFC 3986 §3.5), so a scheme's ABNF
+  leaves it out. RFC 9110 §4.2.5 says so of its own: "The fragment
+  identifier component is not part of the scheme definition for a URI
+  scheme". A query has no such exception, and `http-URI` lists
+  `[ "?" query ]` where `file-URI` doesn't. RFC 9844 updates RFC 8089,
+  but only to delete its reference to RFC 6874's zone identifiers.
+- **`file` needs a path that starts with `/`.** `auth-path = [ file-auth ]
+  path-absolute`, and `local-path = path-absolute`, so `file://` and
+  `file:a` are invalid.
+- **`urn` is ASCII in an IRI too.** RFC 8141 §2 "does not extend the URN
+  syntax to allow direct use of characters outside the ASCII range", and
+  the r-, q-, and f-components each say they "MUST be percent-encoded".
+  So `urn:ex:é` is a valid IRI and an invalid URN.
+- **A URN's f-component is a fragment**: `f-component = fragment`, with
+  the ASCII rule above. It isn't part of URN-equivalence ("SHALL NOT be
+  taken into account", §2.3.3).
+
 `tag` and `urn` get parse functions, `parseTag` and `parseUrn`, because a
 caller expects their parts: a tagging entity and a date, or a NID. The
 others have nothing the generic components don't have. Parse functions
 split like `parseIri` does, and trust what they're given.
+
+*Designed, not implemented.* They return a field for each part of the
+RFC's grammar, named after its rule:
+
+```ts
+// RFC 8141: "urn" ":" NID ":" NSS [ "?+" r-component ] [ "?=" q-component ] [ "#" f-component ]
+type UrnComponents = {
+  readonly nid: string;
+  readonly nss: string;
+  readonly rComponent?: string;
+  readonly qComponent?: string;
+  readonly fComponent?: string;
+};
+
+// RFC 4151: "tag:" authorityName "," date ":" specific [ "#" fragment ]
+type TagComponents = {
+  readonly authorityName: string;
+  readonly date: string;
+  readonly specific: string;
+  readonly fragment?: string;
+};
+
+parseUrn(value: Iri): UrnComponents
+parseTag(value: Iri): TagComponents
+```
+
+- There's no `scheme`. It's always `urn` or `tag`.
+- Values are as written, like `parseIri`'s: nothing is decoded or
+  lowercased. A caller who wants them normalized normalizes first.
+- A part that isn't there isn't a key. An r-component and a q-component
+  have at least one character (RFC 8141), so only `fComponent` can be
+  empty: `urn:a:b#` has `fComponent: ""`, like a generic fragment.
+- `date` is a string, like `"2004"` or `"2004-01-15"`. A tag's date can be
+  only a year or a month, which a `Date` can't say.
+- They take an `Iri`, since a brand doesn't say which scheme a value has.
+  For another scheme the result is undefined, like for a value that was
+  cast.
+
+### Rejected parse results
+
+- **`taggingEntity` as one field**, like `example.com,2004`. The RFC names
+  it, but a caller wants its two parts, and joining them is easy.
+- **An `assignedName` field**, `urn:NID:NSS`, which RFC 8141 compares URNs
+  by. It's a slice of the input a caller can rebuild in a line, so it's
+  left out until something needs it.
+- **A `Date` for `date`.** It can't say a date that's only a year or a
+  month.
+- **A template literal type for the input**, like `` `urn:${string}` ``.
+  It rejects `URN:a:b`, which is valid, since schemes are case-insensitive.
 
 Validators for one scheme, like `isUrn`, aren't in 2.0.0. No use case
 needs them yet.
@@ -197,22 +418,25 @@ always valid and ✗ for one that can't be:
 | Reference | `http`, `https` | `file` | `tag` | `urn` |
 | --- | --- | --- | --- | --- |
 | `""` | ✓ the base | ✓ | ✓ | ✓ |
-| `#f` | ✓ | Open: whether `file` allows a fragment | ✓ | ✓ f-component |
-| `?q` | ✓ | Open: whether `file` allows a query | ✗ `tag:x,2000:a?q`, no query in `tagURI` | ✗ `urn:ex:a?q`, needs `?=` or `?+` |
+| `#f` | ✓ | ✓ | ✓ | ✓ f-component, if it's ASCII |
+| `?q` | ✓ | ✗ `file:///a?q`, no query in `file-URI` | ✗ `tag:x,2000:a?q`, no query in `tagURI` | ✗ `urn:ex:a?q`, needs `?=` or `?+` |
 | `b` | ✓ | ✓ | ✗ `tag:b` | ✗ `urn:b` |
 | `/b` | ✓ | ✓ | ✗ `tag:/b` | ✗ `urn:/b` |
 | `//h/b` | ✓ | ✓ | ✗ | ✗ |
-| `//` | ✗ `http://`, empty host | ✓ `file://` | ✗ | ✗ |
+| `//` | ✗ `http://`, empty host | ✗ `file://`, no `path-absolute` | ✗ | ✗ |
 | Its own scheme | ✓ unless dot segments | ✓ | ✗ `tag:x,2000:a/../b` is `tag:/b` | ✗ the same |
 
-Hierarchical schemes break only on an empty host. `tag` and `urn` break
+Hierarchical schemes break only on an empty host, an empty path for
+`file`, and a query for `file`. `tag` and `urn` break
 on nearly every relative reference, and even an absolute reference can
 break, because removing its dot segments (§5.2.2) changes its path.
 
 The check is skipped where it can't fail:
 
 - `""` returns the base.
-- `#f` checks only the scheme's fragment rule. Most `$ref`s are this.
+- `#f` checks only the scheme's fragment rule, which for the built-ins
+  is the generic one, and for `urn` that it's ASCII. Most `$ref`s are
+  this.
 - A reference with a scheme and no dot segments is returned as it is, and
   passed a validator when it got its brand.
 
@@ -276,10 +500,33 @@ is decided by the scheme name, which is case-insensitive for every URI
 (RFC 3986 §3.1). `TAG:x` is a valid tag too, since a quoted string in
 ABNF is case-insensitive (RFC 5234 §2.3).
 
+### Defining it
+
+*Designed, not implemented.* A scheme's `normalize` has a function for
+each component it normalizes (see [Custom schemes](#custom-schemes)):
+
+- A function takes its component and returns the normalized component,
+  or `undefined` to remove it, like a default port. `path` returns a
+  string, since there's always a path.
+- A function only runs when its component is there, so it can't add one.
+- A function gets only its own component. None of the built-ins need
+  more, and passing all the components could be added later without
+  breaking anything.
+- The components are `userinfo`, `host`, `port`, `path`, and `query`.
+  Not `scheme`, which is always lowercased. Not `fragment`: "The fragment
+  component is not subject to any scheme-based normalization" (RFC 3986
+  §6.2.3). Not `authority`, which is rebuilt from its parts, so a function
+  for it and one for `port` couldn't say which wins. `file`'s `localhost`
+  is a `host` function that returns `""`.
+- Functions aren't checked against the scheme's rules. The built-ins are
+  tested so that they never break them, and a custom scheme's function
+  that does is the scheme's own bug.
+
 ### Turning off the syntax-based normalization
 
 A scheme, built in or custom, can turn off the syntax-based
-normalization, which RFC 8141 and RFC 4151 forbid parts of. Then every
+normalization, which RFC 8141 and RFC 4151 forbid parts of, with
+`syntaxNormalization: false`. It's `true` by default. Then every
 step but making the scheme lowercase is off, and a scheme whose
 specification allows some of the steps does them itself, like `urn`
 making hex digits uppercase.
@@ -299,11 +546,11 @@ normalization could make two of its identifiers equal that aren't. With
 unknown schemes throwing, that can't happen, and `urn` and `tag`, the
 known ones that override it, are built in.
 
-### `lowercase`
+### `lowercaseComponent`
 
 Making a case-insensitive part of a component lowercase is the most common
 normalization, for the NID of a URN, a `mailto` domain, or all of a `tel`
-URI. The library exports a `lowercase` function that does it, so a custom
+URI. The library exports a `lowercaseComponent` function that does it, so a custom
 scheme doesn't have to get it right itself:
 
 - It changes ASCII letters only. Case-insensitivity in the RFCs is
@@ -316,6 +563,13 @@ It's the only step that's exported. Only a custom scheme that turns the
 syntax-based normalization off and allows some of its steps would need
 the others, and an export can be added in a minor version, when a scheme
 does.
+
+It's named for what it works on, like `normalizeIri`, because it's
+imported by itself next to a caller's own code. `lowercase` alone reads
+like a string utility, and a caller could swap it for `toLowerCase`,
+which breaks both rules above. Rejected: `lowercase`; `asciiLowercase`,
+whose WHATWG Infra definition doesn't skip percent-encoding; and
+`lowercaseIri`, since it doesn't take a whole identifier.
 
 ### What isn't normalized
 
@@ -347,6 +601,12 @@ does.
 - **The scheme's normalization first.** It isn't the order of the
   comparison ladder, and decoding after the scheme's functions could
   undo what they did, like `%41` becoming `A` in a part they lowercased.
+- **A normalization function inside each component's rule**, like
+  `path: { test, normalize }`. `"required"` and `"forbidden"` can't carry
+  one, and `http`'s `port` has a normalization but no rule, so it would
+  need a rule object without a `test`.
+- **`syntaxNormalization` inside `normalize`.** It would mix a flag with
+  the component keys again.
 - **Data fields**, like `defaultPort: 80` and `emptyPath: "/"`. They read
   like the specifications, but they can't say that part of a component
   is case-insensitive, like the NID in the path of a URN.
@@ -358,7 +618,7 @@ does.
 - **Checking a scheme's normalization against its rules.** It would cost
   on every call for a scheme with normalization, to catch bugs in the
   scheme's definition, not in the identifier.
-- **Not exporting `lowercase`.** Every custom scheme with a
+- **Not exporting `lowercaseComponent`.** Every custom scheme with a
   case-insensitive part would write its own, and some would lowercase hex
   digits or Unicode characters.
 - **Exporting every syntax-based step.** Nothing needs them yet, and
@@ -386,8 +646,9 @@ has already been reported, at its position. What a scheme adds is
 structure, like a date where the path starts, and a description of the
 structure says more than a position in it would.
 
-Whether a custom scheme can give that description is open (see
-[Open questions](#open-questions)).
+A scheme gives the description with its component's `test` (see
+[Custom schemes](#custom-schemes)). Without one, the message names the
+rule: `the path doesn't match tagURI`.
 
 ### Rejected
 
@@ -463,29 +724,5 @@ if (host !== undefined && !isDomainName(host)) {
 
 ## Open questions
 
-- **What `defineScheme` takes.** Before, it took a regular expression
-  source for each component, written with exported rule strings like
-  `pchar`, so a scheme read like its ABNF. Predicates for components were
-  rejected for not reading like the ABNF. The ABNF reading mattered for
-  the built-ins, and a predicate on the components,
-  `(components) => boolean`, is simpler, allows rules that aren't regular,
-  and needs no exported rule strings. Which rule strings are exported is
-  open only if patterns stay.
-- **What its normalization looks like.** Before, it was a function for
-  each component, which returns the normalized component or `undefined`
-  to remove it, and a `syntaxNormalization: false` flag.
-- **Whether a custom scheme gives a description for errors.** It was
-  dropped when only scheme-specific parse functions reported scheme
-  reasons. `assert*` reports them for every scheme, so a custom scheme's
-  `component-mismatch` would say `the path doesn't match tagURI` without
-  one.
-- **What `parseUrn` and `parseTag` return, and the URN factory's API**,
-  including how a namespace gives its rules and its normalization, like
-  `uuid` making its NSS lowercase.
-- **Whether RFC 8089's `file-URI` allows a query or a fragment.** The
-  `#f` shortcut in `resolveIri` depends on it. Also what RFC 8141 requires
-  of `f-component`, and RFC 9110's exact wording on empty hosts.
-- **The fields of `UnknownSchemeError`** beyond `value` and `scheme`.
-- **The name `lowercase`.**
 - **How expensive the scheme lookup is**, on every `is*`, `assert*`,
   `resolveIri`, and `normalize*` call. To be measured when it's built.

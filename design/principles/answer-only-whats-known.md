@@ -13,6 +13,8 @@ When a question can't be answered from what the RFCs define, the answer is
   [Schemes](../components/schemes.md)). So do `resolveIri` and
   `normalizeIri`, which need the scheme's rules to check their result or
   to normalize, and would otherwise return something they can't vouch for.
+  A URN whose namespace it doesn't know throws `UnknownUrnNamespaceError`
+  the same way.
 
 Functions that only need to know what something looks like, not whether
 it's valid, aren't affected. Parsing, resolving, and normalizing accept a
