@@ -1,7 +1,5 @@
 # Trust
 
-*Designed, not implemented.*
-
 Functions either check what they're given or trust it (see
 [Pay only for what you ask for](../principles/pay-only-for-what-you-ask-for.md)).
 The types say which: a function that trusts its input takes a branded
@@ -31,8 +29,11 @@ function's result is undefined. It doesn't throw for it.
 type IriReference = string & { [reference]: true };
 type Iri = IriReference & { [full]: true };
 type AbsoluteIri = Iri & { [absolute]: true };
-type Uri = Iri & { [ascii]: true };            // every URI is an IRI
+type UriReference = IriReference & { [ascii]: true };
+type Uri = Iri & UriReference;                 // every URI is an IRI
+type AbsoluteUri = AbsoluteIri & Uri;
 type NormalizedIri = Iri & { [normalized]: true };
+type NormalizedUri = Uri & { [normalizedUri]: true };
 ```
 
 The brands are intersections, so a value can have several, and each
@@ -49,7 +50,7 @@ assertAbsoluteIri(value: string, options?): asserts value is AbsoluteIri
 parseIri(value: AbsoluteIri): AbsoluteIdentifierComponents  // and overloads for Iri and IriReference
 resolveIri(reference: IriReference, base: AbsoluteIri, options?): Iri
 toAbsoluteIri<T extends Iri>(value: T): T & AbsoluteIri
-normalizeIri<T extends Iri>(value: T, options?): T & NormalizedIri
+normalizeIri(value: AbsoluteIri, options?): AbsoluteIri & NormalizedIri  // and an overload for Iri
 toRelativeIri(target: NormalizedIri, base: NormalizedIri & AbsoluteIri): IriReference
 ```
 
@@ -60,6 +61,28 @@ normalizing, since they don't depend on which characters are allowed (RFC
 overloads, like `resolveIri(reference: UriReference, base: AbsoluteUri): Uri`.
 They have only the IRI names (see
 [Naming](naming.md#merged-functions)).
+
+## Normalized brands
+
+`normalizeUri` and `normalizeIri` give different brands, `NormalizedUri`
+and `NormalizedIri`, because they normalize differently: `normalizeIri`
+decodes percent-encoded Unicode, and `normalizeUri` leaves it encoded. A
+URI normalized as a URI isn't normalized as an IRI, so `toRelativeIri`
+takes two of the same kind, with an overload for each.
+
+`normalizeIri` doesn't keep a `Uri` a `Uri`, since decoding can make it
+one that isn't ASCII. It keeps an `AbsoluteIri` absolute, with an overload,
+instead of the generic `<T extends Iri>(value: T): T & NormalizedIri` that
+was designed, which would have said a decoded URI is still a `Uri`.
+`toAbsoluteIri` is still generic, since removing a fragment keeps every
+brand.
+
+### Rejected
+
+- **`normalizeUri` giving `NormalizedIri`**, as the generic signature
+  did. `toRelativeIri` would take a URI normalized as a URI and an IRI
+  normalized as an IRI together, which can be equivalent without being
+  equal, so its result wouldn't be the shortest.
 
 ## What a brand says
 

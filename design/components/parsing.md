@@ -1,8 +1,5 @@
 # Parsing
 
-*Designed, not implemented:* `parseIri` only splits. `src/` still
-validates first, as described in [Validating, then splitting](#validating-then-splitting).
-
 ## Splitting only
 
 `parseIri` takes an identifier that's been checked (see [Trust](trust.md))
@@ -46,7 +43,7 @@ needed them.
 ## Splitting
 
 `split` only runs on a string that its rule's pattern has accepted, or,
-in the new design, that's trusted to be one. Then
+or that's trusted to be one. Then
 each delimiter can only be where its component ends, so the first one of
 each kind ends that component:
 
@@ -75,9 +72,12 @@ be mistaken for the end of a component.
 
 ## Performance
 
-Every function is faster than v1, which used capture groups: `isIri` 2.2
-times, the others 1.2–1.4 times (see
-[Comparison with v1](../benchmarks/v1-comparison.md)).
+Before scheme validation, every function was faster than v1, which used
+capture groups: `isIri` 2.2 times, the others 1.2–1.4 times (see
+[Comparison with v1](../benchmarks/v1-comparison.md)). With the schemes'
+rules, `isIri` is 1.73 times slower than v1's, and `parseIri`, which only
+splits, is 3.3 times faster (see
+[Schemes and trust](../benchmarks/schemes-and-trust.md)).
 
 ## Why URIs are slower than IRIs
 

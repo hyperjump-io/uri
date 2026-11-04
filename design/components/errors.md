@@ -8,10 +8,10 @@ instead of by its message.
 | `InvalidUriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of URI a function needs |
 | `InvalidIriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of IRI a function needs |
 | `UnsupportedIpVersionError` | `Error` | `value`, `host` | A validator is given a future IP literal (see [Future IP versions](future-ip-versions.md)) |
-| `UnknownSchemeError` | `Error` | `value`, `scheme` | A function that needs a scheme's rules is given one it doesn't know (see [Schemes](schemes.md#unknown-schemes)). *Designed, not implemented.* |
-| `UnknownUrnNamespaceError` | `Error` | `value`, `nid` | A function that needs a URN namespace's rules is given a NID it doesn't know (see [Schemes](schemes.md#the-urn-scheme)). *Designed, not implemented.* |
+| `UnknownSchemeError` | `Error` | `value`, `scheme` | A function that needs a scheme's rules is given one it doesn't know (see [Schemes](schemes.md#unknown-schemes)) |
+| `UnknownUrnNamespaceError` | `Error` | `value`, `nid` | A function that needs a URN namespace's rules is given a NID it doesn't know (see [Schemes](schemes.md#the-urn-scheme)) |
 
-*Designed, not implemented:* each "I don't know" error names what isn't
+Each "I don't know" error names what isn't
 known. "Unsupported" is for what the library can't do, which no
 configuration fixes. "Unknown" is for what the caller hasn't configured:
 a scheme in `customSchemes`, or a namespace in `urnScheme`. `scheme` and
@@ -20,23 +20,25 @@ them as written. Neither has a span, because a scheme is always at the
 start and a NID always follows `urn:`. Messages are
 `Unknown scheme: did` and `Unknown URN namespace: isbn`.
 
-*Designed, not implemented:* `InvalidUriError` and `InvalidIriError` are
+`InvalidUriError` and `InvalidIriError` are
 thrown by `assert*`, which checks like `is*` does, and by `resolveIri`
 for a result that breaks its scheme's rules. Parsers don't validate any
 more, so they don't throw (see [Trust](trust.md)).
 
 `value` is the string that was given. `rule` is the RFC rule it doesn't
 match: `"URI"`, `"URI-reference"`, or `"absolute-URI"`, or their IRI
-forms. When a function takes two identifiers, like `resolveUri`, the rule
-says which one was wrong: the reference is a `URI-reference` and the base
-is an `absolute-URI`. *Designed, not implemented:* `resolveIri` trusts
-both, and its only error is a result that breaks its scheme's rules,
-which is about the reference, with the scheme's rule (see
-[Schemes](schemes.md#resolving)).
+forms, or a scheme's rule, like `"http-URI"`, for a value that breaks its
+scheme's rules. `resolveIri` trusts both of its arguments, and its only
+error is a result that breaks its scheme's rules, which is about the
+reference, with the scheme's rule (see [Schemes](schemes.md#resolving)).
+v1's `resolveUri` checked both, and the rule said which was wrong.
 
 The rest say what's wrong and where:
 
 - `reason` is a code from the list in [Reasons](#reasons).
+- `rule`'s type is `UriRule | (string & {})`, or the IRI form, since a
+  scheme's rule can be any string. `(string & {})` keeps the RFC rules in
+  an editor's completions, which plain `string` would swallow.
 - `component` is the component the problem is in: `"scheme"`,
   `"authority"`, `"userinfo"`, `"host"`, `"port"`, `"path"`, `"query"`, or
   `"fragment"`. Its type is `keyof IdentifierComponents`, which is that
@@ -85,7 +87,7 @@ since a scheme can have digits after its first character.
 The patterns only say whether a value matches. When a parser's pattern
 fails, a second step finds out why. Only the error path runs it.
 Validators return `false` without it, and a valid value never reaches it.
-*Designed, not implemented:* `assert*` runs it, in place of the parsers.
+`assert*` runs it, in place of the parsers.
 
 1. **Split** the value with RFC 3986 Appendix B's regular expression,
    which matches any string. A value that isn't valid still has
@@ -105,7 +107,7 @@ Validators return `false` without it, and a valid value never reaches it.
    `invalid-character`.
 
 The rule's shape is checked before the characters, so
-`parseAbsoluteUri("http://a b/#c")` is `fragment-not-allowed`, not the
+`assertAbsoluteUri("http://a b/#c")` is `fragment-not-allowed`, not the
 space. The fragment is wrong whatever else is fixed.
 
 `rules()` returns the component rules with the three whole patterns, and
@@ -188,11 +190,11 @@ the other reasons about a part of the value.
 | `invalid-character` | The character | `http://exa mple.com` |
 | `invalid-percent-encoding` | The `%` and up to two characters after it | `http://a/%zz` |
 | `invalid-ip-literal` | The literal, with its brackets | `http://[::g]/` |
-| `missing-scheme` | Empty, at 0 | `parseUri("/a")` |
-| `fragment-not-allowed` | The fragment, with its `#` | `parseAbsoluteUri("http://a#b")` |
-| `colon-in-first-segment` | The first segment | `parseUriReference("1a:b")` |
+| `missing-scheme` | Empty, at 0 | `assertUri("/a")` |
+| `fragment-not-allowed` | The fragment, with its `#` | `assertAbsoluteUri("http://a#b")` |
+| `colon-in-first-segment` | The first segment | `assertUriReference("1a:b")` |
 | `missing-component` | Empty, where it would go | `http:/a`, by `http`'s rules |
-| `forbidden-component` | The component | A query on a scheme that forbids one |
+| `forbidden-component` | The component, with its delimiter | A query on a scheme that forbids one |
 | `component-mismatch` | The component | A component that doesn't match its scheme's pattern |
 
 The last three are for scheme rules (see
@@ -201,9 +203,8 @@ The last three are for scheme rules (see
 `reason` is a union of these strings in the declarations,
 `InvalidIdentifierReason`, so a caller can `switch` on it and TypeScript
 checks every case. Adding one later breaks that `switch`, so the list is
-settled before 2.0.0, with the scheme reasons in it. The declarations only
-have the first six for now, the ones that can be thrown. The scheme
-reasons are added with scheme validation, which is in 2.0.0 too.
+settled before 2.0.0, with the scheme reasons in it. The declarations
+have all nine, since `assert*` and `resolveIri` throw the scheme reasons.
 
 ## Rejected
 
@@ -267,5 +268,6 @@ reasons are added with scheme validation, which is in 2.0.0 too.
 - **Checking the characters before the rule's shape.** A fragment in an
   absolute-URI is wrong however its characters are fixed, so it's said
   first.
-- **The scheme reasons in the declarations now**, before they can be
-  thrown. A caller would `switch` on reasons that never happen.
+- **The scheme reasons in the declarations before they could be
+  thrown.** A caller would `switch` on reasons that never happen. They
+  went in with scheme validation.

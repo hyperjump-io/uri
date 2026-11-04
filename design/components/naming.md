@@ -22,7 +22,7 @@ The error classes name what went wrong: `InvalidUriError`,
 
 ## Merged functions
 
-*Designed, not implemented.* `parse`, `resolve`, `toRelative`, and
+`parse`, `resolve`, `toRelative`, and
 `toAbsolute` are one function each for URIs and IRIs (see
 [Trust](trust.md)). They have only the IRI names: `parseIri`,
 `resolveIri`, `toRelativeIri`, and `toAbsoluteIri`. Every URI is an IRI,

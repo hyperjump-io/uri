@@ -1,130 +1,311 @@
+declare const reference: unique symbol;
+declare const full: unique symbol;
+declare const absolute: unique symbol;
+declare const ascii: unique symbol;
+declare const normalized: unique symbol;
+declare const normalizedUri: unique symbol;
+
 /**
- * Whether `value` is a URI (RFC 3986 §3): it has a scheme, and it can have
- * a fragment.
+ * A string that {@link isIriReference} or {@link assertIriReference}
+ * checked: an IRI, or a relative reference. Brands are only in the types.
+ * At runtime it's a string.
+ */
+export type IriReference = string & { readonly [reference]: true };
+
+/** A string that {@link isIri} or {@link assertIri} checked. */
+export type Iri = IriReference & { readonly [full]: true };
+
+/** A string that {@link isAbsoluteIri} or {@link assertAbsoluteIri} checked. */
+export type AbsoluteIri = Iri & { readonly [absolute]: true };
+
+/** An IRI that {@link normalizeIri} normalized. */
+export type NormalizedIri = Iri & { readonly [normalized]: true };
+
+/** A string that {@link isUriReference} or {@link assertUriReference} checked. */
+export type UriReference = IriReference & { readonly [ascii]: true };
+
+/** A string that {@link isUri} or {@link assertUri} checked. Every URI is an IRI. */
+export type Uri = Iri & UriReference;
+
+/** A string that {@link isAbsoluteUri} or {@link assertAbsoluteUri} checked. */
+export type AbsoluteUri = AbsoluteIri & Uri;
+
+/**
+ * A URI that {@link normalizeUri} normalized. It isn't a
+ * {@link NormalizedIri}, because {@link normalizeIri} decodes Unicode
+ * characters that {@link normalizeUri} leaves encoded.
+ */
+export type NormalizedUri = Uri & { readonly [normalizedUri]: true };
+
+/** The options of the functions that know schemes. */
+export type Options = {
+  /**
+   * Schemes to know besides the built-in ones, `http`, `https`, `file`,
+   * `tag`, and `urn`. A scheme with a built-in's name replaces it.
+   */
+  readonly customSchemes?: readonly Scheme[];
+};
+
+/**
+ * A scheme's rules and normalization, on top of the generic syntax. A
+ * scheme with neither, like `{ name: "data", rule: "dataurl" }`, is known
+ * and adds nothing.
+ */
+export type Scheme = {
+  /** The scheme's name. It matches without case. */
+  readonly name: string;
+
+  /** The ABNF rule its specification names it by, like `"http-URI"`. Errors say it. */
+  readonly rule: string;
+
+  /**
+   * Whether {@link normalizeIri} applies RFC 3986's syntax-based
+   * normalization before the scheme's. With `false`, only the scheme is
+   * lowercased. Defaults to `true`.
+   */
+  readonly syntaxNormalization?: boolean;
+
+  /** A rule for each component that has one. The generic syntax is checked first. */
+  readonly validate?: {
+    readonly [Component in Exclude<keyof IdentifierComponents, "scheme">]?: ComponentRule;
+  };
+
+  /**
+   * A function for each component the scheme normalizes. It runs only when
+   * its component is there, after the syntax-based normalization, and
+   * returns `undefined` to remove it.
+   */
+  readonly normalize?: {
+    readonly userinfo?: (userinfo: string) => string | undefined;
+    readonly host?: (host: string) => string;
+    readonly port?: (port: string) => string | undefined;
+    readonly path?: (path: string) => string;
+    readonly query?: (query: string) => string | undefined;
+  };
+};
+
+/**
+ * What a scheme requires of a component.
  *
+ * - `"required"`: it has to be there.
+ * - `"forbidden"`: it can't be there.
+ * - `{ test, description? }`: when it's there, `test` has to return
+ *   `true` for it. `description` finishes "a tag URI's path must be …" in
+ *   the error.
+ */
+export type ComponentRule
+  = "required"
+    | "forbidden"
+    | { readonly test: (component: string) => boolean; readonly description?: string };
+
+/**
+ * A URN namespace's rules and normalization, on its NSS. `{}` is a
+ * namespace that's known and adds nothing.
+ */
+export type UrnNamespace = {
+  /** Whether an NSS is valid for the namespace. RFC 8141's rules are checked first. */
+  readonly test?: (nss: string) => boolean;
+
+  /** Finishes "a uuid URN's NSS must be …" in the error. */
+  readonly description?: string;
+
+  /** Normalizes an NSS, after RFC 8141's normalization. */
+  readonly normalize?: (nss: string) => string;
+};
+
+/**
+ * Whether `value` is a URI (RFC 3986 §3), with the rules of its scheme: it
+ * has a scheme, and it can have a fragment.
+ *
+ * @throws {UnknownSchemeError} If the scheme isn't built in or in
+ *   `customSchemes`. Whether `value` is valid for it can't be known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of a namespace the
+ *   `urn` scheme doesn't know.
  * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
  *   future version, like `[v7.future]`. Its syntax is known, but not
  *   whether the address is valid.
  */
-export const isUri: (value: string) => boolean;
+export const isUri: (value: string, options?: Options) => value is Uri;
 
 /**
  * Whether `value` is a URI-reference (RFC 3986 §4.1): a URI, or a relative
- * reference like `../foo#bar`.
+ * reference like `../foo#bar`. A relative reference isn't checked against
+ * a scheme.
  *
+ * @throws {UnknownSchemeError} If `value` has a scheme that isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
  * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
  *   future version.
  */
-export const isUriReference: (value: string) => boolean;
+export const isUriReference: (value: string, options?: Options) => value is UriReference;
 
 /**
  * Whether `value` is an absolute-URI (RFC 3986 §4.3): a URI without a
  * fragment.
  *
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
  * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
  *   future version.
  */
-export const isAbsoluteUri: (value: string) => boolean;
+export const isAbsoluteUri: (value: string, options?: Options) => value is AbsoluteUri;
 
 /**
  * Whether `value` is an IRI (RFC 3987): a URI that can have Unicode
  * characters.
  *
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
  * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
  *   future version.
  */
-export const isIri: (value: string) => boolean;
+export const isIri: (value: string, options?: Options) => value is Iri;
 
 /**
  * Whether `value` is an IRI-reference: an IRI, or a relative reference.
  *
+ * @throws {UnknownSchemeError} If `value` has a scheme that isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
  * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
  *   future version.
  */
-export const isIriReference: (value: string) => boolean;
+export const isIriReference: (value: string, options?: Options) => value is IriReference;
 
 /**
  * Whether `value` is an absolute-IRI: an IRI without a fragment.
  *
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
  * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
  *   future version.
  */
-export const isAbsoluteIri: (value: string) => boolean;
+export const isAbsoluteIri: (value: string, options?: Options) => value is AbsoluteIri;
 
 /**
- * Splits a URI into its components. A component that isn't there isn't a
- * property of the result. An empty one is `""`.
+ * Checks that `value` is a URI, like {@link isUri}, and throws an error
+ * that says what's wrong and where if it isn't.
  *
  * @throws {InvalidUriError} If `value` isn't a URI.
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
+ *   future version.
  */
-export const parseUri: (value: string) => IdentifierComponents;
+export const assertUri: (value: string, options?: Options) => asserts value is Uri;
 
 /**
- * Splits a URI-reference into its components.
+ * Checks that `value` is a URI-reference, like {@link isUriReference}.
  *
  * @throws {InvalidUriError} If `value` isn't a URI-reference.
+ * @throws {UnknownSchemeError} If `value` has a scheme that isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
+ *   future version.
  */
-export const parseUriReference: (value: string) => RelativeIdentifierComponents;
+export const assertUriReference: (value: string, options?: Options) => asserts value is UriReference;
 
 /**
- * Splits an absolute-URI into its components.
+ * Checks that `value` is an absolute-URI, like {@link isAbsoluteUri}.
  *
  * @throws {InvalidUriError} If `value` isn't an absolute-URI.
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
+ *   future version.
  */
-export const parseAbsoluteUri: (value: string) => AbsoluteIdentifierComponents;
+export const assertAbsoluteUri: (value: string, options?: Options) => asserts value is AbsoluteUri;
 
 /**
- * Splits an IRI into its components.
+ * Checks that `value` is an IRI, like {@link isIri}.
  *
  * @throws {InvalidIriError} If `value` isn't an IRI.
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
+ *   future version.
  */
-export const parseIri: (value: string) => IdentifierComponents;
+export const assertIri: (value: string, options?: Options) => asserts value is Iri;
 
 /**
- * Splits an IRI-reference into its components.
+ * Checks that `value` is an IRI-reference, like {@link isIriReference}.
  *
  * @throws {InvalidIriError} If `value` isn't an IRI-reference.
+ * @throws {UnknownSchemeError} If `value` has a scheme that isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
+ *   future version.
  */
-export const parseIriReference: (value: string) => RelativeIdentifierComponents;
+export const assertIriReference: (value: string, options?: Options) => asserts value is IriReference;
 
 /**
- * Splits an absolute-IRI into its components.
+ * Checks that `value` is an absolute-IRI, like {@link isAbsoluteIri}.
  *
  * @throws {InvalidIriError} If `value` isn't an absolute-IRI.
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
+ *   future version.
  */
-export const parseAbsoluteIri: (value: string) => AbsoluteIdentifierComponents;
+export const assertAbsoluteIri: (value: string, options?: Options) => asserts value is AbsoluteIri;
 
 /**
- * Removes the fragment from a URI, and normalizes it.
- *
- * @throws {InvalidUriError} If `uri` isn't a URI.
+ * Splits an IRI or a URI into its components, at its delimiters (RFC 3986
+ * Appendix B). It doesn't check `value`, and never throws. A component that
+ * isn't there isn't a property of the result. An empty one is `""`.
  */
-export const toAbsoluteUri: (uri: string) => string;
+export function parseIri(value: AbsoluteIri): AbsoluteIdentifierComponents;
+export function parseIri(value: Iri): IdentifierComponents;
+export function parseIri(value: IriReference): RelativeIdentifierComponents;
 
 /**
- * Removes the fragment from an IRI, and normalizes it.
- *
- * @throws {InvalidIriError} If `iri` isn't an IRI.
+ * Splits a URN into the parts of RFC 8141's grammar, as written. It
+ * doesn't check that `value` is a URN.
  */
-export const toAbsoluteIri: (iri: string) => string;
+export const parseUrn: (value: Iri) => UrnComponents;
 
 /**
- * Normalizes a URI, so that equivalent URIs are equal strings (RFC 3986
- * §6.2.2). It decodes percent-encoded characters that don't need to be
- * encoded, uppercases the hex digits of the ones that do, removes dot
- * segments from the path, and lowercases the scheme and host.
- *
- * @throws {InvalidUriError} If `uri` isn't a URI.
+ * Splits a tag URI into the parts of RFC 4151's grammar, as written. It
+ * doesn't check that `value` is a tag.
  */
-export const normalizeUri: (uri: string) => string;
+export const parseTag: (value: Iri) => TagComponents;
+
+/**
+ * Removes the fragment from an IRI or a URI: `value` up to its first `#`.
+ * It keeps every other brand `value` has.
+ */
+export const toAbsoluteIri: <T extends Iri>(value: T) => T & AbsoluteIri;
+
+/**
+ * Normalizes a URI, so that equivalent URIs are equal strings: the
+ * syntax-based normalization of RFC 3986 §6.2.2, then its scheme's. It
+ * decodes percent-encoded characters that don't need to be encoded,
+ * uppercases the hex digits of the ones that do, removes dot segments from
+ * the path, and lowercases the scheme and host. A scheme can turn the
+ * syntax-based normalization off, like `urn` and `tag` do.
+ *
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
+ */
+export function normalizeUri(uri: AbsoluteUri, options?: Options): AbsoluteUri & NormalizedUri;
+export function normalizeUri(uri: Uri, options?: Options): NormalizedUri;
 
 /**
  * Normalizes an IRI, like {@link normalizeUri}. Percent-encoded Unicode
- * characters that an IRI allows are decoded.
+ * characters that an IRI allows are decoded, so the result isn't a
+ * {@link Uri} even when `iri` is.
  *
- * @throws {InvalidIriError} If `iri` isn't an IRI.
+ * @throws {UnknownSchemeError} If the scheme isn't known.
+ * @throws {UnknownUrnNamespaceError} If it's a URN of an unknown namespace.
  */
-export const normalizeIri: (iri: string) => string;
+export function normalizeIri(iri: AbsoluteIri, options?: Options): AbsoluteIri & NormalizedIri;
+export function normalizeIri(iri: Iri, options?: Options): NormalizedIri;
+
+/**
+ * Makes the case-insensitive part of a component lowercase, for a custom
+ * scheme's normalization. It changes ASCII letters only, and leaves
+ * percent-encoded characters alone, so `%2F` stays `%2F`.
+ */
+export const lowercaseComponent: (component: string) => string;
 
 /**
  * Percent-encodes a string for a URI's fragment, like a JSON Pointer. It
@@ -141,45 +322,38 @@ export const encodeUriFragment: (fragment: string) => string;
 export const encodeIriFragment: (fragment: string) => string;
 
 /**
- * Resolves a URI-reference against a base URI (RFC 3986 §5.2), and
- * normalizes the result. `base` is checked even when `reference` has a
- * scheme. With no base, use {@link normalizeUri}, which throws if
- * `reference` isn't a URI.
+ * Resolves a reference against a base (RFC 3986 §5.2), and nothing else:
+ * it removes dot segments, because the algorithm does, but it doesn't
+ * normalize. Neither argument is checked, and `base` isn't read when
+ * `reference` has a scheme. The result is checked with its scheme's rules,
+ * because a valid reference against a valid base can make an identifier
+ * that isn't, like `b` against `urn:example:a`.
  *
- * @throws {InvalidUriError} If `reference` isn't a URI-reference, or `base`
- *   isn't an absolute-URI.
+ * @throws {InvalidIriError} If the result breaks its scheme's rules. The
+ *   error is about `reference`.
+ * @throws {UnknownSchemeError} If the result's scheme isn't known, when
+ *   `base` was checked with other options.
+ * @throws {UnknownUrnNamespaceError} If the result is a URN of an unknown
+ *   namespace.
  */
-export const resolveUri: (reference: string, base: string) => string;
+export function resolveIri(reference: UriReference, base: AbsoluteUri, options?: Options): Uri;
+export function resolveIri(reference: IriReference, base: AbsoluteIri, options?: Options): Iri;
 
 /**
- * Resolves an IRI-reference against a base IRI, and normalizes the result.
- * `base` is checked like in {@link resolveUri}. With no base, use
- * {@link normalizeIri}.
- *
- * @throws {InvalidIriError} If `reference` isn't an IRI-reference, or
- *   `base` isn't an absolute-IRI.
+ * The shortest reference to `target` relative to `base`. It's the opposite
+ * of {@link resolveIri}: `resolveIri(toRelativeIri(target, base), base)` is
+ * `target`. When no relative reference reaches `target`, it returns
+ * `target`. Both are normalized, so equivalent identifiers compare equal.
  */
-export const resolveIri: (reference: string, base: string) => string;
+export function toRelativeIri(target: NormalizedUri, base: NormalizedUri & AbsoluteUri): UriReference;
+export function toRelativeIri(target: NormalizedIri, base: NormalizedIri & AbsoluteIri): IriReference;
 
 /**
- * The shortest reference to `uri` relative to `base`. It's the opposite of
- * {@link resolveUri}: `resolveUri(toRelativeUri(uri, base), base)` is
- * `normalizeUri(uri)`. When no relative reference reaches `uri`, it returns
- * `uri`, normalized.
- *
- * @throws {InvalidUriError} If `uri` isn't a URI, or `base` isn't an
- *   absolute-URI.
+ * Makes a `urn` scheme that knows the namespaces given, keyed by NID, and
+ * `uuid` unless one of them replaces it. Pass it in `customSchemes`, where
+ * it replaces the built-in `urn`, which is `urnScheme({})`.
  */
-export const toRelativeUri: (uri: string, base: string) => string;
-
-/**
- * The shortest reference to `iri` relative to `base`, like
- * {@link toRelativeUri}.
- *
- * @throws {InvalidIriError} If `iri` isn't an IRI, or `base` isn't an
- *   absolute-IRI.
- */
-export const toRelativeIri: (iri: string, base: string) => string;
+export const urnScheme: (namespaces: Readonly<Record<string, UrnNamespace>>) => Scheme;
 
 /**
  * The components of a URI or IRI. The authority's parts, `userinfo`,
@@ -219,6 +393,30 @@ export type AbsoluteIdentifierComponents = {
   readonly query?: string;
 };
 
+/**
+ * The parts of a URN (RFC 8141): `"urn" ":" NID ":" NSS [ "?+"
+ * r-component ] [ "?=" q-component ] [ "#" f-component ]`.
+ */
+export type UrnComponents = {
+  readonly nid: string;
+  readonly nss: string;
+  readonly rComponent?: string;
+  readonly qComponent?: string;
+  readonly fComponent?: string;
+};
+
+/**
+ * The parts of a tag URI (RFC 4151): `"tag:" authorityName "," date ":"
+ * specific [ "#" fragment ]`. `date` is a year, a month, or a day, like
+ * `"2004"` or `"2004-01-15"`.
+ */
+export type TagComponents = {
+  readonly authorityName: string;
+  readonly date: string;
+  readonly specific: string;
+  readonly fragment?: string;
+};
+
 /** The rules of RFC 3986 that a URI can be checked against. */
 export type UriRule = "URI" | "URI-reference" | "absolute-URI";
 
@@ -236,6 +434,10 @@ export type IriRule = "IRI" | "IRI-reference" | "absolute-IRI";
  * - `fragment-not-allowed`: a fragment, for an absolute rule.
  * - `colon-in-first-segment`: a relative reference with `:` in its first
  *   segment, which would make it look like a scheme. Prefix it with `./`.
+ * - `missing-component`: a component the scheme requires isn't there.
+ * - `forbidden-component`: a component the scheme forbids is there.
+ * - `component-mismatch`: a component doesn't match the scheme's rule
+ *   for it.
  */
 export type InvalidIdentifierReason
   = "invalid-character"
@@ -243,15 +445,21 @@ export type InvalidIdentifierReason
     | "invalid-ip-literal"
     | "missing-scheme"
     | "fragment-not-allowed"
-    | "colon-in-first-segment";
+    | "colon-in-first-segment"
+    | "missing-component"
+    | "forbidden-component"
+    | "component-mismatch";
 
 /** A value isn't the kind of URI that it was expected to be. */
 export class InvalidUriError extends Error {
   /** The value that isn't valid. */
   readonly value: string;
 
-  /** The rule that `value` doesn't match. */
-  readonly rule: UriRule;
+  /**
+   * The rule that `value` doesn't match: one of RFC 3986's, or its
+   * scheme's, like `"http-URI"`.
+   */
+  readonly rule: UriRule | (string & {});
 
   /** What's wrong with `value`. */
   readonly reason: InvalidIdentifierReason;
@@ -280,8 +488,11 @@ export class InvalidIriError extends Error {
   /** The value that isn't valid. */
   readonly value: string;
 
-  /** The rule that `value` doesn't match. */
-  readonly rule: IriRule;
+  /**
+   * The rule that `value` doesn't match: one of RFC 3987's, or its
+   * scheme's, like `"http-URI"`.
+   */
+  readonly rule: IriRule | (string & {});
 
   /** What's wrong with `value`. */
   readonly reason: InvalidIdentifierReason;
@@ -316,6 +527,35 @@ export class UnsupportedIpVersionError extends Error {
 
   /** The host, with its brackets, like `[v7.future]`. */
   readonly host: string;
+
+  private constructor();
+}
+
+/**
+ * A function that needs a scheme's rules was given an identifier with a
+ * scheme that isn't built in or in `customSchemes`. Whether it's valid
+ * can't be known.
+ */
+export class UnknownSchemeError extends Error {
+  /** The identifier, as it was given. */
+  readonly value: string;
+
+  /** The scheme, lowercased, since it names what to configure. */
+  readonly scheme: string;
+
+  private constructor();
+}
+
+/**
+ * A function that needs a URN namespace's rules was given a URN with a NID
+ * that the `urn` scheme doesn't know. Add it with {@link urnScheme}.
+ */
+export class UnknownUrnNamespaceError extends Error {
+  /** The URN, as it was given. */
+  readonly value: string;
+
+  /** The NID, lowercased, since it names what to configure. */
+  readonly nid: string;
 
   private constructor();
 }

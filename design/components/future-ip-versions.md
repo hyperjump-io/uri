@@ -11,7 +11,7 @@ version, and that can't be known, so the answer is "I don't know", not
 [Answer only what's known](../principles/answer-only-whats-known.md)).
 
 Parsing, resolving, and normalizing accept a future IP literal and treat
-it as an ordinary host. *Designed, not implemented:* they take only
+it as an ordinary host. They take only
 values a validator has accepted (see [Trust](trust.md)), and no validator
 accepts one, so they only see one through a cast. They only need to know
 what the host looks like, which the syntax says. Normalizing makes it lowercase, like any host.

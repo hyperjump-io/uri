@@ -6,6 +6,8 @@
  * }} Components
  */
 
+/** @typedef {Exclude<keyof API.IdentifierComponents, "scheme">} SchemeComponent */
+
 /**
  * @typedef {{
  *   reason: API.InvalidIdentifierReason;
@@ -14,7 +16,25 @@
  *   end: number;
  *   scheme?: { start: number; end: number };
  *   iriOnly?: boolean;
+ *   name?: string;
+ *   description?: string;
+ *   nid?: string;
  * }} Problem
+ */
+
+/**
+ * @typedef {{
+ *   reason: "missing-component" | "forbidden-component" | "component-mismatch";
+ *   component: SchemeComponent;
+ *   name: string;
+ *   rule: string;
+ *   description?: string;
+ *   nid?: string;
+ * }} SchemeProblem
+ */
+
+/**
+ * @typedef {API.Scheme & { [urnNamespaces]?: Map<string, API.UrnNamespace> }} InternalScheme
  */
 
 /**
@@ -34,10 +54,6 @@
 
 /**
  * @typedef {{
- *   parse: typeof API.parseUri;
- *   parseReference: typeof API.parseUriReference;
- *   parseAbsolute: typeof API.parseAbsoluteUri;
- *   isAbsolute: (value: string) => boolean;
  *   normalizePath: (path: string) => string;
  *   normalizeQuery: (query: string) => string;
  *   normalizeFragment: (fragment: string) => string;
@@ -84,12 +100,13 @@ const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFF
 
 // The rules that RFC 3987 defines again for IRIs are RFC 3986's, with iunreserved in place of unreserved, and iprivate
 // allowed in the query. So they're written once, for either. The component rules are for diagnosing why a value
-// doesn't match.
+// doesn't match, and pchar is for the built-in schemes.
 /**
  * @type (unreserved: string, iprivate?: string) => {
  *   identifier: string;
  *   reference: string;
  *   absolute: string;
+ *   pchar: string;
  *   components: Record<keyof ComponentMatchers, string>;
  * }
  */
@@ -124,6 +141,7 @@ const rules = (unreserved, iprivate) => {
     identifier: `^${uri}$`,
     reference: `^(?:${uri}|${relativeRef})$`,
     absolute: `^${absoluteUri}$`,
+    pchar,
     components: { scheme, userinfo, regName, port, pathAbEmpty, pathAbsolute, pathNoScheme, pathRootless, query, fragment }
   };
 };
@@ -156,13 +174,129 @@ const isAllowedInIQuery = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|
 const isAllAllowedInFragment = new RegExp(`^(?:${unreserved}|${subDelims}|[:@/?])*$`);
 const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/?])*$`, "u");
 
-// The errors are made in functions because the classes aren't defined until after these are
+// The built-in schemes, written from their RFCs' ABNF with the same rule strings as the generic grammar. A component's
+// test only checks structure, because the generic syntax has already checked its characters, so the IRI rule strings
+// are right for either form. A urn is ASCII even in an IRI, so its rules use the URI rule strings.
+
+// The namespaces of the urn scheme, which only urnScheme sets, keyed by lowercased NID
+const urnNamespaces = Symbol("urnNamespaces");
+
+// RFC 9110 §4.2.1: http-URI = "http" "://" authority path-abempty [ "?" query ]. "A sender MUST NOT generate an "http"
+// URI with an empty host identifier." The default port and an empty path are normalized (§4.2.3).
+/** @type (name: string, rule: string, defaultPort: string) => API.Scheme */
+const httpScheme = (name, rule, defaultPort) => ({
+  name,
+  rule,
+  validate: {
+    authority: "required",
+    host: { test: (host) => host !== "", description: "non-empty" }
+  },
+  normalize: {
+    port: (port) => port === "" || port === defaultPort ? undefined : port,
+    path: (path) => path === "" ? "/" : path
+  }
+});
+
+// RFC 8089 §2: file-URI = file-scheme ":" file-hier-part, where file-hier-part = ( "//" auth-path ) / local-path,
+// auth-path = [ file-auth ] path-absolute, local-path = path-absolute, and file-auth = "localhost" / host. So there's
+// no userinfo, port, or query, and the path is path-absolute. A host of "localhost" is the same as none.
+const filePath = new RegExp(`^${iriRules.components.pathAbsolute}$`, "u");
+
+/** @type API.Scheme */
+const fileScheme = {
+  name: "file",
+  rule: "file-URI",
+  validate: {
+    userinfo: "forbidden",
+    port: "forbidden",
+    path: { test: (path) => filePath.test(path), description: "an absolute path, like /a/b" },
+    query: "forbidden"
+  },
+  normalize: {
+    host: (host) => host === "localhost" ? "" : host
+  }
+};
+
+// RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ]. The "?" that specific allows starts the
+// generic query, which has the same characters, so only the path is tested. Tags are equal "if and only if they are
+// completely indistinguishable" (§2.4), so nothing but the scheme is normalized.
+const alphaNum = `[a-zA-Z0-9]`;
+const dnsComp = `${alphaNum}(?:(?:${alphaNum}|-)*${alphaNum})?`;
+const dnsName = `${dnsComp}(?:\\.${dnsComp})*`;
+const emailAddress = `(?:${alphaNum}|[-._])+@${dnsName}`;
+const authorityName = `(?:${dnsName}|${emailAddress})`;
+const date = `${digit}{4}(?:-${digit}{2}(?:-${digit}{2})?)?`;
+const taggingEntity = `${authorityName},${date}`;
+const tagPath = new RegExp(`^${taggingEntity}:(?:${iriRules.pchar}|/)*$`, "u");
+
+/** @type API.Scheme */
+const tagScheme = {
+  name: "tag",
+  rule: "tagURI",
+  syntaxNormalization: false,
+  validate: {
+    authority: "forbidden",
+    path: {
+      test: (path) => tagPath.test(path),
+      description: `a domain name or an email address, ",", a date, and ":", like example.com,2004:a`
+    }
+  }
+};
+
+// RFC 8141 §2: namestring = assigned-name [ rq-components ] [ "#" f-component ], where assigned-name = "urn" ":" NID
+// ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components.
+const alphanum = `[a-zA-Z0-9]`;
+const ldh = `[a-zA-Z0-9-]`;
+const nid = `${alphanum}${ldh}{0,30}${alphanum}`;
+const nss = `${uriRules.pchar}(?:${uriRules.pchar}|/)*`;
+const rComponent = `${uriRules.pchar}(?:${uriRules.pchar}|/|\\?)*`;
+const qComponent = `${uriRules.pchar}(?:${uriRules.pchar}|/|\\?)*`;
+const urnPath = new RegExp(`^${nid}:${nss}$`);
+const urnQuery = new RegExp(`^(?:\\+${rComponent}(?:\\?=${qComponent})?|=${qComponent})$`);
+const urnFragment = new RegExp(`^${uriRules.components.fragment}$`);
+
+/** @type API.Scheme["validate"] */
+const urnValidate = {
+  authority: "forbidden",
+  path: { test: (path) => urnPath.test(path), description: `a NID, ":", and an NSS, in ASCII, like example:a` },
+  query: { test: (query) => urnQuery.test(query), description: `"+" and an r-component, "=" and a q-component, or both, like +r?=q` },
+  fragment: { test: (fragment) => urnFragment.test(fragment), description: "ASCII, with other characters percent-encoded" }
+};
+
+// RFC 8141 §3.1: only the scheme and the NID are case-insensitive, and percent-encoded characters "MUST NOT be
+// decoded", but their hex digits are case-insensitive
+/** @type API.Scheme["normalize"] */
+const urnNormalize = {
+  path: (path) => {
+    const colon = path.indexOf(":");
+    return path.slice(0, colon).toLowerCase() + ":" + uppercaseHex(path.slice(colon + 1));
+  },
+  query: (query) => uppercaseHex(query)
+};
+
+// RFC 9562 §4: UUID = 4hexOctet "-" 2hexOctet "-" 2hexOctet "-" 2hexOctet "-" 6hexOctet, and it's lowercase when it's
+// output
+const hexOctet = `${hexdig}${hexdig}`;
+const uuid = new RegExp(`^(?:${hexOctet}){4}-(?:${hexOctet}){2}-(?:${hexOctet}){2}-(?:${hexOctet}){2}-(?:${hexOctet}){6}$`);
+
+/** @type API.UrnNamespace */
+const uuidNamespace = {
+  test: (nss) => uuid.test(nss),
+  description: "a UUID, like f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+  normalize: (nss) => lowercaseComponent(nss)
+};
+
+/** @type readonly InternalScheme[] */
+const builtInSchemes = [
+  httpScheme("http", "http-URI", "80"),
+  httpScheme("https", "https-URI", "443"),
+  fileScheme,
+  tagScheme,
+  createUrnScheme({})
+];
+
 /** @type Strategy */
 const uriStrategy = {
-  parse: createParser(uriPattern, (value) => new InvalidUriError(value, "URI", diagnose("URI", value))),
-  parseReference: createParser(uriReferencePattern, (value) => new InvalidUriError(value, "URI-reference", diagnose("URI-reference", value))),
-  parseAbsolute: createParser(absoluteUriPattern, (value) => new InvalidUriError(value, "absolute-URI", diagnose("absolute-URI", value))),
-  isAbsolute: RegExp.prototype.test.bind(absoluteUriPattern),
   normalizePath: createPathNormalizer(isAllowedInPath),
   normalizeQuery: createQueryNormalizer(isAllowedInQuery),
   normalizeFragment: createQueryNormalizer(isAllowedInQuery)
@@ -170,14 +304,16 @@ const uriStrategy = {
 
 /** @type Strategy */
 const iriStrategy = {
-  parse: createParser(iriPattern, (value) => new InvalidIriError(value, "IRI", diagnose("IRI", value))),
-  parseReference: createParser(iriReferencePattern, (value) => new InvalidIriError(value, "IRI-reference", diagnose("IRI-reference", value))),
-  parseAbsolute: createParser(absoluteIriPattern, (value) => new InvalidIriError(value, "absolute-IRI", diagnose("absolute-IRI", value))),
-  isAbsolute: RegExp.prototype.test.bind(absoluteIriPattern),
   normalizePath: createPathNormalizer(isAllowedInIPath),
   normalizeQuery: createQueryNormalizer(isAllowedInIQuery),
   normalizeFragment: createQueryNormalizer(isAllowedInIQuery)
 };
+
+// The errors are made in functions because the classes aren't defined until after these are
+/** @type (value: string, rule: string, problem: Problem | undefined) => Error */
+const invalidUri = (value, rule, problem) => new InvalidUriError(value, rule, problem);
+/** @type (value: string, rule: string, problem: Problem | undefined) => Error */
+const invalidIri = (value, rule, problem) => new InvalidIriError(value, rule, problem);
 
 /** @type typeof API.isUri */
 export const isUri = createValidator(uriPattern);
@@ -193,49 +329,107 @@ export const isIriReference = createValidator(iriReferencePattern);
 /** @type typeof API.isAbsoluteIri */
 export const isAbsoluteIri = createValidator(absoluteIriPattern);
 
-/** @type typeof API.parseUri */
-export const parseUri = uriStrategy.parse;
-/** @type typeof API.parseUriReference */
-export const parseUriReference = uriStrategy.parseReference;
-/** @type typeof API.parseAbsoluteUri */
-export const parseAbsoluteUri = uriStrategy.parseAbsolute;
+/** @type typeof API.assertUri */
+export const assertUri = createAssertion(uriPattern, "URI", invalidUri);
+/** @type typeof API.assertUriReference */
+export const assertUriReference = createAssertion(uriReferencePattern, "URI-reference", invalidUri);
+/** @type typeof API.assertAbsoluteUri */
+export const assertAbsoluteUri = createAssertion(absoluteUriPattern, "absolute-URI", invalidUri);
+
+/** @type typeof API.assertIri */
+export const assertIri = createAssertion(iriPattern, "IRI", invalidIri);
+/** @type typeof API.assertIriReference */
+export const assertIriReference = createAssertion(iriReferencePattern, "IRI-reference", invalidIri);
+/** @type typeof API.assertAbsoluteIri */
+export const assertAbsoluteIri = createAssertion(absoluteIriPattern, "absolute-IRI", invalidIri);
 
 /** @type typeof API.parseIri */
-export const parseIri = iriStrategy.parse;
-/** @type typeof API.parseIriReference */
-export const parseIriReference = iriStrategy.parseReference;
-/** @type typeof API.parseAbsoluteIri */
-export const parseAbsoluteIri = iriStrategy.parseAbsolute;
+export const parseIri = (/** @type string */ value) => /** @type any */ (split(value));
 
-/** @type typeof API.toAbsoluteUri */
-export const toAbsoluteUri = (uri) => toAbsolute(uriStrategy, uri);
+/** @type typeof API.parseUrn */
+export const parseUrn = (value) => {
+  const { path, query, fragment } = split(value);
+  const colon = path.indexOf(":");
+
+  /** @type {{ -readonly [Key in keyof API.UrnComponents]: API.UrnComponents[Key] }} */
+  const components = { nid: path.slice(0, colon), nss: path.slice(colon + 1) };
+
+  // rq-components = [ "?+" r-component ] [ "?=" q-component ], and the query is what's after the first "?"
+  if (query?.startsWith("+")) {
+    const qStart = query.indexOf("?=");
+    components.rComponent = qStart === -1 ? query.slice(1) : query.slice(1, qStart);
+    if (qStart !== -1) {
+      components.qComponent = query.slice(qStart + 2);
+    }
+  } else if (query?.startsWith("=")) {
+    components.qComponent = query.slice(1);
+  }
+
+  if (fragment !== undefined) {
+    components.fComponent = fragment;
+  }
+
+  return components;
+};
+
+/** @type typeof API.parseTag */
+export const parseTag = (value) => {
+  const { path, query, fragment } = split(value);
+
+  // Neither an authorityName nor a date can have "," or ":", so the first of each ends them. The "?" of specific
+  // starts the generic query.
+  const comma = path.indexOf(",");
+  const colon = path.indexOf(":", comma);
+
+  /** @type {{ -readonly [Key in keyof API.TagComponents]: API.TagComponents[Key] }} */
+  const components = {
+    authorityName: path.slice(0, comma),
+    date: path.slice(comma + 1, colon),
+    specific: path.slice(colon + 1) + (query === undefined ? "" : "?" + query)
+  };
+
+  if (fragment !== undefined) {
+    components.fragment = fragment;
+  }
+
+  return components;
+};
+
 /** @type typeof API.toAbsoluteIri */
-export const toAbsoluteIri = (iri) => toAbsolute(iriStrategy, iri);
+export const toAbsoluteIri = (value) => {
+  // In a trusted identifier, nothing before the fragment can have "#"
+  const fragmentStart = value.indexOf("#");
+  return /** @type any */ (fragmentStart === -1 ? value : value.slice(0, fragmentStart));
+};
 
 /** @type typeof API.normalizeUri */
-export const normalizeUri = (uri) => compose(uriStrategy, uriStrategy.parse(uri));
+export const normalizeUri = (/** @type string */ uri, /** @type API.Options | undefined */ options) => /** @type any */ (normalize(uriStrategy, uri, options));
 /** @type typeof API.normalizeIri */
-export const normalizeIri = (iri) => compose(iriStrategy, iriStrategy.parse(iri));
+export const normalizeIri = (/** @type string */ iri, /** @type API.Options | undefined */ options) => /** @type any */ (normalize(iriStrategy, iri, options));
+
+/** @type typeof API.lowercaseComponent */
+export const lowercaseComponent = (component) => hasUppercase.test(component)
+  ? component.replace(uppercaseOrPercentEncoded, (match) => match.startsWith("%") ? match : match.toLowerCase())
+  : component;
 
 /** @type typeof API.encodeUriFragment */
 export const encodeUriFragment = createEncoder(isAllowedInQuery, isAllAllowedInFragment);
 /** @type typeof API.encodeIriFragment */
 export const encodeIriFragment = createEncoder(isAllowedInIQuery, isAllAllowedInIFragment);
 
-/** @type typeof API.resolveUri */
-export const resolveUri = (reference, base) => resolve(uriStrategy, reference, base);
 /** @type typeof API.resolveIri */
-export const resolveIri = (reference, base) => resolve(iriStrategy, reference, base);
+export const resolveIri = (/** @type string */ reference, /** @type string */ base, /** @type API.Options | undefined */ options) => /** @type any */ (resolve(reference, base, options));
 
-/** @type typeof API.toRelativeUri */
-export const toRelativeUri = (uri, base) => toRelative(uriStrategy, uri, base);
 /** @type typeof API.toRelativeIri */
-export const toRelativeIri = (iri, base) => toRelative(iriStrategy, iri, base);
+export const toRelativeIri = (/** @type string */ target, /** @type string */ base) => /** @type any */ (toRelative(target, base));
+
+/** @type typeof API.urnScheme */
+export const urnScheme = createUrnScheme;
 
 export class InvalidUriError extends Error {
   /**
    * @param {string} value
-   * @param {API.UriRule} rule
+   * @param {string} rule
    * @param {Problem | undefined} problem
    */
   constructor(value, rule, problem) {
@@ -267,7 +461,7 @@ export class InvalidUriError extends Error {
 export class InvalidIriError extends Error {
   /**
    * @param {string} value
-   * @param {API.IriRule} rule
+   * @param {string} rule
    * @param {Problem | undefined} problem
    */
   constructor(value, rule, problem) {
@@ -313,43 +507,87 @@ export class UnsupportedIpVersionError extends Error {
   }
 }
 
+export class UnknownSchemeError extends Error {
+  /**
+   * @param {string} value
+   * @param {string} scheme
+   */
+  constructor(value, scheme) {
+    super(`Unknown scheme: ${scheme}`);
+    this.name = "UnknownSchemeError";
+
+    /** @readonly */
+    this.value = value;
+
+    /** @readonly */
+    this.scheme = scheme;
+  }
+}
+
+export class UnknownUrnNamespaceError extends Error {
+  /**
+   * @param {string} value
+   * @param {string} nid
+   */
+  constructor(value, nid) {
+    super(`Unknown URN namespace: ${nid}`);
+    this.name = "UnknownUrnNamespaceError";
+
+    /** @readonly */
+    this.value = value;
+
+    /** @readonly */
+    this.nid = nid;
+  }
+}
+
 // These are called while the module loads, so they're function declarations, which are hoisted
 
 /**
  * @param {RegExp} pattern
- * @returns {(value: string) => boolean}
+ * @returns {any} A type guard, which a function expression can't be declared as
  */
 function createValidator(pattern) {
-  return (value) => {
-    if (!pattern.test(value)) {
-      return false;
-    }
-
-    // An IP literal of a future version has a known syntax, but whether its address is valid can't be known. "[" is
-    // only allowed in an IP literal, so the host is only split out for an identifier that has one.
-    if (value.includes("[")) {
-      const host = /** @type string */ (split(value).host);
-      if (host[1] === "v" || host[1] === "V") {
-        throw new UnsupportedIpVersionError(value, host);
-      }
-    }
-
-    return true;
-  };
+  return (/** @type string */ value, /** @type API.Options | undefined */ options) => pattern.test(value)
+    && checkScheme(value, options) === undefined;
 }
 
 /**
  * @param {RegExp} pattern
- * @param {(value: string) => Error} invalid
- * @returns {(value: string) => any}
+ * @param {API.UriRule | API.IriRule} rule
+ * @param {(value: string, rule: string, problem: Problem | undefined) => Error} invalid
+ * @returns {(value: string, options?: API.Options) => any}
  */
-function createParser(pattern, invalid) {
-  return (value) => {
+function createAssertion(pattern, rule, invalid) {
+  return (value, options) => {
     if (!pattern.test(value)) {
-      throw invalid(value);
+      throw invalid(value, rule, diagnose(rule, value));
     }
 
-    return split(value);
+    const problem = checkScheme(value, options);
+    if (problem !== undefined) {
+      throw invalid(value, problem.rule, locate(value, problem));
+    }
+  };
+}
+
+/**
+ * @param {Readonly<Record<string, API.UrnNamespace>>} namespaces
+ * @returns {InternalScheme}
+ */
+function createUrnScheme(namespaces) {
+  const known = new Map([["uuid", uuidNamespace]]);
+  for (const [nid, namespace] of Object.entries(namespaces)) {
+    known.set(nid.toLowerCase(), namespace);
+  }
+
+  return {
+    name: "urn",
+    rule: "namestring",
+    syntaxNormalization: false,
+    validate: urnValidate,
+    normalize: urnNormalize,
+    [urnNamespaces]: known
   };
 }
 
@@ -418,7 +656,7 @@ function createEncoder(isAllowed, isAllAllowed) {
 // Appendix B). Each delimiter is only allowed where it ends a component: a scheme can't have ":", an authority can't
 // have "/", a path can't have "?", and a query can't have "#". So the first of each is where its component ends. A
 // component that isn't there isn't a property, so the result can be spread and checked with `in`.
-/** @type (value: string) => Record<string, string> */
+/** @type (value: string) => Components */
 const split = (value) => {
   /** @type Record<string, string> */
   const components = {};
@@ -474,52 +712,397 @@ const split = (value) => {
     components.fragment = value.slice(fragmentStart + 1);
   }
 
-  return components;
+  return /** @type Components */ (components);
 };
 
-/** @type (strategy: Strategy, identifier: string) => string */
-const toAbsolute = (strategy, identifier) => compose(strategy, {
-  ...strategy.parse(identifier),
-  fragment: undefined
-});
+// Schemes
 
-/** @type (strategy: Strategy, reference: string, base: string) => string */
-const resolve = (strategy, reference, base) => {
-  const components = strategy.parseReference(reference);
+// In a valid identifier, a ":" before any "/", "?", or "#" ends a scheme
+const firstDelimiter = /[:/?#]/;
 
-  if (components.scheme !== undefined) {
-    // The base isn't used, but it's still checked, so a bad base is reported where it's passed. Testing the pattern
-    // without splitting is cheaper, and parsing a base that fails throws the error.
-    if (!strategy.isAbsolute(base)) {
-      strategy.parseAbsolute(base);
+/** @type (value: string) => string | undefined */
+const schemeOf = (value) => {
+  const end = value.search(firstDelimiter);
+  return value[end] === ":" ? value.slice(0, end).toLowerCase() : undefined;
+};
+
+// A scan of a few entries. A cache keyed by the options would be a hidden channel.
+/** @type (name: string, options: API.Options | undefined) => InternalScheme | undefined */
+const findScheme = (name, options) => {
+  if (options?.customSchemes !== undefined) {
+    for (const scheme of options.customSchemes) {
+      if (scheme.name.length === name.length && scheme.name.toLowerCase() === name) {
+        return scheme;
+      }
+    }
+  }
+
+  for (const scheme of builtInSchemes) {
+    if (scheme.name === name) {
+      return scheme;
+    }
+  }
+
+  return undefined;
+};
+
+/** @type (value: string, name: string, options: API.Options | undefined) => InternalScheme */
+const knownScheme = (value, name, options) => {
+  const scheme = findScheme(name, options);
+  if (scheme === undefined) {
+    throw new UnknownSchemeError(value, name);
+  }
+  return scheme;
+};
+
+// Checks what a validator checks after its pattern: whether an IP literal is of a future version, and the rules of
+// the scheme. A relative reference isn't checked against a scheme.
+/** @type (value: string, options: API.Options | undefined) => SchemeProblem | undefined */
+const checkScheme = (value, options) => {
+  /** @type Components | undefined */
+  let components;
+
+  // An IP literal of a future version has a known syntax, but whether its address is valid can't be known. "[" is
+  // only allowed in an IP literal, so the host is only split out for an identifier that has one.
+  if (value.includes("[")) {
+    components = split(value);
+    const host = /** @type string */ (components.host);
+    if (host[1] === "v" || host[1] === "V") {
+      throw new UnsupportedIpVersionError(value, host);
+    }
+  }
+
+  const name = schemeOf(value);
+  if (name === undefined) {
+    return undefined;
+  }
+
+  const scheme = knownScheme(value, name, options);
+  if (scheme.validate === undefined && scheme[urnNamespaces] === undefined) {
+    return undefined;
+  }
+
+  return checkComponents(scheme, components ?? split(value), allComponents, value);
+};
+
+/** @type readonly SchemeComponent[] */
+const allComponents = ["authority", "userinfo", "host", "port", "path", "query", "fragment"];
+
+// The first of `names` that breaks the scheme's rules, in the order the components are in. Most identifiers pass, so
+// the rules a scheme has are checked first in any order, which only looks at the components it has rules for. The
+// order only matters for which problem is reported.
+/** @type (scheme: InternalScheme, components: Components, names: readonly SchemeComponent[], value: string) => SchemeProblem | undefined */
+const checkComponents = (scheme, components, names, value) => {
+  const validate = scheme.validate;
+  if (validate !== undefined && !passes(validate, components, names)) {
+    for (const component of names) {
+      const rule = validate[component];
+      if (rule === undefined) {
+        continue;
+      }
+
+      const text = components[component];
+      if (rule === "required") {
+        if (text === undefined) {
+          return { reason: "missing-component", component, name: scheme.name, rule: scheme.rule };
+        }
+      } else if (rule === "forbidden") {
+        if (text !== undefined) {
+          return { reason: "forbidden-component", component, name: scheme.name, rule: scheme.rule };
+        }
+      } else if (text !== undefined && !rule.test(text)) {
+        return { reason: "component-mismatch", component, name: scheme.name, rule: scheme.rule, description: rule.description };
+      }
+    }
+  }
+
+  // Only the NSS has a namespace's rules, and its path has already passed RFC 8141's
+  const namespaces = scheme[urnNamespaces];
+  if (namespaces !== undefined && names.includes("path")) {
+    const [nid, nss] = splitUrnPath(components.path);
+    const namespace = knownNamespace(value, namespaces, nid);
+    if (namespace.test !== undefined && !namespace.test(nss)) {
+      return { reason: "component-mismatch", component: "path", name: scheme.name, rule: scheme.rule, description: namespace.description, nid };
+    }
+  }
+
+  return undefined;
+};
+
+/** @type (validate: NonNullable<API.Scheme["validate"]>, components: Components, names: readonly SchemeComponent[]) => boolean */
+const passes = (validate, components, names) => {
+  for (const key in validate) {
+    const component = /** @type SchemeComponent */ (key);
+    if (names !== allComponents && !names.includes(component)) {
+      continue;
     }
 
-    return compose(strategy, /** @type API.IdentifierComponents */ (components));
+    const rule = validate[component];
+    const text = components[component];
+    if (rule === "required" ? text === undefined : rule === "forbidden" ? text !== undefined : text !== undefined && rule !== undefined && !rule.test(text)) {
+      return false;
+    }
   }
 
-  const baseComponents = strategy.parseAbsolute(base);
-
-  if (components.authority !== undefined) {
-    return compose(strategy, { ...components, scheme: baseComponents.scheme });
-  }
-
-  if (components.path === "") {
-    return compose(strategy, {
-      ...baseComponents,
-      query: components.query ?? baseComponents.query,
-      fragment: components.fragment
-    });
-  }
-
-  return compose(strategy, {
-    ...baseComponents,
-    path: components.path.startsWith("/") ? components.path : mergePaths(components.path, baseComponents),
-    query: components.query,
-    fragment: components.fragment
-  });
+  return true;
 };
 
-/** @type (path: string, base: API.AbsoluteIdentifierComponents) => string */
+/** @type (path: string) => [string, string] */
+const splitUrnPath = (path) => {
+  const colon = path.indexOf(":");
+  return [path.slice(0, colon), path.slice(colon + 1)];
+};
+
+/** @type (value: string, namespaces: Map<string, API.UrnNamespace>, nid: string) => API.UrnNamespace */
+const knownNamespace = (value, namespaces, nid) => {
+  const namespace = namespaces.get(nid.toLowerCase());
+  if (namespace === undefined) {
+    throw new UnknownUrnNamespaceError(value, nid.toLowerCase());
+  }
+  return namespace;
+};
+
+// Where a scheme's problem is in `value`. A component that's missing is empty where it would go. One that's forbidden
+// is spanned with its delimiter, so an empty one isn't an empty span. One that doesn't match is spanned without it.
+/** @type (value: string, problem: SchemeProblem) => Problem */
+const locate = (value, problem) => {
+  const match = /** @type RegExpExecArray & { indices: Array<[number, number] | undefined> } */ (appendixB.exec(value));
+  const [, , authorityAt, pathAt, queryAt, fragmentAt] = match.indices;
+  const [pathStart, pathEnd] = /** @type [number, number] */ (pathAt);
+
+  // Each is its start and end, then its start and end with its delimiter
+  /** @type Partial<Record<SchemeComponent, [number, number, number, number]>> */
+  const spans = { path: [pathStart, pathEnd, pathStart, pathEnd] };
+  /** @type Record<SchemeComponent, number> */
+  const missingAt = {
+    authority: pathStart,
+    userinfo: pathStart,
+    host: pathStart,
+    port: pathStart,
+    path: pathStart,
+    query: pathEnd,
+    fragment: queryAt === undefined ? pathEnd : queryAt[1]
+  };
+
+  if (authorityAt !== undefined) {
+    const [authorityStart, authorityEnd] = authorityAt;
+    spans.authority = [authorityStart, authorityEnd, authorityStart - 2, authorityEnd];
+
+    const authority = value.slice(authorityStart, authorityEnd);
+    const at = authority.indexOf("@");
+    if (at !== -1) {
+      spans.userinfo = [authorityStart, authorityStart + at, authorityStart, authorityStart + at + 1];
+    }
+
+    const hostStart = at + 1;
+    const portSearchStart = authority.startsWith("[", hostStart) ? authority.indexOf("]", hostStart) : hostStart;
+    const portColon = authority.indexOf(":", portSearchStart);
+    const hostEnd = portColon === -1 ? authority.length : portColon;
+    spans.host = [authorityStart + hostStart, authorityStart + hostEnd, authorityStart + hostStart, authorityStart + hostEnd];
+    if (portColon !== -1) {
+      spans.port = [authorityStart + portColon + 1, authorityEnd, authorityStart + portColon, authorityEnd];
+    }
+
+    missingAt.userinfo = authorityStart;
+    missingAt.host = authorityStart;
+    missingAt.port = authorityStart + hostEnd;
+  }
+
+  if (queryAt !== undefined) {
+    spans.query = [queryAt[0], queryAt[1], queryAt[0] - 1, queryAt[1]];
+  }
+
+  if (fragmentAt !== undefined) {
+    spans.fragment = [fragmentAt[0], fragmentAt[1], fragmentAt[0] - 1, fragmentAt[1]];
+  }
+
+  const { reason, component, name, description, nid } = problem;
+  const span = spans[component];
+  /** @type Problem */
+  const located = { reason, component, name, description, start: missingAt[component], end: missingAt[component] };
+
+  if (span !== undefined && reason === "forbidden-component") {
+    located.start = span[2];
+    located.end = span[3];
+  } else if (span !== undefined) {
+    located.start = span[0];
+    located.end = span[1];
+  }
+
+  // A namespace's rules are only on the NSS, so its span is only the NSS
+  if (nid !== undefined) {
+    located.nid = nid;
+    if (value.startsWith(nid + ":", located.start)) {
+      located.start += nid.length + 1;
+    }
+  }
+
+  return located;
+};
+
+// Normalizing
+
+/** @type (strategy: Strategy, value: string, options: API.Options | undefined) => string */
+const normalize = (strategy, value, options) => {
+  const parsed = split(value);
+  const name = /** @type string */ (parsed.scheme).toLowerCase();
+  const scheme = knownScheme(value, name, options);
+
+  // The syntax-based normalization comes first, then the scheme's, which is the order of RFC 3986's comparison
+  // ladder (§6.2)
+  const components = scheme.syntaxNormalization === false
+    ? { ...parsed, scheme: name }
+    : normalizeComponents(strategy, parsed);
+
+  normalizeScheme(scheme, components, value);
+
+  return recompose(components);
+};
+
+// A scheme's normalization changes the components it has a function for. A function only runs when its component is
+// there, and returns undefined to remove it.
+/** @type (scheme: InternalScheme, components: Components, value: string) => void */
+const normalizeScheme = (scheme, components, value) => {
+  const functions = scheme.normalize;
+  if (functions !== undefined) {
+    if (components.authority !== undefined) {
+      if (functions.userinfo !== undefined && components.userinfo !== undefined) {
+        setOrDelete(components, "userinfo", functions.userinfo(components.userinfo));
+      }
+      if (functions.host !== undefined) {
+        components.host = functions.host(/** @type string */ (components.host));
+      }
+      if (functions.port !== undefined && components.port !== undefined) {
+        setOrDelete(components, "port", functions.port(components.port));
+      }
+
+      // The authority is rebuilt from its parts, so a function for a part is all it needs
+      components.authority = (components.userinfo === undefined ? "" : components.userinfo + "@")
+        + components.host
+        + (components.port === undefined ? "" : ":" + components.port);
+    }
+
+    if (functions.path !== undefined) {
+      components.path = functions.path(components.path);
+    }
+
+    if (functions.query !== undefined && components.query !== undefined) {
+      setOrDelete(components, "query", functions.query(components.query));
+    }
+  }
+
+  // A namespace's normalization runs after RFC 8141's
+  const namespaces = scheme[urnNamespaces];
+  if (namespaces !== undefined) {
+    const [nid, nss] = splitUrnPath(components.path);
+    const namespace = knownNamespace(value, namespaces, nid);
+    if (namespace.normalize !== undefined) {
+      components.path = nid + ":" + namespace.normalize(nss);
+    }
+  }
+};
+
+/** @type (components: Components, component: "userinfo" | "port" | "query", text: string | undefined) => void */
+const setOrDelete = (components, component, text) => {
+  if (text === undefined) {
+    delete components[component];
+  } else {
+    components[component] = text;
+  }
+};
+
+const pctHex = new RegExp(pctEncoded, "g");
+
+/** @type (text: string) => string */
+const uppercaseHex = (text) => text.includes("%") ? text.replace(pctHex, (match) => match.toUpperCase()) : text;
+
+const hasUppercase = /[A-Z]/;
+const uppercaseOrPercentEncoded = new RegExp(`${pctEncoded}|[A-Z]+`, "g");
+
+// Resolving
+
+// The algorithm of RFC 3986 §5.2, without normalizing. The base is trusted, and isn't read when the reference has a
+// scheme. The result is checked with its scheme's rules, except where they can't fail.
+/** @type (reference: string, base: string, options: API.Options | undefined) => string */
+const resolve = (reference, base, options) => {
+  if (reference === "") {
+    return base;
+  }
+
+  // Only the fragment changes, so only its rule is checked
+  if (reference.startsWith("#")) {
+    checkResolved(base, { scheme: "", path: "", fragment: reference.slice(1) }, fragmentOnly, reference, base + reference, options);
+    return base + reference;
+  }
+
+  // Only the query and the fragment change
+  if (reference.startsWith("?")) {
+    const queryStart = base.indexOf("?");
+    const result = (queryStart === -1 ? base : base.slice(0, queryStart)) + reference;
+    checkResolved(base, split(reference), queryAndFragment, reference, result, options);
+    return result;
+  }
+
+  const ref = split(reference);
+
+  /** @type Components */
+  let target;
+  if (ref.scheme !== undefined) {
+    // It passed a validator with its scheme when it got its brand, so without dot segments it's already the result
+    if (!hasDotSegment.test(ref.path)) {
+      return reference;
+    }
+    target = { ...ref, path: removeDotSegments(ref.path) };
+  } else {
+    const baseComponents = split(base);
+    const baseScheme = /** @type string */ (baseComponents.scheme);
+
+    if (ref.authority !== undefined) {
+      target = { ...ref, scheme: baseScheme, path: withoutDotSegments(ref.path) };
+    } else if (ref.path === "") {
+      target = { ...baseComponents, query: ref.query ?? baseComponents.query, fragment: ref.fragment };
+    } else {
+      const path = ref.path.startsWith("/") ? ref.path : mergePaths(ref.path, baseComponents);
+      target = { ...baseComponents, path: withoutDotSegments(path), query: ref.query, fragment: ref.fragment };
+    }
+  }
+
+  // Without an authority, a path starting with "//" would be parsed as an authority. Prefixing "/." keeps it a path.
+  if (target.authority === undefined && target.path.startsWith("//")) {
+    target.path = "/." + target.path;
+  }
+
+  const result = recompose(target);
+  checkResolved(result, target, allComponents, reference, result, options);
+  return result;
+};
+
+/** @type readonly SchemeComponent[] */
+const fragmentOnly = ["fragment"];
+/** @type readonly SchemeComponent[] */
+const queryAndFragment = ["query", "fragment"];
+
+// A result that breaks its scheme's rules can only be the reference's fault, because the base has a brand, so the
+// error is about the reference, spanned in it
+/** @type (identifier: string, components: Components, names: readonly SchemeComponent[], reference: string, result: string, options: API.Options | undefined) => void */
+const checkResolved = (identifier, components, names, reference, result, options) => {
+  const name = /** @type string */ (schemeOf(identifier));
+  const scheme = knownScheme(result, name, options);
+  if (scheme.validate === undefined && scheme[urnNamespaces] === undefined) {
+    return;
+  }
+
+  const problem = checkComponents(scheme, components, names, result);
+  if (problem !== undefined) {
+    // A merged path spans the reference's path, since no one place in the reference made it
+    throw new InvalidIriError(reference, scheme.rule, locate(reference, { ...problem, nid: undefined }));
+  }
+};
+
+/** @type (path: string) => string */
+const withoutDotSegments = (path) => hasDotSegment.test(path) ? removeDotSegments(path) : path;
+
+/** @type (path: string, base: Components) => string */
 const mergePaths = (path, base) => {
   if (base.authority !== undefined && base.path === "") {
     return "/" + path;
@@ -557,8 +1140,7 @@ const removeDotSegments = (path) => {
   return output;
 };
 
-// Normalizing makes components that are the same as parsing the normalized identifier would, so an identifier can be
-// normalized and then compared without parsing it again
+// Normalizing makes components that are the same as parsing the normalized identifier would
 /** @type (strategy: Strategy, components: Components) => Components */
 const normalizeComponents = (strategy, components) => {
   /** @type Components */
@@ -599,9 +1181,6 @@ const recompose = (components) => components.scheme + ":"
   + components.path
   + (components.query === undefined ? "" : "?" + components.query)
   + (components.fragment === undefined ? "" : "#" + components.fragment);
-
-/** @type (strategy: Strategy, components: Components) => string */
-const compose = (strategy, components) => recompose(normalizeComponents(strategy, components));
 
 const hasDotSegment = /(?:^|\/)\.\.?(?:\/|$)/;
 
@@ -675,20 +1254,20 @@ function percentEncodedToChar(isAllowed) {
   };
 }
 
-/** @type (strategy: Strategy, uri: string, base: string) => string */
-const toRelative = (strategy, uri, base) => {
-  // Both identifiers are normalized so that equivalent identifiers compare equal and the result resolves to the
-  // normalized target
-  const fromUri = normalizeComponents(strategy, strategy.parseAbsolute(base));
-  const toUri = normalizeComponents(strategy, strategy.parse(uri));
-  const to = recompose(toUri);
+// Relativizing
+
+// Both identifiers are normalized, so equivalent identifiers compare equal, and neither has dot segments
+/** @type (target: string, base: string) => string */
+const toRelative = (target, base) => {
+  const fromUri = split(base);
+  const toUri = split(target);
 
   if (toUri.scheme !== fromUri.scheme) {
-    return to;
+    return target;
   }
 
   if (toUri.authority !== fromUri.authority) {
-    return to;
+    return target;
   }
 
   // An empty reference keeps the base's query, so it only works if the target has a query or the base doesn't
@@ -697,7 +1276,7 @@ const toRelative = (strategy, uri, base) => {
 
   // Some targets can't be reached with a relative reference, but the target itself is always a valid reference
   if (result === undefined) {
-    return to;
+    return target;
   }
 
   if (toUri.query !== undefined) {
@@ -945,6 +1524,18 @@ const inComponent = {
   fragment: "in a fragment"
 };
 
+/** @type Record<keyof API.IdentifierComponents, string> */
+const aComponent = {
+  scheme: "a scheme",
+  authority: "an authority",
+  userinfo: "userinfo",
+  host: "a host",
+  port: "a port",
+  path: "a path",
+  query: "a query",
+  fragment: "a fragment"
+};
+
 // A character that can't be seen, like a control character or a space other than U+0020, is written as its code point
 const isVisible = /^(?: |[\p{L}\p{M}\p{N}\p{P}\p{S}])$/u;
 
@@ -955,9 +1546,19 @@ const show = (char) => isVisible.test(char)
     .toUpperCase()
     .padStart(4, "0");
 
-/** @type (rule: API.UriRule | API.IriRule, value: string, problem: Problem) => string */
+// "an http URI" and "a tag URI": a scheme's name without a vowel is read letter by letter, like "http", and letters
+// whose names start with a vowel sound take "an". A name that starts with "u" is read "you", like "a urn URI".
+const spelledAn = /^[aefhilmnorsx]/i;
+const wordAn = /^[aeio]/i;
+const hasVowel = /[aeiouy]/i;
+
+/** @type (name: string) => string */
+const article = (name) => (hasVowel.test(name) ? wordAn : spelledAn).test(name) ? "an" : "a";
+
+/** @type (rule: string, value: string, problem: Problem) => string */
 const describe = (rule, value, problem) => {
   const span = value.slice(problem.start, problem.end);
+  const name = /** @type string */ (problem.name);
 
   switch (problem.reason) {
     case "invalid-character":
@@ -988,5 +1589,18 @@ const describe = (rule, value, problem) => {
         : `which can't have ${show(value.slice(problem.scheme.start, problem.scheme.end))}`;
       return `${JSON.stringify(scheme)} isn't a scheme, ${why}, and ${relative}`;
     }
+    case "missing-component":
+      return `${article(name)} ${name} URI must have ${aComponent[problem.component]}`;
+    case "forbidden-component":
+      return `${article(name)} ${name} URI can't have ${aComponent[problem.component]}`;
+    case "component-mismatch":
+      if (problem.nid !== undefined) {
+        return problem.description === undefined
+          ? `the NSS doesn't match the ${problem.nid} namespace`
+          : `${article(problem.nid)} ${problem.nid} URN's NSS must be ${problem.description}`;
+      }
+      return problem.description === undefined
+        ? `the ${problem.component} doesn't match ${rule}`
+        : `${article(name)} ${name} URI's ${problem.component} must be ${problem.description}`;
   }
 };

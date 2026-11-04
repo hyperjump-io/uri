@@ -1,9 +1,7 @@
 # Resolving
 
-*Designed, not implemented:* the rest of this document is the new design,
-and `src/` still has the URI and IRI forms of each function, which
-normalize. The functions here trust what they're given (see
-[Trust](trust.md)).
+The functions here trust what they're given (see [Trust](trust.md)).
+Before they did, each had a URI and an IRI form, and they normalized.
 
 ## `resolveIri(reference, base)`
 
@@ -71,6 +69,17 @@ a `Uri`.
 Resolving builds a new set of components with spreads instead of changing
 the parsed reference, because parsed components are readonly (see
 [Types](types.md)).
+
+### Percent-encoded dot segments
+
+§5.2.4 removes dot segments without decoding, so `%2E` isn't one, and a
+`..` after it removes it like any segment: `a/%2E/..` against any base is
+`a/`. Normalizing the reference first would decode it to `a/./..`, which
+is `/`. So `normalizeIri(resolveIri(reference, base))` isn't always what
+v1's `resolveIri` gave, which normalized as it resolved. It's the RFC's
+answer, and it only differs for a reference with an encoded dot segment
+followed by `..`. The differential test against the version before
+schemes found 6 of 66,687 references like that, on one of three seeds.
 
 ### The base's authority
 

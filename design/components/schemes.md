@@ -1,7 +1,5 @@
 # Schemes
 
-*Designed, not implemented.*
-
 RFC 3986 §1.1.1 makes URI syntax two layers: the generic syntax every URI
 follows, and the rules a scheme's specification adds. `http:///a` is a
 valid URI, but RFC 9110 says an `http` URI with an empty host is invalid.
@@ -109,7 +107,7 @@ const httpScheme = {
   rule: "http-URI",
   validate: {
     authority: "required",
-    host: { test: (host) => host !== "", description: "a host" }
+    host: { test: (host) => host !== "", description: "non-empty" }
   },
   normalize: {
     port: (port) => port === "80" || port === "" ? undefined : port,
@@ -123,16 +121,15 @@ const tagScheme = {
   syntaxNormalization: false,
   validate: {
     authority: "forbidden",
-    query: "forbidden",
     path: {
       test: (path) => tagPath.test(path),
-      description: "a tagging entity, a date, \":\", and a name, like example.com,2004:a"
+      description: "a domain name or an email address, \",\", a date, and \":\", like example.com,2004:a"
     }
   }
 };
 ```
 
-*Designed, not implemented.* The top level has only what's about the
+The top level has only what's about the
 whole scheme: `name`, `rule`, and `syntaxNormalization`. The rules and the
 normalization are each an object keyed by component, `validate` and
 `normalize`, and both are optional. A scheme with neither is known and
@@ -242,7 +239,7 @@ normalization. The namespace the NID names defines the rest. So:
 - `parseUrn` splits a URN into its NID, NSS, and the r-, q-, and
   f-components, for any namespace.
 
-*Designed, not implemented.* The factory is `urnScheme`, and it takes
+The factory is `urnScheme`, and it takes
 namespaces keyed by NID:
 
 ```js
@@ -324,7 +321,20 @@ What the specifications say, for the rules that took looking up:
   but only to delete its reference to RFC 6874's zone identifiers.
 - **`file` needs a path that starts with `/`.** `auth-path = [ file-auth ]
   path-absolute`, and `local-path = path-absolute`, so `file://` and
-  `file:a` are invalid.
+  `file:a` are invalid, and so is `file:////a`, since `path-absolute`
+  can't start with `//`. Appendix E's UNC forms aren't normative.
+- **`file` has no userinfo or port.** `file-auth = "localhost" / host`,
+  and `host` is RFC 3986's, which doesn't include them. So
+  `file://user@host/a` and `file://host:80/a` are invalid. This was found
+  while building; the design only had the query and the path.
+- **`tag` allows a query.** `specific = *( pchar / "/" / "?" )` (RFC 4151
+  §2.1), so `tag:example.com,2004:a?b` is a valid tag, whose `?b` is the
+  generic query. The design had `query: "forbidden"`, which was a guess
+  from `tagURI` not naming a query. Reading the ABNF while building showed
+  that `specific` takes its place. `tag`'s path test covers the part of
+  `specific` before the `?`, and the generic syntax has already checked
+  the query's characters, which are the same as `specific`'s, so the
+  query needs no rule. `parseTag`'s `specific` includes it.
 - **`urn` is ASCII in an IRI too.** RFC 8141 §2 "does not extend the URN
   syntax to allow direct use of characters outside the ASCII range", and
   the r-, q-, and f-components each say they "MUST be percent-encoded".
@@ -338,7 +348,7 @@ caller expects their parts: a tagging entity and a date, or a NID. The
 others have nothing the generic components don't have. Parse functions
 split like `parseIri` does, and trust what they're given.
 
-*Designed, not implemented.* They return a field for each part of the
+They return a field for each part of the
 RFC's grammar, named after its rule:
 
 ```ts
@@ -419,15 +429,15 @@ always valid and ✗ for one that can't be:
 | --- | --- | --- | --- | --- |
 | `""` | ✓ the base | ✓ | ✓ | ✓ |
 | `#f` | ✓ | ✓ | ✓ | ✓ f-component, if it's ASCII |
-| `?q` | ✓ | ✗ `file:///a?q`, no query in `file-URI` | ✗ `tag:x,2000:a?q`, no query in `tagURI` | ✗ `urn:ex:a?q`, needs `?=` or `?+` |
+| `?q` | ✓ | ✗ `file:///a?q`, no query in `file-URI` | ✓ `specific` allows `?` | ✗ `urn:ex:a?q`, needs `?=` or `?+` |
 | `b` | ✓ | ✓ | ✗ `tag:b` | ✗ `urn:b` |
 | `/b` | ✓ | ✓ | ✗ `tag:/b` | ✗ `urn:/b` |
-| `//h/b` | ✓ | ✓ | ✗ | ✗ |
+| `//h/b` | ✓ | ✓, but ✗ `//u@h/b` and `//h:1/b` | ✗ | ✗ |
 | `//` | ✗ `http://`, empty host | ✗ `file://`, no `path-absolute` | ✗ | ✗ |
 | Its own scheme | ✓ unless dot segments | ✓ | ✗ `tag:x,2000:a/../b` is `tag:/b` | ✗ the same |
 
-Hierarchical schemes break only on an empty host, an empty path for
-`file`, and a query for `file`. `tag` and `urn` break
+Hierarchical schemes break only on an empty host, and for `file`, an
+empty path, a query, userinfo, or a port. `tag` and `urn` break
 on nearly every relative reference, and even an absolute reference can
 break, because removing its dot segments (§5.2.2) changes its path.
 
@@ -437,6 +447,9 @@ The check is skipped where it can't fail:
 - `#f` checks only the scheme's fragment rule, which for the built-ins
   is the generic one, and for `urn` that it's ASCII. Most `$ref`s are
   this.
+- `?q` checks only the query's and the fragment's rules, the only
+  components it changes. Rules are per component, so the others, which
+  are the base's, still hold.
 - A reference with a scheme and no dot segments is returned as it is, and
   passed a validator when it got its brand.
 
@@ -502,7 +515,7 @@ ABNF is case-insensitive (RFC 5234 §2.3).
 
 ### Defining it
 
-*Designed, not implemented.* A scheme's `normalize` has a function for
+A scheme's `normalize` has a function for
 each component it normalizes (see [Custom schemes](#custom-schemes)):
 
 - A function takes its component and returns the normalized component,
@@ -637,10 +650,26 @@ a span. The `rule` is the scheme's, like `"http-URI"`.
 | --- | --- |
 | `missing-component` | `an http URI must have an authority` |
 | `forbidden-component` | `a tag URI can't have an authority` |
-| `component-mismatch` | `a tag URI's path must be a tagging entity, a date, ":", and a name, like example.com,2004:a` |
+| `component-mismatch` | `a tag URI's path must be a domain name or an email address, ",", a date, and ":", like example.com,2004:a` |
 
-The scheme's name in a message is its `name`. A `component-mismatch`
-spans the whole component, not a character in it. The generic syntax is
+The scheme's name in a message is its `name`, and its article is "an" for
+a name that's read letter by letter from one whose letter name starts
+with a vowel sound, like `http`, and for a word that starts with a vowel
+other than `u`: `an http URI`, `a tag URI`, `a urn URI`. A
+`component-mismatch` spans the whole component, not a character in it.
+A `missing-component` is an empty span where the component would go, like
+`5` for `http:/a`'s authority. A `forbidden-component` spans the component
+with its delimiter, like `?b` or `//a`, so a forbidden empty query isn't
+an empty span, which would read as a missing one.
+
+A namespace's `test` that fails is a `component-mismatch` of the path,
+spanning only the NSS: `a uuid URN's NSS must be a UUID, like
+f81d4fae-7dec-11d0-a765-00a0c91e6bf6`, or `the NSS doesn't match the uuid
+namespace` without a description.
+
+`resolveIri`'s errors are always `InvalidIriError`, since it's one
+function for URIs and IRIs. A `Uri` result that breaks its rules is still
+reported as an IRI. The generic syntax is
 checked first, so a character that no component of that kind can have
 has already been reported, at its position. What a scheme adds is
 structure, like a date where the path starts, and a description of the
@@ -722,7 +751,27 @@ if (host !== undefined && !isDomainName(host)) {
   format validation and to the registry's normalization. A schema whose
   `$id` has a scheme that isn't configured fails when it's loaded.
 
-## Open questions
+## Cost
 
-- **How expensive the scheme lookup is**, on every `is*`, `assert*`,
-  `resolveIri`, and `normalize*` call. To be measured when it's built.
+Measured when it was built (see
+[Schemes and trust](../benchmarks/schemes-and-trust.md)). The lookup
+itself is cheap: `isIri` of a `did:` identifier with a custom scheme that
+has no rules took 87 milliseconds, where the generic check alone took 50,
+and three custom schemes in the list made no difference that showed
+above the noise. The rules are what cost: the built-ins' tests need the
+identifier split into its components, and `urn` and `file` run a pattern
+of their own. `isIri` of `bench-schemes.js`'s four identifiers went from
+81 milliseconds to 311, which is 1.7 times v1's.
+
+A validator checks only the components a scheme has rules for, in any
+order, and goes back to the components' order only when one fails, to
+report the first. It took `isIri` from 358 milliseconds to 311.
+
+### Rejected
+
+- **A cache of compiled checks per scheme object.** It would be a hidden
+  channel keyed by an object, and a scheme is a value so that nothing
+  needs preparing.
+- **Hand-written checks for the built-ins**, apart from their scheme
+  objects. Built-ins are made the same way as custom schemes so that one
+  path checks both.

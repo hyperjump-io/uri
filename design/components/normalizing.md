@@ -17,13 +17,11 @@ allows, and `normalizeUri` doesn't.
 Then the scheme of the identifier can add normalizations, like removing
 `:80` from an `http` URI, and turn off ones that its specification
 forbids, like decoding for `urn` (see
-[Schemes](schemes.md#normalizing)). *Designed, not implemented.*
+[Schemes](schemes.md#normalizing)).
 
 Each step is skipped when it can't change anything, because most
 identifiers don't need it: decoding only runs with a `%`, and dot-segment
 removal only with a dot segment.
-
-*Designed, not implemented:*
 
 - `normalize*` is the only function that normalizes. `resolveIri`,
   `toAbsoluteIri`, and `toRelativeIri` don't (see
@@ -31,15 +29,23 @@ removal only with a dot segment.
   ask for it (see
   [Pay only for what you ask for](../principles/pay-only-for-what-you-ask-for.md)).
 - It takes a branded identifier and returns it with the `NormalizedIri`
-  brand too, which `toRelativeIri` requires (see [Trust](trust.md)). It
-  doesn't check its input.
+  brand, or `NormalizedUri` from `normalizeUri`, which `toRelativeIri`
+  requires (see [Trust](trust.md#normalized-brands)). It doesn't check
+  its input.
 - It takes `customSchemes`, and throws `UnknownSchemeError` for a scheme
   it doesn't know.
-- It returns its input when a scan finds nothing to change: no `%`, no
-  uppercase letter in the scheme or host, no dot segment, and nothing the
-  scheme normalizes. Most registry keys are like that. To be measured.
 - It keeps its URI and IRI forms, because they decode different
   characters.
+
+## Rejected
+
+- **Returning the input when a scan finds nothing to change**: no `%`, no
+  uppercase letter in the host, and no dot segment. Most registry keys are
+  like that. It was measured, and it was slower: 208 to 211 milliseconds
+  against 201 to 203, on `bench-schemes.js`'s four identifiers. Each step
+  already skips itself when it can't change anything, so the scan only
+  repeats those tests, and a scheme's normalization needs the components
+  split out anyway.
 
 ## Components
 
@@ -49,8 +55,8 @@ normalized components are the ones parsing the normalized identifier
 would make: `authority` is rebuilt with the host in lowercase, and a path
 that starts with `//` without an authority has `/.` in front of it.
 `toRelative*` uses them now to compare normalized identifiers without
-parsing them again. In the new design it takes normalized identifiers, so
-only `normalize*` needs them.
+parsing them again. It takes normalized identifiers now, so only
+`normalize*` needs them.
 
 ## Encoding fragments
 
@@ -59,7 +65,7 @@ allow, including `%`, and nothing else. A character is encoded if and only
 if normalizing wouldn't decode it, so the result is already normalized.
 It's for putting something like a JSON Pointer in a fragment.
 
-*Designed, not implemented:* it returns a plain `string`, with no brand.
+It returns a plain `string`, with no brand.
 The brands are for identifiers, and a fragment isn't always a valid
 reference by itself: `a:b` is a fragment, and as a reference it has the
 scheme `a`. A caller puts it after a `#`, and that string is checked like

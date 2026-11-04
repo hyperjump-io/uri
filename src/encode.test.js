@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { encodeIriFragment, encodeUriFragment, isIri, isUri, normalizeIri, normalizeUri } from "./index.js";
+import { assertIri, assertUri, encodeIriFragment, encodeUriFragment, normalizeIri, normalizeUri } from "./index.js";
 
 const iriFragmentTests = [
   ["", ""],
@@ -35,8 +35,8 @@ describe("encodeIriFragment", () => {
     });
 
     test(`encodeIriFragment('${fragment}') is a normalized IRI fragment`, () => {
-      const iri = `https://example.com#${encodeIriFragment(fragment)}`;
-      expect(isIri(iri)).to.equal(true);
+      const iri = `https://example.com/#${encodeIriFragment(fragment)}`;
+      assertIri(iri);
       expect(normalizeIri(iri)).to.equal(iri);
     });
   });
@@ -50,8 +50,8 @@ describe("encodeUriFragment", () => {
     });
 
     test(`encodeUriFragment('${fragment}') is a normalized URI fragment`, () => {
-      const uri = `https://example.com#${encodeUriFragment(fragment)}`;
-      expect(isUri(uri)).to.equal(true);
+      const uri = `https://example.com/#${encodeUriFragment(fragment)}`;
+      assertUri(uri);
       expect(normalizeUri(uri)).to.equal(uri);
     });
   });

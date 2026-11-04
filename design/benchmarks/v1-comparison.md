@@ -1,5 +1,10 @@
 # Comparison with v1
 
+These are the times from before scheme validation and the trust contract.
+Since then, `isIri` is 1.73 times slower than v1's, and the other
+functions do less than v1's and are faster (see
+[Schemes and trust](schemes-and-trust.md)).
+
 First recorded 2026-11-01, against v1 at `1.4.0`, on Node.js 22.22.1.
 Last run 2026-11-01, after `toRelative*` stopped parsing each identifier
 twice.

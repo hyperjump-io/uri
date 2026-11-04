@@ -15,3 +15,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 - [Parsing strategies](parsing-strategies.md) (2026-11-01)
 - [Other implementations](other-implementations.md) (2026-11-01)
 - [IPv6 canonical form](ipv6-canonical-form.md) (2026-11-02)
+- [Schemes and trust](schemes-and-trust.md) (2026-11-03)

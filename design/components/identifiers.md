@@ -5,16 +5,15 @@
 There are three kinds of identifier, each an RFC 3986 rule, and each with
 an IRI form from RFC 3987:
 
-| Rule | Has a scheme | Can have a fragment | Validate | Parse |
+| Rule | Has a scheme | Can have a fragment | Validate | Brand |
 | --- | --- | --- | --- | --- |
-| `URI` | Yes | Yes | `isUri` | `parseUri` |
-| `URI-reference` | Maybe | Yes | `isUriReference` | `parseUriReference` |
-| `absolute-URI` | Yes | No | `isAbsoluteUri` | `parseAbsoluteUri` |
+| `URI` | Yes | Yes | `isUri`, `assertUri` | `Uri` |
+| `URI-reference` | Maybe | Yes | `isUriReference`, `assertUriReference` | `UriReference` |
+| `absolute-URI` | Yes | No | `isAbsoluteUri`, `assertAbsoluteUri` | `AbsoluteUri` |
 
-*Designed, not implemented:* each rule also gets an `assert*` function,
-and a brand, like `AbsoluteUri`. The parse functions become `parseIri`,
-overloaded on the brands, since splitting is the same for every rule (see
-[Trust](trust.md)).
+There's one parse function, `parseIri`, overloaded on the brands, since
+splitting is the same for every rule (see [Trust](trust.md)). v1 had one
+for each rule, like `parseAbsoluteUri`.
 
 Each is one regular expression built from the ABNF (see
 [Grammar](grammar.md)). IRI patterns use the `u` flag for their Unicode
@@ -26,10 +25,11 @@ delimiters (see [Parsing](parsing.md)).
 The URI and IRI forms of each function differ only in which patterns and
 which characters they allow, so each function is written once and given a
 strategy: `uriStrategy` or `iriStrategy`. A strategy is a record of the
-three parsers and the three normalizers for a form. *Designed, not
-implemented:* only the validators, `assert*`, `normalize*`, and
-`encode*Fragment` depend on the form, so the parsers leave the strategy. It's a value, not an
-interface, so nothing implements it but the two records.
+three normalizers for a form. The validators, `assert*`, and
+`encode*Fragment` depend on the form too, and are made from its patterns
+directly. The parsers left the strategy when they stopped validating.
+It's a value, not an interface, so nothing implements it but the two
+records.
 
 ## Components
 
