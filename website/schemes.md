@@ -107,6 +107,12 @@ functions check the generic syntax too, so a pattern only needs to check
 the component's structure, not its characters, and it can't make an
 identifier valid that the generic syntax doesn't allow.
 
+Checking the characters again makes validation slower, so leave them out
+of your patterns. For example, a path that has to be ASCII and can't
+start with `/` is `/[^/?#\u{80}-\u{10FFFF}][^?#\u{80}-\u{10FFFF}]*/u`. It
+doesn't need to list the characters that a path can have, or check
+percent-encoding, since the generic syntax already did.
+
 A pattern matches from where its component starts, and what comes after
 its match has to be something that can follow the component, like `?`,
 `#`, or the end of the identifier for a path. So a pattern that can match
