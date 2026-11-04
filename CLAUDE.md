@@ -27,6 +27,10 @@ A rewrite of `@hyperjump/uri` v1 (the `main` branch, `v1.4.0`).
 ## Development
 
 - `npm test`, `npm run lint`, `npm run type-check`
+- `npm run generate` after changing the built-in schemes' ABNF in
+  `scripts/generate-patterns.js`. It writes `src/patterns.js`.
+- `abnf/` is the ABNF compiler, which will be its own package. Nothing in
+  it imports from `src/`.
 - The API is declared in hand-written `.d.ts` files next to the JS, which is
   typed with JSDoc. Type-checking includes the declaration files.
 

@@ -1,4 +1,5 @@
 /** @import * as API from "./index.d.ts" */
+import { filePath, httpHost, nid as isNid, tagPath, urnFragment, urnPath, urnQuery, uuidNss } from "./patterns.js";
 
 /**
  * @typedef {{
@@ -242,21 +243,18 @@ const schemeName = new RegExp(`^${scheme}$`);
 // The symbol a defined scheme keeps its compiled patterns behind
 const compiled = Symbol("compiled");
 
-// The built-in schemes, written from their RFCs' ABNF. A pattern only checks structure, because the generic syntax has
-// already checked the characters, so where the ABNF has the generic syntax's rules, like pchar, a pattern only has
-// what's left of them, like a character that isn't a delimiter. Checking the characters again cost as much as the
-// generic syntax. A urn is ASCII even in an IRI.
+// The built-in schemes. Their patterns are generated from their RFCs' ABNF by scripts/generate-patterns.js, which has
+// the ABNF, with a context for each component that removes its delimiters (see src/abnf.js).
 
-// RFC 9110 §4.2.1: http-URI = "http" "://" authority path-abempty [ "?" query ]. "A sender MUST NOT generate an "http"
-// URI with an empty host identifier." The default port and an empty path are normalized (§4.2.3). The host's pattern
-// can't match a delimiter, or an empty host would match into the path. An IP literal's "[" is enough.
+// RFC 9110 §4.2.1: http-URI = "http" "://" authority path-abempty [ "?" query ], and its host can't be empty. The
+// default port and an empty path are normalized (§4.2.3).
 /** @type (name: string, rule: string, defaultPort: string) => InternalScheme */
 const httpScheme = (name, rule, defaultPort) => compileScheme({
   name,
   rule,
   validate: {
     authority: "required",
-    host: { pattern: /[^:/?#]+/u, description: "non-empty" }
+    host: { pattern: httpHost, description: "non-empty" }
   },
   normalize: {
     port: (port) => port === "" || port === defaultPort ? undefined : port,
@@ -266,15 +264,14 @@ const httpScheme = (name, rule, defaultPort) => compileScheme({
 
 // RFC 8089 §2: file-URI = file-scheme ":" file-hier-part, where file-hier-part = ( "//" auth-path ) / local-path,
 // auth-path = [ file-auth ] path-absolute, local-path = path-absolute, and file-auth = "localhost" / host. So there's
-// no userinfo, port, or query, and the path is path-absolute, which is a path that starts with "/" and not "//". A host
-// of "localhost" is the same as none.
+// no userinfo, port, or query, and the path is path-absolute. A host of "localhost" is the same as none.
 const fileScheme = compileScheme({
   name: "file",
   rule: "file-URI",
   validate: {
     userinfo: "forbidden",
     port: "forbidden",
-    path: { pattern: /\/(?!\/)[^?#]*/u, description: "an absolute path, like /a/b" },
+    path: { pattern: filePath, description: "an absolute path, like /a/b" },
     query: "forbidden"
   },
   normalize: {
@@ -282,18 +279,8 @@ const fileScheme = compileScheme({
   }
 }, undefined);
 
-// RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ], where specific = *( pchar / "/" / "?" ).
-// The "?" that specific allows starts the generic query, which has the same characters, so only the path has a pattern,
-// and what's after the ":" is anything the generic path allows. Tags are equal "if and only if they
-// are completely indistinguishable" (§2.4), so nothing but the scheme is normalized.
-const alphaNum = `[a-zA-Z0-9]`;
-const dnsComp = `${alphaNum}(?:(?:${alphaNum}|-)*${alphaNum})?`;
-const dnsName = `${dnsComp}(?:\\.${dnsComp})*`;
-const emailAddress = `(?:${alphaNum}|[-._])+@${dnsName}`;
-const authorityName = `(?:${dnsName}|${emailAddress})`;
-const date = `${digit}{4}(?:-${digit}{2}(?:-${digit}{2})?)?`;
-const taggingEntity = `${authorityName},${date}`;
-
+// RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ]. Tags are equal "if and only if they are
+// completely indistinguishable" (§2.4), so nothing but the scheme is normalized.
 const tagScheme = compileScheme({
   name: "tag",
   rule: "tagURI",
@@ -301,32 +288,23 @@ const tagScheme = compileScheme({
   validate: {
     authority: "forbidden",
     path: {
-      pattern: new RegExp(`${taggingEntity}:[^?#]*`, "u"),
+      pattern: tagPath,
       description: `a domain name or an email address, ",", a date, and ":", like example.com,2004:a`
     }
   }
 }, undefined);
 
 // RFC 8141 §2: namestring = assigned-name [ rq-components ] [ "#" f-component ], where assigned-name = "urn" ":" NID
-// ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components. NSS = pchar *( pchar /
-// "/" ), so an NSS is ASCII that doesn't start with "/". rq-components = [ "?+" r-component ] [ "?=" q-component ], and
-// both are pchar *( pchar / "/" / "?" ). An r-component can have "?=", so a query is "+" or "=", then ASCII that doesn't
-// start with "/" or "?".
-const alphanum = `[a-zA-Z0-9]`;
-const ldh = `[a-zA-Z0-9-]`;
-const nid = `${alphanum}${ldh}{0,30}${alphanum}`;
-const nidPattern = new RegExp(`^${nid}$`);
-const nonAscii = `\\u{80}-\\u{10FFFF}`;
-
+// ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components
 /** @type API.SchemeDefinition["validate"] */
 const urnValidate = {
   authority: "forbidden",
-  path: { pattern: new RegExp(`${nid}:[^/?#${nonAscii}][^?#${nonAscii}]*`, "u"), description: `a NID, ":", and an NSS, in ASCII, like example:a` },
+  path: { pattern: urnPath, description: `a NID, ":", and an NSS, in ASCII, like example:a` },
   query: {
-    pattern: new RegExp(`[+=][^/?#${nonAscii}][^#${nonAscii}]*`, "u"),
+    pattern: urnQuery,
     description: `"+" and an r-component, "=" and a q-component, or both, like +r?=q`
   },
-  fragment: { pattern: new RegExp(`[^${nonAscii}]*`, "u"), description: "ASCII, with other characters percent-encoded" }
+  fragment: { pattern: urnFragment, description: "ASCII, with other characters percent-encoded" }
 };
 
 // RFC 8141 §3.1: only the scheme and the NID are case-insensitive, and percent-encoded characters "MUST NOT be
@@ -340,13 +318,10 @@ const urnNormalize = {
   query: (query) => uppercaseHex(query)
 };
 
-// RFC 9562 §4: UUID = 4hexOctet "-" 2hexOctet "-" 2hexOctet "-" 2hexOctet "-" 6hexOctet, and it's lowercase when it's
-// output
-const hexOctet = `${hexdig}${hexdig}`;
-
+// RFC 9562 §4: a UUID is lowercase when it's output
 /** @type API.UrnNamespace */
 const uuidNamespace = {
-  pattern: new RegExp(`(?:${hexOctet}){4}-(?:${hexOctet}){2}-(?:${hexOctet}){2}-(?:${hexOctet}){2}-(?:${hexOctet}){6}`, "u"),
+  pattern: uuidNss,
   description: "a UUID, like f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
   normalize: (nss) => lowercaseComponent(nss)
 };
@@ -780,7 +755,7 @@ function createUrnScheme(namespaces) {
   /** @type Map<string, Namespace> */
   const known = new Map([["uuid", namespaceOf("uuid", uuidNamespace)]]);
   for (const [nid, namespace] of Object.entries(namespaces)) {
-    if (!nidPattern.test(nid)) {
+    if (!isNid.test(nid)) {
       throw new TypeError(`Not a NID: ${nid}`);
     }
     known.set(nid.toLowerCase(), namespaceOf(nid, namespace));

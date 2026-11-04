@@ -3,8 +3,10 @@ import {
   assertAbsoluteIri, assertIri, assertIriReference, defineScheme, isAbsoluteUri, isIri, isUri, isUriReference,
   normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
 } from "./index.js";
+import { abnf } from "../abnf/index.js";
+import { asciiPath, host, path } from "./abnf.js";
 import type {
-  AbsoluteIri, AbsoluteUri, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri, Scheme,
+  AbsoluteIri, AbsoluteUri, ComponentPattern, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri, Scheme,
   Uri, UriReference, UriRule
 } from "./index.d.ts";
 
@@ -122,7 +124,7 @@ isIri(value, {
   customSchemes: [defineScheme({
     name: "x",
     rule: "x",
-    validate: { authority: "required", path: { pattern: /.+/u } },
+    validate: { authority: "required", path: { pattern: abnf(path)`1*pchar` } },
     normalize: { port: () => undefined }
   })]
 });
@@ -138,7 +140,17 @@ defineScheme({ name: "x", rule: "x", validate: { path: { pattern: "a" } } });
 defineScheme({ name: "x", rule: "x", normalize: { fragment: (fragment: string) => fragment } });
 // @ts-expect-error A path is always there, so its function can't remove it
 defineScheme({ name: "x", rule: "x", normalize: { path: () => undefined } });
-isIri(value, { customSchemes: [urnScheme({ isbn: { pattern: /.+/u }, example: {} })] });
+isIri(value, { customSchemes: [urnScheme({ isbn: { pattern: abnf(asciiPath)`1*DIGIT` }, example: {} })] });
+
+// A pattern comes from the compiler, with a context for its component
+abnf(host)`reg-name` satisfies ComponentPattern<"host">;
+// @ts-expect-error A hand-written RegExp needs a cast
+defineScheme({ name: "x", rule: "x", validate: { path: { pattern: /a/u } } });
+defineScheme({ name: "x", rule: "x", validate: { path: { pattern: /a/u as ComponentPattern<"path"> } } });
+// @ts-expect-error A host's pattern isn't a path's, since their delimiters are different
+defineScheme({ name: "x", rule: "x", validate: { path: { pattern: abnf(host)`reg-name` } } });
+// @ts-expect-error A pattern compiled without a context isn't for a component
+defineScheme({ name: "x", rule: "x", validate: { path: { pattern: abnf()`"a"` } } });
 
 // parseUrn and parseTag
 const urn = parseUrn(uri);

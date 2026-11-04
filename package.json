@@ -30,9 +30,14 @@
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
+    },
+    "./abnf": {
+      "types": "./src/abnf.d.ts",
+      "default": "./src/abnf.js"
     }
   },
   "scripts": {
+    "generate": "node scripts/generate-patterns.js",
     "lint": "oxlint",
     "test": "vitest run",
     "type-check": "tsc --noEmit",

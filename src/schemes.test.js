@@ -4,8 +4,10 @@ import {
   assertIri, assertIriReference, assertUri, isAbsoluteIri, isIri, isIriReference, isUri, lowercaseComponent,
   defineScheme, normalizeIri, normalizeUri, parseTag, parseUrn, resolveIri, urnScheme
 } from "./index.js";
+import { abnf } from "../abnf/index.js";
+import { asciiPath, host, path, query } from "./abnf.js";
 
-/** @import { AbsoluteIri, Iri, IriReference, Uri } from "./index.d.ts" */
+/** @import { AbsoluteIri, ComponentPattern, Iri, IriReference, Uri } from "./index.d.ts" */
 
 describe("Built-in schemes", () => {
   test.each([
@@ -136,8 +138,8 @@ describe("Custom schemes", () => {
     validate: {
       authority: "required",
       port: "forbidden",
-      path: { pattern: /\/a.*/u, description: "under /a" },
-      query: { pattern: /[^#]+/u }
+      path: { pattern: abnf(path)`%s"/a" *( pchar / "/" )`, description: "under /a" },
+      query: { pattern: abnf(query)`1*( pchar / "/" / "?" )` }
     }
   });
   const options = { customSchemes: [example] };
@@ -187,22 +189,50 @@ describe("defineScheme", () => {
   });
 
   test("a pattern can't accept what the generic syntax doesn't", () => {
-    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { path: { pattern: /.*/u } } })] };
+    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { path: { pattern: abnf(path)`*%x0-10FFFF` } } })] };
     expect(isIri("x:a", options)).to.equal(true);
     expect(isIri("x:a b", options)).to.equal(false);
     expect(isUri("x:é", options)).to.equal(false);
   });
 
   test("a pattern is matched where its component starts, and followed by what can follow it", () => {
-    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { query: { pattern: /a/u } } })] };
+    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { query: { pattern: abnf(query)`%s"a"` } } })] };
     expect(isIri("x:p?a", options)).to.equal(true);
     expect(isIri("x:p?a#f", options)).to.equal(true);
     expect(isIri("x:p?ab", options)).to.equal(false);
     expect(isIri("x:p?ba", options)).to.equal(false);
   });
 
-  test("a pattern that can match its component's delimiters runs past it, in is* and assert* alike", () => {
-    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { host: { pattern: /.+/u } } })] };
+  test("a pattern compiled from ABNF can't match past its component", () => {
+    const options = {
+      customSchemes: [
+        defineScheme({ name: "x", rule: "x", validate: { host: { pattern: abnf(host)`1*VCHAR` } } }),
+        defineScheme({ name: "y", rule: "y", validate: { path: { pattern: abnf(path)`"a" *VCHAR "b"` } } })
+      ]
+    };
+    expect(isIri("x://h/a", options)).to.equal(true);
+    expect(isIri("x:///a", options)).to.equal(false);
+    expect(isIri("y:a/b", options)).to.equal(true);
+    expect(isIri("y:a?b", options)).to.equal(false);
+    expect(isIri("y:a#b", options)).to.equal(false);
+  });
+
+  test("RFC 3986's rules mean RFC 3987's in an IRI, unless the context is ASCII", () => {
+    const options = {
+      customSchemes: [
+        defineScheme({ name: "x", rule: "x", validate: { path: { pattern: abnf(path)`1*pchar` } } }),
+        defineScheme({ name: "y", rule: "y", validate: { path: { pattern: abnf(asciiPath)`1*pchar` } } })
+      ]
+    };
+    expect(isIri("x:é", options)).to.equal(true);
+    expect(isIri("x:%C3%A9", options)).to.equal(true);
+    expect(isIri("y:é", options)).to.equal(false);
+    expect(isIri("y:%C3%A9", options)).to.equal(true);
+  });
+
+  test("a hand-written pattern that can match its component's delimiters runs past it, in is* and assert* alike", () => {
+    const pattern = /** @type ComponentPattern<"host"> */ (/.+/u);
+    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { host: { pattern } } })] };
     expect(isIri("x:///a", options)).to.equal(true);
     expect(() => assertIri("x:///a", options)).not.to.throw();
   });
@@ -235,7 +265,7 @@ describe("urnScheme's arguments", () => {
   });
 
   test("throws a TypeError for a pattern without exactly the u flag", () => {
-    expect(() => urnScheme({ isbn: { pattern: /a/ } }))
+    expect(() => urnScheme({ isbn: { pattern: /** @type any */ (/a/) } }))
       .to.throw(TypeError, "The pattern of the isbn namespace must be a RegExp with the u flag and no other");
   });
 });
@@ -248,7 +278,7 @@ describe("What's wrong with a scheme's rules, and where", () => {
         rule: "ex-URI",
         validate: { userinfo: "required", port: "required", query: "required", fragment: "forbidden" }
       }),
-      defineScheme({ name: "nd", rule: "nd-URI", validate: { path: { pattern: /(?!)/u } } })
+      defineScheme({ name: "nd", rule: "nd-URI", validate: { path: { pattern: /** @type ComponentPattern<"path"> */ (/(?!)/u) } } })
     ]
   };
 
@@ -327,7 +357,7 @@ describe("What's wrong with a scheme's rules, and where", () => {
 describe("urnScheme", () => {
   const urn = urnScheme({
     ISBN: {
-      pattern: /\d[\d-]+\d/u,
+      pattern: abnf(asciiPath)`DIGIT 1*( DIGIT / "-" ) DIGIT`,
       description: "an ISBN, like 0-395-36341-1",
       normalize: (nss) => nss.replaceAll("-", "")
     },

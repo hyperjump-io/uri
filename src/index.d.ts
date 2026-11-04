@@ -5,6 +5,7 @@ declare const ascii: unique symbol;
 declare const normalized: unique symbol;
 declare const normalizedUri: unique symbol;
 declare const defined: unique symbol;
+declare const component: unique symbol;
 
 /**
  * A string that {@link isIriReference} or {@link assertIriReference}
@@ -74,7 +75,7 @@ export type SchemeDefinition = {
 
   /** A rule for each component that has one. The generic syntax is checked too. */
   readonly validate?: {
-    readonly [Component in Exclude<keyof IdentifierComponents, "scheme">]?: ComponentRule;
+    readonly [Component in SchemeComponent]?: ComponentRule<Component>;
   };
 
   /**
@@ -91,26 +92,48 @@ export type SchemeDefinition = {
   };
 };
 
+/** A component a scheme can have a rule for: every one but the scheme. */
+export type SchemeComponent = Exclude<keyof IdentifierComponents, "scheme">;
+
 /**
  * What a scheme requires of a component.
  *
  * - `"required"`: it has to be there.
  * - `"forbidden"`: it can't be there.
  * - `{ pattern, description? }`: when it's there, it has to match
- *   `pattern`, a `RegExp` with the `u` flag and no other. `description`
- *   finishes "a tag URI's path must be …" in the error.
- *
- * A pattern only checks structure, since the generic syntax checks the
- * characters. It's matched where its component starts, and has to be
- * followed by what can follow the component, like `?`, `#`, or the end for
- * a path. A pattern that can match its component's delimiters can run
- * past it: `/.+/u` for a host lets an empty host through, where
- * `/[^:/?#]+/u` doesn't.
+ *   `pattern`. `description` finishes "a tag URI's path must be …" in the
+ *   error.
  */
-export type ComponentRule
+export type ComponentRule<C extends SchemeComponent = SchemeComponent>
   = "required"
     | "forbidden"
-    | { readonly pattern: RegExp; readonly description?: string };
+    | { readonly pattern: ComponentPattern<C>; readonly description?: string };
+
+/**
+ * A pattern for a component, compiled from ABNF by `@hyperjump/abnf` with
+ * a context from `@hyperjump/uri/abnf`:
+ *
+ * ```js
+ * import { abnf } from "@hyperjump/abnf";
+ * import { host } from "@hyperjump/uri/abnf";
+ *
+ * const nonEmptyHost = abnf(host)`IP-literal / 1*( unreserved / pct-encoded / sub-delims )`;
+ * ```
+ *
+ * The brand is only in the types. At runtime a pattern is any `RegExp`
+ * with the `u` flag and no other, so one compiled at build time can be
+ * loaded with `new RegExp(source, "u") as ComponentPattern<"host">`.
+ *
+ * A hand-written `RegExp` needs the same cast, and then what the compiler
+ * does is the caller's to do. A pattern is matched where its component
+ * starts, against the rest of the identifier, and has to be followed by
+ * what can follow the component, like `?`, `#`, or the end for a path. It
+ * only checks structure, since the generic syntax checks the characters.
+ * So a pattern that can match its component's delimiters can run past it:
+ * `/.+/u` for a host lets an empty host through, where `/[^:/?#]+/u`
+ * doesn't. And `^` and `$` are the start and end of the whole identifier.
+ */
+export type ComponentPattern<C extends SchemeComponent> = RegExp & { readonly [component]: C };
 
 /**
  * A URN namespace's rules and normalization, on its NSS. `{}` is a
@@ -118,10 +141,11 @@ export type ComponentRule
  */
 export type UrnNamespace = {
   /**
-   * What an NSS of the namespace matches, a `RegExp` with the `u` flag and
-   * no other. RFC 8141's rules are checked too.
+   * What an NSS of the namespace matches, compiled with
+   * `@hyperjump/uri/abnf`'s `asciiPath`, since the NSS ends where the path
+   * does and a URN is ASCII. RFC 8141's rules are checked too.
    */
-  readonly pattern?: RegExp;
+  readonly pattern?: ComponentPattern<"path">;
 
   /** Finishes "a uuid URN's NSS must be …" in the error. */
   readonly description?: string;
