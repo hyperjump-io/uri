@@ -47,7 +47,7 @@ The others trust what they're given (see [Trust](trust.md)), and a value
 only has a brand if its scheme passed a validator, so they don't need to
 look it up.
 
-`customSchemes` is a list of schemes, each a plain object (see
+`customSchemes` is a list of schemes, each made by `defineScheme` (see
 [Custom schemes](#custom-schemes)). A custom
 scheme with a built-in's name replaces the built-in. That's how a
 built-in's rules are turned off, too: a custom scheme with its name and no
@@ -96,47 +96,52 @@ only turns an `UnknownSchemeError` into an answer.
 
 ## Custom schemes
 
-A scheme is a plain object with its name, the rule its specification
-names it by, rules for its components, and its normalization. Most
-callers will never need one, so it's an escape hatch, and its ergonomics
-aren't optimized. The built-ins are made the same way.
+A scheme is made by `defineScheme`, from a definition with its name, the
+rule its specification names it by, patterns for its components, and its
+normalization. Most callers will never need one, so it's an escape hatch,
+and its ergonomics aren't optimized. The built-ins are made the same way.
 
 ```js
-const httpScheme = {
+import { defineScheme } from "@hyperjump/uri";
+
+const httpScheme = defineScheme({
   name: "http",
   rule: "http-URI",
   validate: {
     authority: "required",
-    host: { test: (host) => host !== "", description: "non-empty" }
+    host: { pattern: /.+/u, description: "non-empty" }
   },
   normalize: {
     port: (port) => port === "80" || port === "" ? undefined : port,
     path: (path) => path === "" ? "/" : path
   }
-};
+});
 
-const tagScheme = {
+const tagScheme = defineScheme({
   name: "tag",
   rule: "tagURI",
   syntaxNormalization: false,
   validate: {
     authority: "forbidden",
     path: {
-      test: (path) => tagPath.test(path),
+      pattern: /[a-zA-Z0-9.\-@]+,\d{4}(?:-\d{2}(?:-\d{2})?)?:.*/u,
       description: "a domain name or an email address, \",\", a date, and \":\", like example.com,2004:a"
     }
   }
-};
+});
 ```
 
-The top level has only what's about the
+(The `tag` pattern is shortened here. The built-in's is RFC 4151's
+`taggingEntity`.)
+
+The top level of a definition has only what's about the
 whole scheme: `name`, `rule`, and `syntaxNormalization`. The rules and the
 normalization are each an object keyed by component, `validate` and
 `normalize`, and both are optional. A scheme with neither is known and
-adds nothing: `{ name: "data", rule: "dataurl" }`.
+adds nothing: `defineScheme({ name: "data", rule: "dataurl" })`.
 
 `validate` can name any component but `scheme`, which the name decides.
-That includes `fragment`: `urn` tests that it's ASCII, and a scheme can
+That includes `fragment`: `urn` checks that it's ASCII, and a scheme can
 forbid one. Each component's rule is one of:
 
 - Left out: no rule. The component can be there or not, and anything the
@@ -144,28 +149,91 @@ forbid one. Each component's rule is one of:
 - `"required"` or `"forbidden"`: it has to be there, or can't be. These
   give `missing-component` and `forbidden-component` (see
   [Errors](#errors)).
-- `{ test, description? }`: a predicate on the component's string, run
-  when the component is there. `false` gives `component-mismatch`, with
-  the `description` in the message when there is one.
+- `{ pattern, description? }`: a regular expression the component has
+  to match when it's there. Not matching gives `component-mismatch`,
+  with the `description` in the message when there is one.
 
-A predicate only checks structure. The generic syntax is checked first, so
-the component already has only the characters it's allowed, in its URI or
-its IRI form. It doesn't need to know which form it's checking, and it can
-write `[^:]*` where the ABNF says `segment`. `urn` checks that it's ASCII,
-which is true in both forms.
+### Patterns only add structure
 
-The built-ins are written from their RFC's ABNF, with the same rule
-strings as the generic grammar, and wrapped in `test`. So they read like
-the ABNF and can be checked against it, without the rule strings being
-exported.
+A pattern doesn't replace the generic component. It's added to it, as a
+lookahead at the position where the component starts:
 
-There's no `defineScheme`. Nothing has to compile or prepare a scheme, so
-it's a value, and its type checks its shape.
+```
+(?=pattern(?=what can follow the component))generic component
+```
 
-No built-in needs a component that's required and tested at once:
-`http`'s required authority and its tested host are different components,
-and a path is always there. If a custom scheme needs it,
-`{ required: true, test }` can be added in a minor version.
+The generic component is what's matched, so a scheme can only reject
+more than the generic syntax, never accept more. A pattern that's too
+loose makes the scheme's rule loose, and nothing else. So `isIri` can't
+return `true` for something that isn't an IRI, whatever a custom scheme
+says, and the `Iri` brand holds (see [Trust](trust.md)).
+
+The generic syntax has already checked the characters, in the URI or the
+IRI form. A pattern doesn't need to know which form it's checking, and it
+can write `.*` or `[^:]*` where the ABNF says `segment`. So the library's
+rule strings aren't exported, and a pattern is the same for both
+forms. `urn` checks that it's ASCII, with `[!-~]`, which is true in both
+forms.
+
+A pattern ends where what can follow its component starts: `:`, `/`,
+`?`, `#`, or the end of the value for a host, `?`, `#`, or the end for a
+path, and so on. A pattern that can match its component's delimiter, like
+`a\?b` for a path, checks past the end of the component. That's a loose
+rule, not an invalid IRI, and errors check it the same way, so `is*` and
+`assert*` always agree.
+
+The built-ins are written from their RFC's ABNF, with internal rule
+strings for the structure, like `tag`'s `dnsName` and `date`. So they
+read like the ABNF and can be checked against it.
+
+### `defineScheme`
+
+`defineScheme` builds the scheme's patterns, once. It puts each pattern
+in the generic grammar in place of its component's lookahead, and keeps
+only the parts of the grammar a rule allows: `authority: "required"`
+keeps only `"//" authority path-abempty`, and `query: "forbidden"` drops
+`[ "?" query ]`. It compiles, for URIs and for IRIs, the whole
+identifier, the absolute form, and each component's pattern by itself
+for errors. It throws for a pattern whose flags aren't exactly `u` (see
+[Patterns are `RegExp`s](#patterns-are-regexps)), or for a `name` that
+isn't a valid scheme.
+
+What it returns is a value. It's frozen, and its compiled patterns are
+behind a symbol, so the only way to make one is `defineScheme`. It isn't
+registered anywhere. A caller keeps it, and passes it in `customSchemes`.
+
+Patterns are compiled with the `u` flag in both forms, so a pattern that
+compiles for one compiles for the other.
+
+The name is `defineScheme` because a caller writes a definition and gets
+a scheme. That it compiles is how it works, not what it's for.
+
+### Patterns are `RegExp`s
+
+A pattern is a `RegExp`, and only its `source` is used, put inside the
+scheme's larger pattern. A `RegExp` literal is checked by the language
+and by editors where it's written, gets syntax highlighting, and doesn't
+need its backslashes doubled.
+
+It has to have the `u` flag and no other. Its source is compiled with the
+`u` flag, so a literal without it could be valid where it's written and a
+syntax error in `defineScheme`, like `/a\-b/`. With the flag, it's
+checked where it's written by the same rules it's compiled with. The
+other flags can't mean what they say inside a larger pattern: `i` would
+apply to nothing, `m` would change what `^` and `$` mean in the whole
+identifier, and `g` and `y` are about `lastIndex`, which only the source
+leaves behind.
+
+A validator for an identifier with a scheme finds the scheme, then tests
+its whole pattern. That's one regular expression, with no splitting.
+Only a value that fails is looked at again: the generic pattern says
+whether it's an identifier at all, and `assert*` splits it and tests each
+component's pattern to say which one broke and why.
+
+No built-in needs a component that's required and has a pattern at once:
+`http`'s required authority and its host's pattern are on different
+components, and a path is always there. If a custom scheme needs it,
+`{ required: true, pattern }` can be added in a minor version.
 
 Rules are per component, not for the whole identifier, because of two
 things the built-ins need:
@@ -180,25 +248,50 @@ A custom scheme carries normalization as well as rules, because
 can extend which schemes it knows the normalization of. Normalization
 runs after the syntax-based normalization, and a scheme can turn the
 syntax-based normalization off, which `urn` and `tag` need (see
-[Normalizing](#normalizing)).
+[Normalizing](#normalizing)). Normalization is functions, not patterns,
+because it changes text.
 
 ### Rejected
 
-- **A pattern for each component**, a regular expression source written
-  with exported rule strings like `pchar`, so a scheme reads like its
-  ABNF. The rule strings, in URI and IRI forms, would be public API that a
-  rename breaks, and each pattern would be compiled once for URIs and once
-  for IRIs. The generic syntax has already checked the characters, so a
-  scheme's rules only need structure, and the built-ins keep the ABNF
-  reading inside.
+- **Predicates**, `{ test: (text) => boolean }`, which this design had
+  first. Each scheme's rules ran on the split components, after the
+  generic pattern had checked the same characters, so every identifier
+  was scanned twice. `isIri` was 1.7 times v1's time, and four times what
+  the generic check alone took, almost all of it splitting and the
+  scheme's own patterns (see
+  [Schemes and trust](../benchmarks/schemes-and-trust.md)). No built-in
+  needs a rule that a regular expression can't say. `{ test }` can be
+  added in a minor version for a scheme that does, and a scheme with one
+  would take the slow path.
+- **Patterns written with exported rule strings**, like `pchar`, put in
+  place of the generic component. The rule strings, in URI and IRI forms,
+  would be public API that a rename breaks, and a pattern that's too loose
+  would let through what isn't an IRI. Keeping the generic component and
+  adding the pattern as a lookahead needs neither.
+- **Building the regular expression on each call**, from the scheme's
+  patterns. A `new RegExp` costs about 6 microseconds, even with V8's
+  cache of compiled sources, which is 50 times a test. That's
+  identifier-js's cost (see
+  [Other implementations](../benchmarks/other-implementations.md#identifier-js)).
+- **A cache of compiled patterns keyed by the scheme object.** It's a
+  hidden channel. A compiled scheme is a value the caller keeps instead.
+- **Matching exactly where the component ends**, by capturing what
+  follows it and requiring the pattern to be followed by exactly that, with
+  a backreference. A pattern couldn't run past its component. But it
+  matches the generic component twice, which made `https` take twice
+  as long, to catch a pattern that's the scheme's own bug.
+- **A fast pattern for each built-in, beside its predicates.** It was as
+  fast, but each rule was written twice, and only the built-ins had it.
+- **A plain object**, with no `defineScheme`. It was chosen when there was
+  nothing to compile. With patterns there is, and keeping what's compiled
+  anywhere but in the value is a hidden channel.
 - **One predicate on all the components**, `(components) => boolean`. It
   can't say which component failed, so `assert*` would lose its reasons
   unless the predicate returned them, which rebuilds the rules per
   component inside a callback. And `#f` would check the whole identifier
   again.
-- **A `defineScheme` function.** It was there to compile patterns. With
-  predicates there's nothing to compile, and a bad definition is a type
-  error.
+- **A pattern for the whole identifier**, instead of one per component.
+  It loses which component failed, and `#f`, for the same reasons.
 - **`true` and `false` instead of `"required"` and `"forbidden"`.**
   Leaving a component out is the third state, anything goes, so `true`
   could be read as "may have one", which is a no-op.
@@ -208,8 +301,6 @@ syntax-based normalization off, which `urn` and `tag` need (see
   shape.
 - **`rules` for the group.** It's too close to `rule`, the RFC rule's
   name. `validate` pairs with `normalize`.
-- **A bare `RegExp` for `test`.** One with the `g` flag keeps `lastIndex`
-  between calls, and gives the wrong answer the second time.
 - **Composing functions instead**, like checking the scheme from
   `parseIri` and calling a checker of the caller's own for it. Every
   caller would write the dispatch, and to add one scheme they'd have to
@@ -222,6 +313,14 @@ syntax-based normalization off, which `urn` and `tag` need (see
 - **A way to register schemes**, so that every call knows them. A call's
   result would depend on what some other module registered. Code that
   uses the same options in many places wraps the functions instead.
+- **A string for `pattern`.** It needs `String.raw` or doubled
+  backslashes, and a mistake in it isn't found until `defineScheme` runs.
+- **A `RegExp` with any flags, ignoring them.** `/a/i` would read as
+  case-insensitive and not be. The `u` flag is required, not just
+  allowed, so a pattern is checked where it's written the way it's
+  compiled.
+- **`compileScheme`**, for what it does, and **`scheme`**, the shortest.
+  A caller thinks of defining a scheme, and compiling is how it works.
 
 ## The `urn` scheme
 
@@ -247,7 +346,7 @@ import { urnScheme } from "@hyperjump/uri";
 
 const urn = urnScheme({
   isbn: {
-    test: (nss) => isbnPattern.test(nss),
+    pattern: /97[89]\d{10}|97[89]-\d+-\d+-\d+-\d/u,
     description: "an ISBN, like 0-395-36341-1",
     normalize: (nss) => nss.replaceAll("-", "")
   },
@@ -258,17 +357,22 @@ isIri(value, { customSchemes: [urn] });
 ```
 
 - NIDs match without case, as RFC 8141 compares them.
-- A namespace is `{ test?, description?, normalize? }`, all on the NSS,
-  like a component's rule and its normalization. `{}` is a namespace
+- A namespace is `{ pattern?, description?, normalize? }`, all on the
+  NSS, like a component's rule and its normalization. `{}` is a namespace
   that's known and adds nothing.
+- `urnScheme` compiles the scheme, like `defineScheme`. The path's
+  pattern is RFC 8141's `NID ":" NSS`, with a branch for each namespace:
+  its NID, without case, and its pattern for the NSS. So a URN is checked
+  in one test, its namespace included.
 - `uuid` is included unless a namespace of that name replaces it. The
   built-in `urn` is `urnScheme({})`.
-- RFC 8141's rules are checked first, then the namespace's `test`.
+- RFC 8141's rules are checked first, then the namespace's `pattern`.
   `urn`'s normalization runs first, then the namespace's: `uuid`'s is
   `lowercaseComponent(nss)`.
 - A NID it doesn't know throws `UnknownUrnNamespaceError`, with `value`
-  and `nid` (see [Errors](errors.md)). The factory does it
-  with the library's internals, which a component's `test` can't. A
+  and `nid` (see [Errors](errors.md)). A NID that isn't one of the
+  branches fails the pattern, and the slow path finds which NID it is,
+  which a component's pattern can't say. A
   custom `urn` is made with the same factory, so it's made the way the
   built-in is.
 - Only the NSS has a namespace's rules. RFC 8141 says the f-component
@@ -284,7 +388,8 @@ covers that.
 - **No built-in `urn`**, with every caller defining it. The RFC 8141
   layer would be written again by everyone, and `uuid`'s rules would have
   to be exported.
-- **A `test` that can answer "I don't know"**, by returning `undefined`.
+- **A rule that can answer "I don't know"**, like a `test` returning
+  `undefined`.
   It would be generic, and `info:` (RFC 4452) and `did:` methods have
   namespaces too, but the library couldn't say what it doesn't know: the
   error would say a scheme is unknown when a namespace is. Only `urn` needs it
@@ -662,7 +767,7 @@ A `missing-component` is an empty span where the component would go, like
 with its delimiter, like `?b` or `//a`, so a forbidden empty query isn't
 an empty span, which would read as a missing one.
 
-A namespace's `test` that fails is a `component-mismatch` of the path,
+A namespace's `pattern` that fails is a `component-mismatch` of the path,
 spanning only the NSS: `a uuid URN's NSS must be a UUID, like
 f81d4fae-7dec-11d0-a765-00a0c91e6bf6`, or `the NSS doesn't match the uuid
 namespace` without a description.
@@ -675,7 +780,7 @@ has already been reported, at its position. What a scheme adds is
 structure, like a date where the path starts, and a description of the
 structure says more than a position in it would.
 
-A scheme gives the description with its component's `test` (see
+A scheme gives the description with its component's `pattern` (see
 [Custom schemes](#custom-schemes)). Without one, the message names the
 rule: `the path doesn't match tagURI`.
 
@@ -753,25 +858,26 @@ if (host !== undefined && !isDomainName(host)) {
 
 ## Cost
 
-Measured when it was built (see
-[Schemes and trust](../benchmarks/schemes-and-trust.md)). The lookup
-itself is cheap: `isIri` of a `did:` identifier with a custom scheme that
-has no rules took 87 milliseconds, where the generic check alone took 50,
-and three custom schemes in the list made no difference that showed
-above the noise. The rules are what cost: the built-ins' tests need the
-identifier split into its components, and `urn` and `file` run a pattern
-of their own. `isIri` of `bench-schemes.js`'s four identifiers went from
-81 milliseconds to 311, which is 1.7 times v1's.
+The predicates this design had first were measured when they were built
+(see [Schemes and trust](../benchmarks/schemes-and-trust.md)). The lookup
+itself was cheap: `isIri` of a `did:` identifier with a custom scheme
+that has no rules took 87 milliseconds, where the generic check alone
+took 50, and three custom schemes in the list made no difference that
+showed above the noise. The rules were what cost: they needed the
+identifier split into its components, and `urn` and `file` ran patterns
+of their own over characters the generic pattern had already checked.
+`isIri` of `bench-schemes.js`'s four identifiers went from 81
+milliseconds to 311, which is 1.7 times v1's.
 
-A validator checks only the components a scheme has rules for, in any
-order, and goes back to the components' order only when one fails, to
-report the first. It took `isIri` from 358 milliseconds to 311.
+With one compiled pattern per scheme, a prototype of the `https`,
+`urn:uuid`, and `file` patterns tested each identifier 800,000 times in
+106, 66, and 62 milliseconds, where `isIri` took 249, 373, and 279 with
+predicates. That's back to what the generic check alone took, give or
+take the lookahead. These are a prototype's numbers. The ones measured
+when it's built go in the benchmarks.
 
 ### Rejected
 
-- **A cache of compiled checks per scheme object.** It would be a hidden
-  channel keyed by an object, and a scheme is a value so that nothing
-  needs preparing.
 - **Hand-written checks for the built-ins**, apart from their scheme
   objects. Built-ins are made the same way as custom schemes so that one
   path checks both.
