@@ -2,7 +2,8 @@
 
 First recorded 2026-11-04, on Node.js 22.22.1, from a prototype of the
 compiler from ABNF to regular expressions (see
-[ABNF](../components/abnf.md)). The prototype compiled `{ abnf }` rules in
+[ABNF](../components/abnf.md)). Last run the same day, when it was built
+(see [Built](#built)). The prototype compiled `{ abnf }` rules in
 `defineScheme`, and wrote every built-in in ABNF. It's
 `benchmark/abnf.js`, with `benchmark/v2-abnf.js`, a copy of `src/` that
 uses it.
@@ -105,3 +106,42 @@ Built with esbuild 0.24.0, minified:
 
 That's why the built-ins' patterns are generated, and the compiler is a
 package of its own (see [Shipping](../components/abnf.md#shipping)).
+
+## Built
+
+When the compiler was built, with contexts and the built-ins' patterns
+generated into `src/patterns.js`, `src/` was compared with a snapshot of
+itself from just before, with the hand-written patterns
+(`benchmark/v2-hand-patterns.js`, from `8e8816e`).
+
+`benchmark/differential-generated.js` is `differential-abnf.js` with
+`src/` against the snapshot, and the custom schemes compiled with the
+contexts. On three seeds, about 238,000 inputs and 3.4 million checks
+each, nothing differed. `"/a"` in place of `%s"/a"` made 12 differences
+again.
+
+`benchmark/bench-generated.js` is `bench-abnf.js` with the snapshot
+(`hand`) against `src/` (`generated`). The machine was slower than for
+the prototype's runs, by about 1.7 times for both, so the columns compare
+and the runs don't. The median of 3 processes:
+
+| Function | Hand-written | Generated | Generated/hand-written |
+| --- | --- | --- | --- |
+| `isIri` | 207 | 209 | 1.01x |
+| `isIri`, the `https` URI | 207 | 206 | 1.00x |
+| `isIri`, with a query and a fragment | 202 | 208 | 1.03x |
+| `isIri`, the `urn:uuid` | 205 | 205 | 1.00x |
+| `isIri`, the `file` URI | 131 | 129 | 0.98x |
+| `isIri`, with 3 custom schemes | 223 | 224 | 1.00x |
+| `isIri`, a custom scheme with no rules | 85 | 85 | 1.00x |
+| `isIri`, four invalid identifiers | 403 | 400 | 0.99x |
+| `isUri` | 260 | 253 | 0.97x |
+| `assertIri` | 214 | 217 | 1.01x |
+| `resolveIri`, four kinds of reference | 637 | 632 | 0.99x |
+| `resolveIri`, `#f` | 109 | 109 | 1.00x |
+| `normalizeIri` | 339 | 348 | 1.03x |
+
+Importing the library, 10 times each in its own process, took a median
+of 13.2 milliseconds with the hand-written patterns and 14.1 with the
+generated ones, which are another module of 5 KB. The runs of each
+spread over more than that, from 11 to 18 milliseconds.

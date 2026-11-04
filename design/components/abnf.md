@@ -68,9 +68,9 @@ date.test("2004-01-15"); // true
 - Without a context, the result matches a whole string: it's anchored at
   both ends.
 
-It throws a `SyntaxError` for text that isn't ABNF, a rule that isn't
-defined, a recursive rule, and a prose value (`<…>`), which can't be
-compiled. A prose value repeated zero times is empty, which RFC 3986's
+It throws a `SyntaxError` for text that isn't ABNF, a rule that's defined
+twice in one rule list, a rule that isn't defined, a recursive rule, and a
+prose value (`<…>`), which can't be compiled. A prose value repeated zero times is empty, which RFC 3986's
 own grammar needs: `path-empty = 0<pchar>`.
 
 A rule defined in the text replaces one of the same name from the context
@@ -87,22 +87,25 @@ It's a value:
 ```ts
 type Context<T extends RegExp = RegExp> = {
   readonly rules?: string;          // a rule list the text can reference
-  readonly alphabet?: string;       // the characters the input can have
-  readonly delimiters?: string;     // characters that end what's matched
+  readonly alphabet?: string;       // ABNF for the characters the input can have
+  readonly delimiters?: string;     // ABNF for the characters that end what's matched
   readonly percentEncoded?: boolean; // each "%" starts a pct-encoded
   readonly anchored?: boolean;      // whether to match a whole string
   readonly [result]?: T;            // only says what the tag returns
 };
 ```
 
-(The character sets are written here as strings for short. How they're
-written is decided when it's built.)
+`alphabet` and `delimiters` are ABNF that matches one character, like
+`"?" / "#"`, resolved among the context's rules. So they can say
+`iunreserved / sub-delims`, and there's no second notation for sets. One
+that doesn't match one character, like `"ab"`, is a `TypeError` when the
+tag is made.
 
 - **`delimiters` are removed from every character set.** A pattern can't
   match one, so it ends where its component ends. Without this, the
   differential test found 17,859 differences, like `http://?` being valid
   (see [ABNF](../benchmarks/abnf.md)). A rule that can't match anything
-  once they're removed throws, like a host rule that only allows `:`.
+  once they're removed throws, like a path rule that only allows `?`.
   `tag`'s `specific = *( pchar / "/" / "?" )` still compiles for a path:
   only its `"?"` is removed, and that part is the generic query.
 - **`alphabet` lets sets be widened.** A character the input can't have is
@@ -133,6 +136,9 @@ rewritten and compiled to a regular expression source:
   indented however it's written.
 - Alternatives are flattened, and character sets among them merged into
   one.
+- What's kept while compiling, like the compiled character sets, is kept
+  for one compilation and dropped after it. Nothing is kept between calls,
+  so nothing depends on what was compiled before.
 
 ### Rewrites
 
@@ -155,19 +161,31 @@ hand-written ones (see [ABNF](../benchmarks/abnf.md)).
   of `a`, is `*b` not starting with what's only in `b`, if that can't
   follow it. `path-absolute` becomes `\/(?!\/)[^?#]*`, which is what the
   hand-written pattern was. It was 5% faster than `\/(?:[^/?#][^?#]*)?`.
+- **Repetitions of what can be empty.** A repetition without a bound of a
+  repetition that can be empty is any number of its item: `1*( *a )` and
+  `1*( [ a ] )` are `*a`. It's what `1*query` is, since `query` can be
+  empty. Nested, they backtrack through every way of splitting a string
+  that doesn't match: `^(?:[^#]*)+$` took 15 milliseconds on 16
+  characters and a `#`, and 606 on 24, where `^[^#]*$` took less than 1.
 - **Classes.** A set is compiled as a class or a negated class, whichever
   has fewer ranges, and a negated class when they have as many. A range to
   the end of Unicode starts as low as the alphabet allows: V8 checks a
   class of all non-ASCII characters by checking for ASCII. `urn:uuid`'s
-  pattern took 284 milliseconds for 2 million tests when its range started
-  at U+A0, and 256 when it started at U+7F.
+  pattern took 282 milliseconds for 2 million tests when its range started
+  at U+A0, and 254 when it started at U+7F.
 
 ## Shipping
 
-- The built-in schemes' patterns are generated from their ABNF by a
-  script, with the compiler as a development dependency. The generated
-  file is committed, and a test fails if it's stale. Nothing is compiled
-  when the library loads.
+- The compiler is in `abnf/` until it's its own package. It's laid out as
+  one, with its own `index.d.ts` and tests, and nothing in it imports from
+  `src/`. `src/abnf.d.ts` imports its `Context` type from `../abnf/` until
+  then, and from `@hyperjump/abnf` after, which has to be published before
+  `@hyperjump/uri` 2.0.0 is.
+- The built-in schemes' patterns are generated from their ABNF by
+  `scripts/generate-patterns.js` into `src/patterns.js`, with
+  `npm run generate`. The generated file is committed, and
+  `src/patterns.test.js` fails if it isn't what the script generates.
+  Nothing is compiled when the library loads.
 - A caller who defines a scheme imports the compiler. One who cares about
   load time can compile at build time and keep the source:
   `new RegExp(source, "u") as ComponentPattern<"path">`.
@@ -198,6 +216,16 @@ So nobody pays for the compiler who doesn't use it (see
 - **Compiling the built-ins when the library loads.** It was most of the
   27 milliseconds: about 8 for `http`'s and `https`'s host, which inline
   RFC 3986's `IP-literal`, and about 6 for parsing RFC 3986 and RFC 3987.
+- **Leaving `:` out of a host's characters only outside an IP literal**,
+  which the prototype did by the name `IP-literal`. A general compiler
+  can't know a rule by its name, and a context can't say "except inside
+  this rule" without a notion of scope only hosts would use. So a host's
+  delimiters are `/`, `?`, and `#`. A host rule that needs a `:` outside
+  an IP literal can match into the port, and no `reg-name` has one (see
+  [Schemes](schemes.md#patterns-come-from-abnf)).
+- **Caches of compiled sets or rules kept between calls**, keyed by a
+  context. They'd be hidden channels. Kept for one compilation, the
+  compiled sets were what brought `http`'s host from 22 milliseconds to 6.
 - **Renaming RFC 3986's rules to RFC 3987's in the compiler**, so that
   `pchar` means `ipchar` in an IRI. It's data: an IRI context's rules
   define `pchar = ipchar`, and an ASCII context's don't.
@@ -209,3 +237,12 @@ So nobody pays for the compiler who doesn't use it (see
   3986 §3.5 leaves to the generic syntax, so `http-URI` would forbid one.
   And per-component rules are what errors and `#f` need (see
   [Schemes](schemes.md#patterns-are-regexps)).
+
+## Open questions
+
+- **An expression followed by rules**, like `` abnf(path)`NID ":" NSS ${urnRules}` ``.
+  The text is a rule list or an expression, so this is a `SyntaxError`
+  now, and it has to be `urn-path = NID ":" NSS`. It was written that way
+  twice while building, so a caller will probably reach for it too. It's
+  unambiguous, since a rule list starts with a name and `=`, and allowing
+  it later isn't a breaking change.
