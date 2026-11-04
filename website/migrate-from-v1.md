@@ -22,9 +22,22 @@ isIri("did:example:123"); // throws UnknownSchemeError
 
 `normalizeIri`, `normalizeUri`, and `resolveIri` throw it too. If you use
 identifiers with schemes other than `http`, `https`, `file`, `tag`, and
-`urn`, pass them in the `customSchemes` option of each of these
-functions. For a URN, add its namespace with `urnScheme`. For more
-information, see [Schemes](schemes.md).
+`urn`, make a scheme for each of them with `defineScheme`, and pass them
+in the `customSchemes` option of each of these functions. A scheme
+without rules checks only the generic syntax, like v1 did:
+
+```typescript
+const options = {
+  customSchemes: [defineScheme({ name: "did", rule: "did" })]
+};
+
+isIri("did:example:123", options); // true
+```
+
+Make the options once, like when your module loads, and reuse them,
+because `defineScheme` compiles the scheme's rules. For a URN, add its
+namespace with `urnScheme`. For more information, see
+[Schemes](schemes.md).
 
 ## Check identifiers before you use them
 
