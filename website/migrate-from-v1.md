@@ -1,47 +1,127 @@
 # Migrate from v1
 
-v2 has the same functions as v1, with the same names. The following
+v2 has most of the functions of v1, with the same names. The following
 sections list each change that can break code, and what to do about it.
+TypeScript reports many of them, but some don't change any types.
 
-## `toRelativeIri` takes the IRI first
+## Scheme rules apply
 
-`toRelativeIri` and `toRelativeUri` take their arguments in the opposite
-order from v1. The IRI to make relative comes first, and the base second,
-like in `resolveIri`:
+In v1, the validation functions checked only the generic syntax. In v2,
+they check the rules of its scheme too, and throw an
+`UnknownSchemeError` for a scheme that they don't know:
+
+```typescript
+// v1
+isIri("http:///a"); // true
+isIri("did:example:123"); // true
+
+// v2
+isIri("http:///a"); // false: an http URI needs a host
+isIri("did:example:123"); // throws UnknownSchemeError
+```
+
+`normalizeIri`, `normalizeUri`, and `resolveIri` throw it too. If you use
+identifiers with schemes other than `http`, `https`, `file`, `tag`, and
+`urn`, pass them in the `customSchemes` option of each of these
+functions. For a URN, add its namespace with `urnScheme`. For more
+information, see [Schemes](schemes.md).
+
+## Check identifiers before you use them
+
+In v1, every function checked its arguments. In v2, only the validation
+functions check, and the other functions trust what you give them. For
+a string that isn't valid, they return a result that isn't defined,
+instead of throwing.
+
+Check each identifier that comes from outside your code, like one in a
+JSON document, with an `is` or `assert` function before you pass it to
+another function. The `assert` functions throw the errors that v1's
+parsing functions threw:
+
+```typescript
+// v1
+const components = parseIri(value);
+
+// v2
+assertIri(value);
+const components = parseIri(value);
+```
+
+In TypeScript, the validation functions return a type like `Iri`, and the
+other functions take it, so TypeScript reports a `string` that you didn't
+check. For more information, see
+[Check once](validate-and-parse.md#check-once).
+
+## Results aren't normalized
+
+In v1, `resolveIri`, `toAbsoluteIri`, and `toRelativeIri` normalized
+their results. In v2, they don't. If you compare their results, like
+identifiers that you use as keys, call `normalizeIri` on them:
+
+```typescript
+const base = "HTTPS://Example.com/a";
+const reference = "B";
+
+// v1
+resolveIri(reference, base); // "https://example.com/B"
+
+// v2
+assertAbsoluteIri(base);
+assertIriReference(reference);
+resolveIri(reference, base); // "HTTPS://Example.com/B"
+normalizeIri(resolveIri(reference, base)); // "https://example.com/B"
+```
+
+TypeScript can't catch this change.
+
+## `toRelativeIri` takes normalized identifiers, target first
+
+`toRelativeIri` takes its arguments in the opposite order from v1. The IRI
+to make relative comes first, and the base second, like in `resolveIri`.
+Both have to be normalized:
 
 ```typescript
 const base = "https://example.com/a/b";
-const iri = "https://example.com/a/c";
+const target = "https://example.com/a/c";
 
 // v1
-toRelativeIri(base, iri); // "c"
+toRelativeIri(base, target); // "c"
 
 // v2
-toRelativeIri(iri, base); // "c"
+assertAbsoluteIri(base);
+assertIri(target);
+toRelativeIri(normalizeIri(target), normalizeIri(base)); // "c"
 ```
 
-Both arguments are strings, so TypeScript can't catch this change. Swap
-the arguments in every call to `toRelativeIri` and `toRelativeUri`. With
-the old order, v2 returns a reference to the base instead of to the IRI.
-If the IRI has a fragment, v2 throws, because a base can't have one.
+TypeScript reports an identifier that isn't normalized, but not the
+order, because both are IRIs. Swap the arguments in every call. With the
+old order, v2 returns a reference to the base instead of to the target.
 
-## `resolveIri` always checks the base
+v2 doesn't have `toRelativeUri`. Use `toRelativeIri` with identifiers
+from `normalizeUri`.
 
-In v1, `resolveIri` and `resolveUri` didn't check the base when the
-reference had a scheme, because the base isn't used then. In v2, a base
-that isn't absolute throws, even if the reference has a scheme:
+## Fewer URI functions
 
-```typescript
-// v1
-resolveIri("https://example.com/a", "/b"); // "https://example.com/a"
+The functions that work the same for URIs and IRIs have only their IRI
+names. They take URIs too:
 
-// v2
-resolveIri("https://example.com/a", "/b"); // throws InvalidIriError
-```
+| v1 | v2 |
+| --- | --- |
+| `parseUri`, `parseUriReference`, `parseAbsoluteUri`, `parseIriReference`, `parseAbsoluteIri` | `parseIri` |
+| `resolveUri` | `resolveIri` |
+| `toRelativeUri` | `toRelativeIri` |
+| `toAbsoluteUri` | `toAbsoluteIri` |
 
-That includes an empty string. If you passed `""` because you have no
-base, call `normalizeIri` on the reference instead. For more information,
-see [Resolve references](resolve-references.md).
+`parseIri` returns the components of the kind of identifier that it gets.
+To check that a string is a URI, use `isUri` or `assertUri` before you
+parse it.
+
+## No empty base
+
+In v1, `resolveIri` took `""` as a base when the reference had a scheme.
+In v2, a base has to be an `AbsoluteIri`, so TypeScript reports `""`. If
+you passed `""` because you have no base, you don't need to resolve:
+check that the reference is an IRI with `isIri` instead.
 
 ## Missing components aren't properties
 
@@ -50,15 +130,18 @@ for the ones that weren't in the identifier. In v2, a component that isn't
 there isn't a property of the result:
 
 ```typescript
+const tag = "tag:example.com,2004:a";
+
 // v1
-parseIri("urn:example:foo");
-// { scheme: "urn", authority: undefined, userinfo: undefined,
-//   host: undefined, port: undefined, path: "example:foo",
+parseIri(tag);
+// { scheme: "tag", authority: undefined, userinfo: undefined,
+//   host: undefined, port: undefined, path: "example.com,2004:a",
 //   query: undefined, fragment: undefined }
 
 // v2
-parseIri("urn:example:foo");
-// { scheme: "urn", path: "example:foo" }
+assertIri(tag);
+parseIri(tag);
+// { scheme: "tag", path: "example.com,2004:a" }
 ```
 
 Code that reads a component, like `components.query === undefined`, keeps
@@ -69,10 +152,12 @@ changes. For more information, see
 
 ## Errors are classes
 
-The functions throw an `InvalidUriError`, an `InvalidIriError`, or an
-`UnsupportedIpVersionError` instead of an `Error`. Each one extends
-`Error`, so code that catches them keeps working. To tell them apart, use
-`instanceof` instead of checking the message.
+The `assert` functions throw an `InvalidUriError` or an `InvalidIriError`
+instead of an `Error`, and the validation functions throw an
+`UnknownSchemeError`, an `UnknownUrnNamespaceError`, or an
+`UnsupportedIpVersionError`. Each one extends `Error`, so code that
+catches them keeps working. To tell them apart, use `instanceof` instead
+of checking the message.
 
 The messages of `InvalidUriError` and `InvalidIriError` start with v1's
 message, then say what's wrong, like
@@ -86,9 +171,11 @@ where. For more information, see
 
 The types changed in the following ways:
 
+- The functions that trust their arguments take types like `Iri` and
+  `AbsoluteIri` instead of `string`.
 - In `IdentifierComponents` and `AbsoluteIdentifierComponents`,
   `authority` and `host` are optional. An identifier like
-  `urn:example:foo` has neither. Check for them before you use them.
+  `urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66` has neither. Check for
+  them before you use them.
 - The components are readonly. To change one, spread the components into
   a new object.
-- `UriRule` and `IriRule` are new.
