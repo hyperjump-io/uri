@@ -1,7 +1,9 @@
 # Other implementations
 
 First recorded 2026-11-01, on Node.js 24.20.0, against identifier-js
-0.5.4, fast-uri 4.2.3, uri-js 4.4.1, and Node.js's `URL`.
+0.5.4, fast-uri 4.2.3, uri-js 4.4.1, and Node.js's `URL`. Last run
+2026-11-03, after scheme validation and the trust contract, with v1 and
+v2 from before them added.
 
 The scripts are in `benchmark/other-implementations/`, which has its own
 `package.json` so the other libraries aren't dependencies of this one.
@@ -11,7 +13,10 @@ Install them with `npm ci` and run `node run-all.mjs`, both with Node.js
 
 `libs.mjs` maps each operation to each library's closest equivalent, on
 IRIs where the library has them. `check.mjs` prints every result, and
-they all agree on the ASCII inputs.
+they all agree on the ASCII inputs. v1 comes from the `json-schema`
+checkout next to this repo, at `1.4.0`, and v2 before schemes is
+`benchmark/v2-before-schemes.js` (see
+[Schemes and trust](schemes-and-trust.md)).
 
 ## Speed
 
@@ -19,16 +24,16 @@ they all agree on the ASCII inputs.
 operation in its own process, after 3 warm-up runs. Times are the median
 of 5 runs, in milliseconds.
 
-| Operation | `@hyperjump/uri` | identifier-js | fast-uri | uri-js | `URL` |
-| --- | --- | --- | --- | --- | --- |
-| Validate, ASCII | 105 | 267 | 923 | 1032 | 70 |
-| Validate, Unicode | 111 | 333 | 1137 | 2238 | 149 |
-| Parse, ASCII | 164 | 503 | 915 | 1036 | 158 |
-| Parse, Unicode | 198 | 619 | 1132 | 2188 | 345 |
-| Normalize, ASCII | 229 | 1283 | 1899 | 2595 | 160 |
-| Normalize, Unicode | 297 | 1408 | 2516 | 5134 | 363 |
-| Resolve | 508 | 1905 | 2769 | 3162 | 350 |
-| To relative | 868 | 1992 | | | |
+| Operation | v1 | v2, before schemes | v2 | identifier-js | fast-uri | uri-js | `URL` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Validate, ASCII | 207 | 104 | 331 | 269 | 917 | 1031 | 70 |
+| Validate, Unicode | 227 | 111 | 317 | 327 | 1130 | 2205 | 151 |
+| Parse, ASCII | 220 | 160 | 57 | 504 | 910 | 1034 | 153 |
+| Parse, Unicode | 238 | 196 | 84 | 613 | 1133 | 2142 | 340 |
+| Normalize, ASCII | 319 | 226 | 183 | 1282 | 2134 | 2842 | 174 |
+| Normalize, Unicode | 403 | 321 | 205 | 1559 | 2788 | 5406 | 380 |
+| Resolve | 853 | 596 | 373 | 2093 | 3494 | 3534 | 546 |
+| To relative | 2333 | 1027 | 512 | 2347 | | | |
 
 - The ASCII inputs are the four in [Comparison with v1](v1-comparison.md).
   The Unicode inputs have the same shapes with non-ASCII characters in the
@@ -37,9 +42,13 @@ of 5 runs, in milliseconds.
   `https://example.com/x` against
   `https://json-schema.org/draft/2020-12/schema`. To relative finds four
   targets relative to the same base.
-- To relative was run again after `toRelative*` stopped parsing each
-  identifier twice. Before, it was 1570 for `@hyperjump/uri` and 2125 for
-  identifier-js.
+- v2's validate checks the schemes' rules, which makes it slower than
+  v1's and about as fast as identifier-js's. Its other functions trust
+  their input, so they don't check it, and resolve and to relative don't
+  normalize. v1 and v2 before schemes do both.
+- The other libraries' resolve times were 10–50% higher than on
+  2026-11-01, when `URL` was 350 and fast-uri 2769. Differences that size
+  between runs are noise.
 - fast-uri and uri-js have no relative form. Each library's validate is
   its validator, or parsing without an error for fast-uri and uri-js,
   which have none.
@@ -87,4 +96,5 @@ match about 2.4 times as slow here (see
 [Parsing strategies](parsing-strategies.md#where-the-time-goes)). It also
 chooses a grammar by scheme on every call, which makes a new `RegExp`.
 
-It was 2.3–5.6 times slower.
+It was 2.3–5.6 times slower than v2 before schemes. Against v2 now, it's
+about as fast to validate, and 4.6–8.8 times slower at everything else.
