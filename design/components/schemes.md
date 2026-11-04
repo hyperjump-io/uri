@@ -103,13 +103,18 @@ and its ergonomics aren't optimized. The built-ins are made the same way.
 
 ```js
 import { defineScheme } from "@hyperjump/uri";
+import { host, path } from "@hyperjump/uri/abnf";
+import { abnf } from "@hyperjump/abnf";
 
 const httpScheme = defineScheme({
   name: "http",
   rule: "http-URI",
   validate: {
     authority: "required",
-    host: { pattern: /[^:/?#]+/u, description: "non-empty" }
+    host: {
+      pattern: abnf(host)`IP-literal / 1*( unreserved / pct-encoded / sub-delims )`,
+      description: "non-empty"
+    }
   },
   normalize: {
     port: (port) => port === "80" || port === "" ? undefined : port,
@@ -124,15 +129,28 @@ const tagScheme = defineScheme({
   validate: {
     authority: "forbidden",
     path: {
-      pattern: /[a-zA-Z0-9.\-@]+,\d{4}(?:-\d{2}(?:-\d{2})?)?:.*/u,
+      pattern: abnf(path)`
+        tag-path = taggingEntity ":" specific
+
+        taggingEntity = authorityName "," date
+        authorityName = DNSname / emailAddress
+        date = year ["-" month ["-" day]]
+        year = 4DIGIT
+        month = 2DIGIT
+        day = 2DIGIT
+        DNSname = DNScomp *( "."  DNScomp ) ; see RFC 1035 [3]
+        DNScomp = alphaNum [*(alphaNum /"-") alphaNum]
+        emailAddress = 1*(alphaNum /"-"/"."/"_") "@" DNSname
+        alphaNum = DIGIT / ALPHA
+        specific = *( pchar / "/" / "?" ) ; pchar from RFC 3986 [1]
+      `,
       description: "a domain name or an email address, \",\", a date, and \":\", like example.com,2004:a"
     }
   }
 });
 ```
 
-(The `tag` pattern is shortened here. The built-in's is RFC 4151's
-`taggingEntity`.)
+Everything under `tag-path` is RFC 4151 §2.1, pasted in.
 
 The top level of a definition has only what's about the
 whole scheme: `name`, `rule`, and `syntaxNormalization`. The rules and the
@@ -150,8 +168,10 @@ forbid one. Each component's rule is one of:
   give `missing-component` and `forbidden-component` (see
   [Errors](#errors)).
 - `{ pattern, description? }`: a regular expression the component has
-  to match when it's there. Not matching gives `component-mismatch`,
-  with the `description` in the message when there is one.
+  to match when it's there, compiled from ABNF for that component (see
+  [Patterns come from ABNF](#patterns-come-from-abnf)). Not matching gives
+  `component-mismatch`, with the `description` in the message when there
+  is one.
 
 ### Patterns only add structure
 
@@ -169,37 +189,80 @@ return `true` for something that isn't an IRI, whatever a custom scheme
 says, and the `Iri` brand holds (see [Trust](trust.md)).
 
 The generic syntax has already checked the characters, in the URI or the
-IRI form. A pattern doesn't need to know which form it's checking, and it
-can write `.*` or `[^:]*` where the ABNF says `segment`. So the library's
-rule strings aren't exported, and a pattern is the same for both
-forms. `urn` checks that it's ASCII, with `[^\u{80}-\u{10FFFF}]`, which
-is true in both forms.
+IRI form, so a pattern only has to check structure, and one pattern
+works for both forms. Checking the characters again cost as much as the
+generic syntax: `isIri` of a `urn:uuid` took 140 milliseconds with the
+built-ins' patterns written with the generic rules, and 112 without.
 
 A pattern ends where what can follow its component starts: `:`, `/`,
 `?`, `#`, or the end of the value for a host, `?`, `#`, or the end for a
-path, and so on. A pattern that can match its component's delimiter, like
-`a\?b` for a path, checks past the end of the component. That's a loose
-rule, not an invalid IRI, and errors check it the same way, so `is*` and
-`assert*` always agree.
+path, and so on. A hand-written pattern that can match its component's
+delimiter, like `.+` or `a\?b` for a path, runs past the end of the
+component. That's a loose rule, not an invalid IRI, and errors check it
+the same way, so `is*` and `assert*` always agree. But a caller had to
+know it: `http`'s host was `/.+/u` at first, and it let `http:///a`
+through, since the host is empty and `.+` matched `/a`. The differential
+test against the predicates found it (see
+[`defineScheme`](../benchmarks/define-scheme.md)). That's why patterns
+come from ABNF.
 
-It's easy to write one. `http`'s host was `/.+/u` at first, and it let
-`http:///a` through: the host is empty, and `.+` matched `/a`, which the
-end of the value follows. `/[^:/?#]+/u` can't match a delimiter after a
-host. An IP literal's `[` is enough for it, since it only says the host
-isn't empty. The differential test against the predicates found it (see
-[`defineScheme`](../benchmarks/define-scheme.md)).
+### Patterns come from ABNF
 
-The built-ins are written from their RFC's ABNF, with internal rule
-strings for the structure, like `tag`'s `dnsName` and `date`. Where the
-ABNF uses the generic syntax's rules, like `pchar`, a pattern has only
-what's left of them once the characters are checked: `urn`'s NSS, `pchar
-*( pchar / "/" )`, is ASCII that doesn't start with `/`, and `file`'s
-`path-absolute` is a path that starts with `/` and not `//`. The
-comments next to them give the ABNF, so they can be checked against it.
+A pattern is compiled from ABNF by `@hyperjump/abnf`'s tag, with a
+context for its component from `@hyperjump/uri/abnf` (see
+[ABNF](abnf.md)). The compiler knows the component, so its pattern can't
+match the delimiters that end it, and can't run past it. ABNF has no
+anchors, and can't look ahead, so the other ways a pattern could see
+outside its component are gone too. And a scheme's ABNF is in its RFC.
 
-They were written with the generic rules at first, which checked each
-character a second time. Without them, `isIri` of a `urn:uuid` went
-from 140 milliseconds to 112, and of a `file` URI from 101 to 76.
+`@hyperjump/uri/abnf` exports a context for each component: `authority`,
+`userinfo`, `host`, `port`, `path`, `query`, and `fragment`. They're data:
+the component's characters and delimiters, and RFC 3986's and RFC 3987's
+rules. Nothing in it depends on the compiler, and `@hyperjump/uri` doesn't
+import it, so a caller who doesn't define a scheme loads neither.
+
+- **In an IRI, RFC 3986's rules mean RFC 3987's.** A context's rules
+  define `pchar` as `ipchar`, and so on, because an IRI is valid for a
+  scheme when its URI is (RFC 3987 §3.1), and the URI of an IRI
+  percent-encodes what `ipchar` adds. ("Scheme-specific restrictions are
+  applied to IRIs by converting IRIs to URIs and checking the URIs against
+  the scheme-specific restrictions.") So `tag`'s `specific`, written with
+  `pchar`, allows `é` in an IRI. The compiler doesn't know about the
+  renaming. It's in the contexts' rules. It's the same as converting,
+  except in a rule that counts characters, like `2pchar`: `é` is one
+  `ipchar`, and two `pct-encoded` in its URI, one for each byte of its
+  UTF-8. No built-in counts them, and a scheme that does is a known
+  limitation.
+- **An ASCII context for each component**, like `asciiPath`, has RFC
+  3986's rules as they are, so a pattern is ASCII in an IRI too. `urn`
+  uses them, because RFC 8141 doesn't allow characters outside ASCII (see
+  [Built-in schemes](#built-in-schemes)).
+
+`ComponentPattern<C>` is a brand on `RegExp`, in the types only, like the
+other brands (see [Trust](trust.md)). A context's tag returns one, and
+`validate`'s rule for a component takes one for that component:
+
+```ts
+declare const component: unique symbol;
+export type ComponentPattern<C extends SchemeComponent> = RegExp & { readonly [component]: C };
+```
+
+- A hand-written `RegExp` doesn't type-check, so writing one takes a
+  cast, `as ComponentPattern<"path">`. The cast is where the delimiters
+  are the caller's to get right, and that's said in its documentation, the
+  one place it needs saying.
+- The component is in the type, so a host's pattern can't be given for a
+  path, whose delimiters are different.
+- At runtime a pattern is any `RegExp` with exactly the `u` flag, as
+  before. A pattern compiled at build time and loaded with
+  `new RegExp(source, "u")` works, with the cast.
+
+The built-ins are written in ABNF, from their RFCs: `tag`'s and
+`urn:uuid`'s rules are pasted in, and `file`'s path is RFC 3986's
+`path-absolute`. Their patterns are generated by a script and committed,
+so nothing is compiled when the library loads (see
+[ABNF](abnf.md#shipping)). The generated patterns took as long as the
+hand-written ones did, within 3% (see [ABNF](../benchmarks/abnf.md)).
 
 ### `defineScheme`
 
@@ -245,9 +308,9 @@ a scheme. That it compiles is how it works, not what it's for.
 ### Patterns are `RegExp`s
 
 A pattern is a `RegExp`, and only its `source` is used, put inside the
-scheme's larger pattern. A `RegExp` literal is checked by the language
-and by editors where it's written, gets syntax highlighting, and doesn't
-need its backslashes doubled.
+scheme's larger pattern. The compiler is a tag that returns one, so
+`defineScheme` doesn't need the compiler, and a pattern compiled at build
+time is the same kind of value as one compiled when it's defined.
 
 It has to have the `u` flag and no other. Its source is compiled with the
 `u` flag, so a literal without it could be valid where it's written and a
@@ -348,6 +411,24 @@ because it changes text.
   uses the same options in many places wraps the functions instead.
 - **A string for `pattern`.** It needs `String.raw` or doubled
   backslashes, and a mistake in it isn't found until `defineScheme` runs.
+  ABNF is a string too, but it's compiled by the tag where it's written,
+  and it has no backslashes.
+- **Hand-written `RegExp`s, with the delimiters documented as the
+  caller's to get right**, which this design had before patterns came
+  from ABNF. Every caller writing a pattern had to know that it runs
+  against the rest of the identifier, and that `.`, `^`, and `$` don't
+  mean what they look like they mean there. The built-ins got it wrong
+  once.
+- **`{ abnf }`, compiled by `defineScheme`**, which the prototype did.
+  Everyone would load the compiler (see [ABNF](abnf.md#rejected)).
+- **A brand checked at runtime.** A pattern compiled at build time
+  couldn't have it, and JavaScript callers would get an error for a
+  pattern that works. The other brands are in the types only too.
+- **One brand for every component.** A host's pattern would type-check
+  as a path's, and their delimiters are different.
+- **An `ascii` option in the definition**, which `urn` would set. It's a
+  choice of context instead, made where the pattern is compiled, which is
+  the only place it means anything.
 - **A `RegExp` with any flags, ignoring them.** `/a/i` would read as
   case-insensitive and not be. The `u` flag is required, not just
   allowed, so a pattern is checked where it's written the way it's
@@ -376,10 +457,12 @@ namespaces keyed by NID:
 
 ```js
 import { urnScheme } from "@hyperjump/uri";
+import { asciiPath } from "@hyperjump/uri/abnf";
+import { abnf } from "@hyperjump/abnf";
 
 const urn = urnScheme({
   isbn: {
-    pattern: /97[89]\d{10}|97[89]-\d+-\d+-\d+-\d/u,
+    pattern: abnf(asciiPath)`isbn = "97" ( "8" / "9" ) ( 10DIGIT / 3( "-" 1*DIGIT ) "-" DIGIT )`,
     description: "an ISBN, like 0-395-36341-1",
     normalize: (nss) => nss.replaceAll("-", "")
   },
@@ -392,7 +475,9 @@ isIri(value, { customSchemes: [urn] });
 - NIDs match without case, as RFC 8141 compares them.
 - A namespace is `{ pattern?, description?, normalize? }`, all on the
   NSS, like a component's rule and its normalization. `{}` is a namespace
-  that's known and adds nothing.
+  that's known and adds nothing. A namespace's `pattern` is a
+  `ComponentPattern<"path">`, since the NSS ends where the path does, and
+  is compiled with an ASCII context.
 - `urnScheme` compiles the scheme, like `defineScheme`. The path's
   pattern is RFC 8141's `NID ":" NSS`, with a branch for each namespace:
   its NID, without case, and its pattern for the NSS. So a URN is checked
@@ -478,7 +563,17 @@ What the specifications say, for the rules that took looking up:
 - **`urn` is ASCII in an IRI too.** RFC 8141 §2 "does not extend the URN
   syntax to allow direct use of characters outside the ASCII range", and
   the r-, q-, and f-components each say they "MUST be percent-encoded".
-  So `urn:ex:é` is a valid IRI and an invalid URN.
+  So `urn:ex:é` is a valid IRI and an invalid URN. ABNF can't say this,
+  so `urn`'s patterns, and its namespaces', are compiled with the ASCII
+  contexts (see [Patterns come from ABNF](#patterns-come-from-abnf)).
+- **RFC 8141's `alphanum` isn't in RFC 3986.** RFC 8141 says it is, but
+  RFC 3986 Appendix D removed it from RFC 2396. `urn`'s rules define it,
+  `alphanum = ALPHA / DIGIT`, as RFC 2396 did.
+- **`urn`'s query is written for the query.** RFC 8141's
+  `rq-components = [ "?+" r-component ] [ "?=" q-component ]` starts with
+  the query's delimiter, so the query's rule is
+  `"+" r-component [ "?=" q-component ] / "=" q-component`, with RFC
+  8141's `r-component` and `q-component`.
 - **A URN's f-component is a fragment**: `f-component = fragment`, with
   the ASCII rule above. It isn't part of URN-equivalence ("SHALL NOT be
   taken into account", §2.3.3).

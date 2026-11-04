@@ -17,3 +17,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 - [IPv6 canonical form](ipv6-canonical-form.md) (2026-11-02)
 - [Schemes and trust](schemes-and-trust.md) (2026-11-03)
 - [`defineScheme`](define-scheme.md) (2026-11-04)
+- [ABNF](abnf.md) (2026-11-04)

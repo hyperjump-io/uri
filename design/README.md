@@ -48,6 +48,8 @@ hand and have JSDoc explaining the details. Documentation for users is in
   `encode*Fragment`
 - [Schemes](components/schemes.md): each scheme's own rules and
   normalization, and unknown schemes
+- [ABNF](components/abnf.md): the compiler that scheme patterns are
+  written with
 - [Errors](components/errors.md): error classes, and diagnosing what's wrong
   and where
 - [Types](components/types.md): optional authority, readonly components
