@@ -45,7 +45,8 @@ The package exports the following types:
 | `Iri`, `IriReference`, `AbsoluteIri` | A string that an IRI validation function checked |
 | `NormalizedUri`, `NormalizedIri` | A string from `normalizeUri` or `normalizeIri` |
 | `Options` | The options of the functions that know schemes, with `customSchemes` |
-| `Scheme`, `ComponentRule` | A scheme's rules and normalization. For more information, see [Add a scheme](schemes.md#add-a-scheme). |
+| `Scheme` | A scheme from `defineScheme`, for `customSchemes` |
+| `SchemeDefinition`, `ComponentRule` | A scheme's rules and normalization, for `defineScheme`. For more information, see [Add a scheme](schemes.md#add-a-scheme). |
 | `UrnNamespace` | A URN namespace's rules and normalization, for `urnScheme` |
 | `IdentifierComponents` | The components of a URI or IRI, from `parseIri` |
 | `RelativeIdentifierComponents` | The components of a reference, from `parseIri` |

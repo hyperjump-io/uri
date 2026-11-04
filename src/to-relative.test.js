@@ -1,10 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { normalizeIri, normalizeUri, resolveIri, toRelativeIri } from "./index.js";
+import { defineScheme, normalizeIri, normalizeUri, resolveIri, toRelativeIri } from "./index.js";
 
 /** @import { AbsoluteUri } from "./index.d.ts" */
 
 // Schemes with no normalization of their own, so the paths aren't changed by an http one
-const options = { customSchemes: [{ name: "web", rule: "web" }, { name: "foo", rule: "foo" }, { name: "bar", rule: "bar" }] };
+const options = {
+  customSchemes: [
+    defineScheme({ name: "web", rule: "web" }),
+    defineScheme({ name: "foo", rule: "foo" }),
+    defineScheme({ name: "bar", rule: "bar" })
+  ]
+};
 
 // toRelativeIri takes normalized identifiers, so each is normalized first, the way a caller would
 const relativeTests = /** @type [string, string, string][] */ ([

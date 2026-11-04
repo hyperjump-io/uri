@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { isUri, isUriReference, isAbsoluteUri, isIri, isIriReference, isAbsoluteIri } from "./index.js";
+import { defineScheme, isUri, isUriReference, isAbsoluteUri, isIri, isIriReference, isAbsoluteIri } from "./index.js";
 
 // A scheme with no rules of its own, for the generic syntax
-const options = { customSchemes: [{ name: "uri", rule: "URI" }] };
+const options = { customSchemes: [defineScheme({ name: "uri", rule: "URI" })] };
 
 describe("isUri", () => {
   test("Full", () => {

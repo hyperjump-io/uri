@@ -4,6 +4,7 @@ declare const absolute: unique symbol;
 declare const ascii: unique symbol;
 declare const normalized: unique symbol;
 declare const normalizedUri: unique symbol;
+declare const defined: unique symbol;
 
 /**
  * A string that {@link isIriReference} or {@link assertIriReference}
@@ -47,11 +48,17 @@ export type Options = {
 };
 
 /**
- * A scheme's rules and normalization, on top of the generic syntax. A
- * scheme with neither, like `{ name: "data", rule: "dataurl" }`, is known
- * and adds nothing.
+ * A scheme {@link defineScheme} made, to pass in `customSchemes`. It has
+ * its definition's fields, and its patterns compiled.
  */
-export type Scheme = {
+export type Scheme = SchemeDefinition & { readonly [defined]: true };
+
+/**
+ * A scheme's rules and normalization, on top of the generic syntax, for
+ * {@link defineScheme}. A scheme with neither, like
+ * `{ name: "data", rule: "dataurl" }`, is known and adds nothing.
+ */
+export type SchemeDefinition = {
   /** The scheme's name. It matches without case. */
   readonly name: string;
 
@@ -65,7 +72,7 @@ export type Scheme = {
    */
   readonly syntaxNormalization?: boolean;
 
-  /** A rule for each component that has one. The generic syntax is checked first. */
+  /** A rule for each component that has one. The generic syntax is checked too. */
   readonly validate?: {
     readonly [Component in Exclude<keyof IdentifierComponents, "scheme">]?: ComponentRule;
   };
@@ -89,22 +96,32 @@ export type Scheme = {
  *
  * - `"required"`: it has to be there.
  * - `"forbidden"`: it can't be there.
- * - `{ test, description? }`: when it's there, `test` has to return
- *   `true` for it. `description` finishes "a tag URI's path must be …" in
- *   the error.
+ * - `{ pattern, description? }`: when it's there, it has to match
+ *   `pattern`, a `RegExp` with the `u` flag and no other. `description`
+ *   finishes "a tag URI's path must be …" in the error.
+ *
+ * A pattern only checks structure, since the generic syntax checks the
+ * characters. It's matched where its component starts, and has to be
+ * followed by what can follow the component, like `?`, `#`, or the end for
+ * a path. A pattern that can match its component's delimiters can run
+ * past it: `/.+/u` for a host lets an empty host through, where
+ * `/[^:/?#]+/u` doesn't.
  */
 export type ComponentRule
   = "required"
     | "forbidden"
-    | { readonly test: (component: string) => boolean; readonly description?: string };
+    | { readonly pattern: RegExp; readonly description?: string };
 
 /**
  * A URN namespace's rules and normalization, on its NSS. `{}` is a
  * namespace that's known and adds nothing.
  */
 export type UrnNamespace = {
-  /** Whether an NSS is valid for the namespace. RFC 8141's rules are checked first. */
-  readonly test?: (nss: string) => boolean;
+  /**
+   * What an NSS of the namespace matches, a `RegExp` with the `u` flag and
+   * no other. RFC 8141's rules are checked too.
+   */
+  readonly pattern?: RegExp;
 
   /** Finishes "a uuid URN's NSS must be …" in the error. */
   readonly description?: string;
@@ -349,9 +366,21 @@ export function toRelativeIri(target: NormalizedUri, base: NormalizedUri & Absol
 export function toRelativeIri(target: NormalizedIri, base: NormalizedIri & AbsoluteIri): IriReference;
 
 /**
+ * Makes a scheme from its definition, compiling its patterns once. Pass it
+ * in `customSchemes`.
+ *
+ * @throws {TypeError} If `name` isn't a scheme name, or a pattern isn't a
+ *   `RegExp` with exactly the `u` flag.
+ */
+export const defineScheme: (definition: SchemeDefinition) => Scheme;
+
+/**
  * Makes a `urn` scheme that knows the namespaces given, keyed by NID, and
  * `uuid` unless one of them replaces it. Pass it in `customSchemes`, where
  * it replaces the built-in `urn`, which is `urnScheme({})`.
+ *
+ * @throws {TypeError} If a key isn't a NID, or a pattern isn't a `RegExp`
+ *   with exactly the `u` flag.
  */
 export const urnScheme: (namespaces: Readonly<Record<string, UrnNamespace>>) => Scheme;
 

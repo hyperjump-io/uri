@@ -1,6 +1,6 @@
 import {
   InvalidUriError, UnknownSchemeError, UnknownUrnNamespaceError, UnsupportedIpVersionError,
-  assertAbsoluteIri, assertIri, assertIriReference, isAbsoluteUri, isIri, isUri, isUriReference,
+  assertAbsoluteIri, assertIri, assertIriReference, defineScheme, isAbsoluteUri, isIri, isUri, isUriReference,
   normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
 } from "./index.js";
 import type {
@@ -114,28 +114,31 @@ declare const assertedAbsolute: string;
 assertAbsoluteIri(assertedAbsolute);
 assertedAbsolute satisfies AbsoluteIri;
 
-// A scheme is a plain object, and its type checks its shape
-const did = { name: "did", rule: "did" } satisfies Scheme;
+// A scheme is made by defineScheme, and the definition's type checks its shape
+const did = defineScheme({ name: "did", rule: "did" });
+did satisfies Scheme;
 isIri(value, { customSchemes: [did] });
 isIri(value, {
-  customSchemes: [{
+  customSchemes: [defineScheme({
     name: "x",
     rule: "x",
-    validate: { authority: "required", path: { test: (path) => path !== "" } },
+    validate: { authority: "required", path: { pattern: /.+/u } },
     normalize: { port: () => undefined }
-  }]
+  })]
 });
+// @ts-expect-error A custom scheme is made by defineScheme
+isIri(value, { customSchemes: [{ name: "x", rule: "x" }] });
 // @ts-expect-error A scheme needs a rule for its errors
-isIri(value, { customSchemes: [{ name: "x" }] });
+defineScheme({ name: "x" });
 // @ts-expect-error A scheme's name decides its scheme, so it has no rule
-isIri(value, { customSchemes: [{ name: "x", rule: "x", validate: { scheme: "required" } }] });
-// @ts-expect-error A rule's test is a function, not a RegExp
-isIri(value, { customSchemes: [{ name: "x", rule: "x", validate: { path: { test: /a/ } } }] });
+defineScheme({ name: "x", rule: "x", validate: { scheme: "required" } });
+// @ts-expect-error A pattern is a RegExp, not a string
+defineScheme({ name: "x", rule: "x", validate: { path: { pattern: "a" } } });
 // @ts-expect-error A fragment isn't normalized by a scheme
-isIri(value, { customSchemes: [{ name: "x", rule: "x", normalize: { fragment: (fragment: string) => fragment } }] });
+defineScheme({ name: "x", rule: "x", normalize: { fragment: (fragment: string) => fragment } });
 // @ts-expect-error A path is always there, so its function can't remove it
-isIri(value, { customSchemes: [{ name: "x", rule: "x", normalize: { path: () => undefined } }] });
-isIri(value, { customSchemes: [urnScheme({ isbn: { test: (nss) => nss !== "" }, example: {} })] });
+defineScheme({ name: "x", rule: "x", normalize: { path: () => undefined } });
+isIri(value, { customSchemes: [urnScheme({ isbn: { pattern: /.+/u }, example: {} })] });
 
 // parseUrn and parseTag
 const urn = parseUrn(uri);

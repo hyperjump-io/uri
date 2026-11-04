@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { resolveIri } from "./index.js";
+import { defineScheme, resolveIri } from "./index.js";
 
 // A scheme with no rules of its own, for the generic algorithm
-const options = { customSchemes: [{ name: "foo", rule: "foo" }] };
+const options = { customSchemes: [defineScheme({ name: "foo", rule: "foo" })] };
 
 const resolveTests = [
   ["http://a/b/c/d;p?q", "g:h", "g:h"],

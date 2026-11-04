@@ -109,7 +109,7 @@ const httpScheme = defineScheme({
   rule: "http-URI",
   validate: {
     authority: "required",
-    host: { pattern: /.+/u, description: "non-empty" }
+    host: { pattern: /[^:/?#]+/u, description: "non-empty" }
   },
   normalize: {
     port: (port) => port === "80" || port === "" ? undefined : port,
@@ -182,6 +182,13 @@ path, and so on. A pattern that can match its component's delimiter, like
 rule, not an invalid IRI, and errors check it the same way, so `is*` and
 `assert*` always agree.
 
+It's easy to write one. `http`'s host was `/.+/u` at first, and it let
+`http:///a` through: the host is empty, and `.+` matched `/a`, which the
+end of the value follows. `/[^:/?#]+/u` can't match a delimiter after a
+host. An IP literal's `[` is enough for it, since it only says the host
+isn't empty. The differential test against the predicates found it (see
+[`defineScheme`](../benchmarks/define-scheme.md)).
+
 The built-ins are written from their RFC's ABNF, with internal rule
 strings for the structure, like `tag`'s `dnsName` and `date`. So they
 read like the ABNF and can be checked against it.
@@ -194,9 +201,10 @@ only the parts of the grammar a rule allows: `authority: "required"`
 keeps only `"//" authority path-abempty`, and `query: "forbidden"` drops
 `[ "?" query ]`. It compiles, for URIs and for IRIs, the whole
 identifier, the absolute form, and each component's pattern by itself
-for errors. It throws for a pattern whose flags aren't exactly `u` (see
-[Patterns are `RegExp`s](#patterns-are-regexps)), or for a `name` that
-isn't a valid scheme.
+for errors. It throws a `TypeError` for a pattern whose flags aren't
+exactly `u` (see [Patterns are `RegExp`s](#patterns-are-regexps)), or for
+a `name` that isn't a valid scheme. A plain object in `customSchemes` is
+a `TypeError` too, when it's looked up.
 
 What it returns is a value. It's frozen, and its compiled patterns are
 behind a symbol, so the only way to make one is `defineScheme`. It isn't
@@ -204,6 +212,24 @@ registered anywhere. A caller keeps it, and passes it in `customSchemes`.
 
 Patterns are compiled with the `u` flag in both forms, so a pattern that
 compiles for one compiles for the other.
+
+A validator for an identifier with a scheme finds the scheme, then tests
+its whole pattern. That's one regular expression, with no splitting.
+Only a value that fails is looked at again: the generic pattern says
+whether it's an identifier at all, and the scheme's rules say which one
+it breaks, for `is*` and `assert*` alike. So the slow path decides every
+`false` and every error, and the fast path only ever returns `true`.
+
+- The fast path finds the scheme by comparing each scheme's name with the
+  start of the value, a character at a time and without case, instead of
+  slicing the name out and making it lowercase. That took `isIri` from 163
+  milliseconds to 138. A name that's found wrongly is harmless, since the
+  scheme's pattern checks its name.
+- On the slow path, and in `resolveIri`'s check of its result, each
+  component's pattern is sticky and tested where its component starts in
+  the value, which is the way the scheme's pattern tests it, without
+  slicing it out. Slicing made `resolveIri` 1.1 times as slow as with
+  predicates. Sticky, the difference is within the noise between runs.
 
 The name is `defineScheme` because a caller writes a definition and gets
 a scheme. That it compiles is how it works, not what it's for.
@@ -223,12 +249,6 @@ other flags can't mean what they say inside a larger pattern: `i` would
 apply to nothing, `m` would change what `^` and `$` mean in the whole
 identifier, and `g` and `y` are about `lastIndex`, which only the source
 leaves behind.
-
-A validator for an identifier with a scheme finds the scheme, then tests
-its whole pattern. That's one regular expression, with no splitting.
-Only a value that fails is looked at again: the generic pattern says
-whether it's an identifier at all, and `assert*` splits it and tests each
-component's pattern to say which one broke and why.
 
 No built-in needs a component that's required and has a pattern at once:
 `http`'s required authority and its host's pattern are on different
@@ -280,6 +300,11 @@ because it changes text.
   a backreference. A pattern couldn't run past its component. But it
   matches the generic component twice, which made `https` take twice
   as long, to catch a pattern that's the scheme's own bug.
+- **Checking with a lookbehind that a pattern didn't cross its
+  component's delimiter**, like `(?<=^[^?#]*)` after a path's pattern.
+  It's exact too, but each step back from a greedy pattern like `.+`
+  scans the prefix again, and `https` took 544 milliseconds where the
+  lookahead takes 106.
 - **A fast pattern for each built-in, beside its predicates.** It was as
   fast, but each rule was written twice, and only the built-ins had it.
 - **A plain object**, with no `defineScheme`. It was chosen when there was
@@ -369,6 +394,8 @@ isIri(value, { customSchemes: [urn] });
 - RFC 8141's rules are checked first, then the namespace's `pattern`.
   `urn`'s normalization runs first, then the namespace's: `uuid`'s is
   `lowercaseComponent(nss)`.
+- A key that isn't a NID, or a pattern whose flags aren't exactly `u`,
+  is a `TypeError` from `urnScheme`.
 - A NID it doesn't know throws `UnknownUrnNamespaceError`, with `value`
   and `nid` (see [Errors](errors.md)). A NID that isn't one of the
   branches fails the pattern, and the slow path finds which NID it is,
@@ -858,6 +885,14 @@ if (host !== undefined && !isDomainName(host)) {
 
 ## Cost
 
+Measured when it was built (see
+[`defineScheme`](../benchmarks/define-scheme.md)). `isIri` of the four
+benchmark identifiers takes 138 milliseconds, where it took 312 with
+predicates and 81 with the generic syntax only, before schemes. It's 0.8
+times v1's, where it was 1.7 times. A value that's invalid takes 1.2
+times as long as with predicates, since it's tested against its scheme's
+pattern first. The other functions take what they did with predicates.
+
 The predicates this design had first were measured when they were built
 (see [Schemes and trust](../benchmarks/schemes-and-trust.md)). The lookup
 itself was cheap: `isIri` of a `did:` identifier with a custom scheme
@@ -866,15 +901,6 @@ took 50, and three custom schemes in the list made no difference that
 showed above the noise. The rules were what cost: they needed the
 identifier split into its components, and `urn` and `file` ran patterns
 of their own over characters the generic pattern had already checked.
-`isIri` of `bench-schemes.js`'s four identifiers went from 81
-milliseconds to 311, which is 1.7 times v1's.
-
-With one compiled pattern per scheme, a prototype of the `https`,
-`urn:uuid`, and `file` patterns tested each identifier 800,000 times in
-106, 66, and 62 milliseconds, where `isIri` took 249, 373, and 279 with
-predicates. That's back to what the generic check alone took, give or
-take the lookahead. These are a prototype's numbers. The ones measured
-when it's built go in the benchmarks.
 
 ### Rejected
 

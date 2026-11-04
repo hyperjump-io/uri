@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
-  InvalidIriError, InvalidUriError, UnknownSchemeError, UnknownUrnNamespaceError,
+  InvalidIriError, InvalidUriError, UnknownSchemeError, UnknownUrnNamespaceError, UnsupportedIpVersionError,
   assertIri, assertIriReference, assertUri, isAbsoluteIri, isIri, isIriReference, isUri, lowercaseComponent,
-  normalizeIri, normalizeUri, parseTag, parseUrn, resolveIri, urnScheme
+  defineScheme, normalizeIri, normalizeUri, parseTag, parseUrn, resolveIri, urnScheme
 } from "./index.js";
 
-/** @import { AbsoluteIri, Iri, IriReference, Scheme, Uri } from "./index.d.ts" */
+/** @import { AbsoluteIri, Iri, IriReference, Uri } from "./index.d.ts" */
 
 describe("Built-in schemes", () => {
   test.each([
@@ -115,8 +115,7 @@ describe("Unknown schemes", () => {
 });
 
 describe("Custom schemes", () => {
-  /** @type Scheme */
-  const did = { name: "did", rule: "did" };
+  const did = defineScheme({ name: "did", rule: "did" });
 
   test("a scheme with no rules is known and adds nothing", () => {
     expect(isIri("did:example:123", { customSchemes: [did] })).to.equal(true);
@@ -124,24 +123,23 @@ describe("Custom schemes", () => {
   });
 
   test("a name matches without case", () => {
-    expect(isIri("did:a", { customSchemes: [{ name: "DID", rule: "did" }] })).to.equal(true);
+    expect(isIri("did:a", { customSchemes: [defineScheme({ name: "DID", rule: "did" })] })).to.equal(true);
   });
 
   test("replaces a built-in with its name", () => {
-    expect(isIri("http:///a", { customSchemes: [{ name: "http", rule: "http-URI" }] })).to.equal(true);
+    expect(isIri("http:///a", { customSchemes: [defineScheme({ name: "http", rule: "http-URI" })] })).to.equal(true);
   });
 
-  /** @type Scheme */
-  const example = {
+  const example = defineScheme({
     name: "ex",
     rule: "ex-URI",
     validate: {
       authority: "required",
       port: "forbidden",
-      path: { test: (path) => path.startsWith("/a"), description: "under /a" },
-      query: { test: (query) => query !== "" }
+      path: { pattern: /\/a.*/u, description: "under /a" },
+      query: { pattern: /[^#]+/u }
     }
-  };
+  });
   const options = { customSchemes: [example] };
 
   test.each([
@@ -156,7 +154,7 @@ describe("Custom schemes", () => {
     expect(isIri(value, options)).to.equal(expected);
   });
 
-  test("a test only runs when its component is there", () => {
+  test("a pattern only runs when its component is there", () => {
     expect(isIri("ex://h/a", options)).to.equal(true);
   });
 
@@ -165,15 +163,92 @@ describe("Custom schemes", () => {
   });
 });
 
+describe("defineScheme", () => {
+  test("makes a frozen value", () => {
+    expect(Object.isFrozen(defineScheme({ name: "x", rule: "x" }))).to.equal(true);
+  });
+
+  test.each([
+    ["a pattern without the u flag", { path: { pattern: /a/ } }],
+    ["a pattern with another flag", { path: { pattern: /a/iu } }],
+    ["a string", { path: { pattern: "a" } }]
+  ])("throws a TypeError for %s", (_name, validate) => {
+    expect(() => defineScheme(/** @type any */ ({ name: "x", rule: "x", validate })))
+      .to.throw(TypeError, "The path pattern of the x scheme must be a RegExp with the u flag and no other");
+  });
+
+  test("throws a TypeError for a name that isn't a scheme", () => {
+    expect(() => defineScheme({ name: "1x", rule: "x" })).to.throw(TypeError, "Not a scheme name: 1x");
+  });
+
+  test("a custom scheme that isn't defined is a TypeError", () => {
+    const options = /** @type any */ ({ customSchemes: [{ name: "x", rule: "x" }] });
+    expect(() => isIri("x:a", options)).to.throw(TypeError, "A custom scheme is made by defineScheme: x");
+  });
+
+  test("a pattern can't accept what the generic syntax doesn't", () => {
+    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { path: { pattern: /.*/u } } })] };
+    expect(isIri("x:a", options)).to.equal(true);
+    expect(isIri("x:a b", options)).to.equal(false);
+    expect(isUri("x:é", options)).to.equal(false);
+  });
+
+  test("a pattern is matched where its component starts, and followed by what can follow it", () => {
+    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { query: { pattern: /a/u } } })] };
+    expect(isIri("x:p?a", options)).to.equal(true);
+    expect(isIri("x:p?a#f", options)).to.equal(true);
+    expect(isIri("x:p?ab", options)).to.equal(false);
+    expect(isIri("x:p?ba", options)).to.equal(false);
+  });
+
+  test("a pattern that can match its component's delimiters runs past it, in is* and assert* alike", () => {
+    const options = { customSchemes: [defineScheme({ name: "x", rule: "x", validate: { host: { pattern: /.+/u } } })] };
+    expect(isIri("x:///a", options)).to.equal(true);
+    expect(() => assertIri("x:///a", options)).not.to.throw();
+  });
+
+  test("an IP literal of a future version still throws", () => {
+    expect(() => isIri("https://[v1.a]/")).to.throw(UnsupportedIpVersionError);
+  });
+
+  test("required and forbidden components shape the grammar", () => {
+    const options = {
+      customSchemes: [
+        defineScheme({ name: "a", rule: "a", validate: { port: "required" } }),
+        defineScheme({ name: "b", rule: "b", validate: { fragment: "required" } }),
+        defineScheme({ name: "c", rule: "c", validate: { authority: "required", host: "forbidden" } })
+      ]
+    };
+    expect(isIri("a://h:1/", options)).to.equal(true);
+    expect(isIri("a://h/", options)).to.equal(false);
+    expect(isIri("a:/p", options)).to.equal(false);
+    expect(isIri("b:p#f", options)).to.equal(true);
+    expect(isAbsoluteIri("b:p", options)).to.equal(false);
+    expect(isIri("c://h/", options)).to.equal(false);
+    expect(isIri("c:/p", options)).to.equal(false);
+  });
+});
+
+describe("urnScheme's arguments", () => {
+  test("throws a TypeError for a key that isn't a NID", () => {
+    expect(() => urnScheme({ "a.b": {} })).to.throw(TypeError, "Not a NID: a.b");
+  });
+
+  test("throws a TypeError for a pattern without exactly the u flag", () => {
+    expect(() => urnScheme({ isbn: { pattern: /a/ } }))
+      .to.throw(TypeError, "The pattern of the isbn namespace must be a RegExp with the u flag and no other");
+  });
+});
+
 describe("What's wrong with a scheme's rules, and where", () => {
   const options = {
     customSchemes: [
-      {
+      defineScheme({
         name: "ex",
         rule: "ex-URI",
-        validate: /** @type const */ ({ userinfo: "required", port: "required", query: "required", fragment: "forbidden" })
-      },
-      { name: "nd", rule: "nd-URI", validate: { path: { test: () => false } } }
+        validate: { userinfo: "required", port: "required", query: "required", fragment: "forbidden" }
+      }),
+      defineScheme({ name: "nd", rule: "nd-URI", validate: { path: { pattern: /(?!)/u } } })
     ]
   };
 
@@ -250,10 +325,9 @@ describe("What's wrong with a scheme's rules, and where", () => {
 });
 
 describe("urnScheme", () => {
-  const isbn = /^\d[\d-]+\d$/;
   const urn = urnScheme({
     ISBN: {
-      test: (nss) => isbn.test(nss),
+      pattern: /\d[\d-]+\d/u,
       description: "an ISBN, like 0-395-36341-1",
       normalize: (nss) => nss.replaceAll("-", "")
     },
@@ -370,8 +444,7 @@ describe("Scheme-based normalization", () => {
   });
 
   test("a custom scheme's functions run after the syntax-based normalization, and only for its components", () => {
-    /** @type Scheme */
-    const scheme = {
+    const scheme = defineScheme({
       name: "ex",
       rule: "ex",
       normalize: {
@@ -381,14 +454,14 @@ describe("Scheme-based normalization", () => {
         path: (path) => path.toUpperCase(),
         query: (query) => query === "" ? undefined : query
       }
-    };
+    });
     const options = { customSchemes: [scheme] };
     expect(normalizeIri(trustedIri("EX://u@H:1/%61?"), options)).to.equal("ex://h.example/A");
     expect(normalizeIri(trustedIri("ex:/a?q"), options)).to.equal("ex:/A?q");
   });
 
   test("syntaxNormalization: false turns off everything but the scheme's case", () => {
-    const options = { customSchemes: [{ name: "ex", rule: "ex", syntaxNormalization: false }] };
+    const options = { customSchemes: [defineScheme({ name: "ex", rule: "ex", syntaxNormalization: false })] };
     expect(normalizeIri(trustedIri("EX://H/%61/./b?%7e#%7e"), options)).to.equal("ex://H/%61/./b?%7e#%7e");
   });
 });

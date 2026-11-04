@@ -1,10 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { normalizeIri, normalizeUri } from "./index.js";
+import { defineScheme, normalizeIri, normalizeUri } from "./index.js";
 
 /** @import { Uri } from "./index.d.ts" */
 
 // A scheme with no normalization of its own, for the syntax-based normalization
-const options = { customSchemes: [{ name: "foo", rule: "foo" }] };
+const options = { customSchemes: [defineScheme({ name: "foo", rule: "foo" })] };
 
 const rootlessPathTests = [
   ["foo:a/b", "foo:a/b"], // No dot segments

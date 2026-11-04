@@ -38,7 +38,7 @@ the functions know, and how to add one, see [Schemes](schemes.md):
 isIri("https:///a"); // false
 isIri("did:example:123"); // throws UnknownSchemeError
 isIri("did:example:123", {
-  customSchemes: [{ name: "did", rule: "did" }]
+  customSchemes: [defineScheme({ name: "did", rule: "did" })]
 }); // true
 ```
 

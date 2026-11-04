@@ -1,5 +1,9 @@
 # Schemes and trust
 
+These are the times of the predicates that schemes had at first. Since
+then, `defineScheme` compiles patterns, and `isIri` is 0.44 times what it
+was here (see [`defineScheme`](define-scheme.md)).
+
 First recorded 2026-11-03, on Node.js 22.22.1, when scheme validation and
 the trust contract were built (see [Schemes](../components/schemes.md)
 and [Trust](../components/trust.md)).

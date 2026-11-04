@@ -45,12 +45,12 @@ built in, add it. For more information, see [Add a scheme](#add-a-scheme).
 
 ## Add a scheme
 
-Pass your schemes in the `customSchemes` option. A scheme is a plain
-object with its name and the name of the rule that its specification
-defines it with, which errors include:
+Make a scheme with `defineScheme`, and pass it in the `customSchemes`
+option. A scheme has its name and the name of the rule that its
+specification defines it with, which errors include:
 
 ```typescript
-const didScheme = { name: "did", rule: "did" } satisfies Scheme;
+const didScheme = defineScheme({ name: "did", rule: "did" });
 const options = { customSchemes: [didScheme] };
 
 isIri("did:example:123", options); // true
@@ -58,6 +58,10 @@ isIri("did:example:123", options); // true
 
 A scheme without rules checks the generic syntax only. Scheme names match
 without case, so `DID:example:123` is a `did` identifier too.
+
+`defineScheme` compiles the scheme's rules into patterns, so make each
+scheme once, like when your module loads, and reuse it. It throws a
+`TypeError` for a name that isn't a scheme name.
 
 A scheme with the name of a built-in scheme replaces it. To turn off a
 built-in scheme's rules, replace it with a scheme without rules.
@@ -73,18 +77,18 @@ you resolve or normalize it without that scheme.
 `validate` has a rule for each component that has one:
 
 ```typescript
-const exampleScheme = {
+const exampleScheme = defineScheme({
   name: "example",
   rule: "example-URI",
   validate: {
     authority: "required",
     query: "forbidden",
     path: {
-      test: (path) => path.startsWith("/v1/"),
+      pattern: /\/v1\/.*/u,
       description: "a path under /v1/"
     }
   }
-} satisfies Scheme;
+});
 ```
 
 A component's rule is one of the following:
@@ -93,11 +97,23 @@ A component's rule is one of the following:
 | --- | --- |
 | `"required"` | The component has to be there. |
 | `"forbidden"` | The component can't be there. |
-| `{ test, description }` | When the component is there, `test` has to return `true` for it. `description` is optional, and finishes the error message, like `an example URI's path must be a path under /v1/`. |
+| `{ pattern, description }` | When the component is there, it has to match `pattern`. `description` is optional, and finishes the error message, like `an example URI's path must be a path under /v1/`. |
 
 The components are `authority`, `userinfo`, `host`, `port`, `path`,
-`query`, and `fragment`. The generic syntax is checked first, so a `test`
-only needs to check the component's structure, not its characters.
+`query`, and `fragment`.
+
+A pattern is a `RegExp` with the `u` flag and no other flags. The
+functions check the generic syntax too, so a pattern only needs to check
+the component's structure, not its characters, and it can't make an
+identifier valid that the generic syntax doesn't allow.
+
+A pattern matches from where its component starts, and what comes after
+its match has to be something that can follow the component, like `?`,
+`#`, or the end of the identifier for a path. So a pattern that can match
+those delimiters can run past the end of its component. For example,
+`/.+/u` for a host matches `/a` in `example:///a`, whose host is empty. To
+check that a host isn't empty, use a pattern that can't match the
+delimiters after a host, like `/[^:/?#]+/u`.
 
 ### Normalization
 
@@ -106,14 +122,14 @@ A function gets the component after the syntax-based normalization, and
 returns it normalized, or `undefined` to remove it:
 
 ```typescript
-const exampleScheme = {
+const exampleScheme = defineScheme({
   name: "example",
   rule: "example-URI",
   normalize: {
     port: (port) => port === "8080" ? undefined : port,
     path: (path) => path === "" ? "/" : path
   }
-} satisfies Scheme;
+});
 ```
 
 A function only runs when its component is there. The components are
@@ -150,10 +166,9 @@ pass it in `customSchemes`, where it replaces the built-in one.
 `namespaces` has a namespace for each name:
 
 ```typescript
-const isbn = /^\d[\d-]*[\dX]$/;
 const urn = urnScheme({
   isbn: {
-    test: (nss) => isbn.test(nss),
+    pattern: /\d[\d-]*[\dX]/u,
     description: "an ISBN, like 0-395-36341-1",
     normalize: (nss) => nss.replaceAll("-", "")
   },
@@ -168,7 +183,8 @@ assertIri(value, options);
 normalizeIri(value, options); // "urn:isbn:0395363411"
 ```
 
-A namespace's `test`, `description`, and `normalize` work on its
+A namespace's `pattern`, `description`, and `normalize` work on its
 namespace-specific string, which is the part after the namespace, like
-`0-395-36341-1`. They're all optional, so `{}` is a namespace without
-rules. The scheme still knows `uuid`, unless you replace it.
+`0-395-36341-1`. A `pattern` works like a component's. They're all
+optional, so `{}` is a namespace without rules. The scheme still knows
+`uuid`, unless you replace it.
