@@ -20,6 +20,21 @@ The error classes name what went wrong: `InvalidUriError`,
   reads as getting a pointer. `parseUri` does parse a URI, so the reason
   doesn't apply here.
 
+## Getters
+
+`getScheme`, `getPath`, `getQuery`, and `getFragment` don't name the kind
+of identifier. A component's name only means something for an
+identifier, so they make sense imported by themselves, and they take
+URIs, IRIs, and references alike, like the merged functions. With the
+kind, `getIriScheme` would read as an IRI scheme, which RFC 3987 says
+there's no such thing as.
+
+`getScheme` could be read as getting a `Scheme`, which is what
+`defineScheme` makes. Its signature, `(value: Iri) => string`, says
+which, in an editor. If that turns out to confuse callers,
+`schemeOf(iri)` and `fragmentOf(reference)` read well imported by
+themselves too, and renaming before 2.0.0 is free.
+
 ## Merged functions
 
 `parse`, `resolve`, `toRelative`, and

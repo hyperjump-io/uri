@@ -9,6 +9,7 @@ string, and only a function that checks gives one.
 | --- | --- |
 | `isUri`, `isUriReference`, `isAbsoluteUri`, and their IRI forms | `parseIri`, `parseUrn`, `parseTag` |
 | `assertUri`, `assertUriReference`, `assertAbsoluteUri`, and their IRI forms | `resolveIri`, `toRelativeIri`, `toAbsoluteIri` |
+| | `getScheme`, `getPath`, `getQuery`, `getFragment` |
 | | `normalizeUri`, `normalizeIri` |
 
 `is*` and `assert*` give the same answers. `is*` returns a boolean and is

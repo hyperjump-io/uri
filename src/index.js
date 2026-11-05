@@ -442,6 +442,48 @@ export const toAbsoluteIri = (value) => {
   return /** @type any */ (fragmentStart === -1 ? value : value.slice(0, fragmentStart));
 };
 
+// In a trusted identifier, the first ":" ends the scheme, which can't have one
+/** @type typeof API.getScheme */
+export const getScheme = (value) => value.slice(0, value.indexOf(":"));
+
+// In a trusted reference, nothing before the fragment can have "#"
+/** @type typeof API.getFragment */
+export const getFragment = (value) => {
+  const fragmentStart = value.indexOf("#");
+  return fragmentStart === -1 ? undefined : value.slice(fragmentStart + 1);
+};
+
+// The path starts after the scheme and the authority, and ends at the query or the fragment, found the way split finds
+// them
+/** @type typeof API.getPath */
+export const getPath = (value) => {
+  const pathEnd = queryStartOf(value);
+  let start = 0;
+  const colon = value.indexOf(":");
+  if (colon !== -1 && colon < pathEnd) {
+    const slash = value.indexOf("/");
+    if (slash === -1 || colon < slash) {
+      start = colon + 1;
+    }
+  }
+
+  if (value.startsWith("//", start)) {
+    const slash = value.indexOf("/", start + 2);
+    start = slash === -1 || slash > pathEnd ? pathEnd : slash;
+  }
+
+  return value.slice(start, pathEnd);
+};
+
+// In a trusted reference, the first "?" starts the query, unless it's in the fragment
+/** @type typeof API.getQuery */
+export const getQuery = (value) => {
+  const fragmentStart = value.indexOf("#");
+  const queryEnd = fragmentStart === -1 ? value.length : fragmentStart;
+  const queryStart = value.indexOf("?");
+  return queryStart === -1 || queryStart > queryEnd ? undefined : value.slice(queryStart + 1, queryEnd);
+};
+
 /** @type typeof API.normalizeUri */
 export const normalizeUri = (/** @type string */ uri, /** @type API.Options | undefined */ options) => /** @type any */ (normalize(uriStrategy, uri, options));
 /** @type typeof API.normalizeIri */
@@ -851,6 +893,15 @@ function createEncoder(isAllowed, isAllAllowed) {
 // Appendix B). Each delimiter is only allowed where it ends a component: a scheme can't have ":", an authority can't
 // have "/", a path can't have "?", and a query can't have "#". So the first of each is where its component ends. A
 // component that isn't there isn't a property, so the result can be spread and checked with `in`.
+// Where the path ends: the first "?", unless it's in the fragment, or the fragment
+/** @type (value: string) => number */
+const queryStartOf = (value) => {
+  const fragmentStart = value.indexOf("#");
+  const queryEnd = fragmentStart === -1 ? value.length : fragmentStart;
+  const queryStart = value.indexOf("?");
+  return queryStart === -1 || queryStart > queryEnd ? queryEnd : queryStart;
+};
+
 /** @type (value: string) => Components */
 const split = (value) => {
   /** @type Record<string, string> */

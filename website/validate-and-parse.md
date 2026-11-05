@@ -133,6 +133,26 @@ information, see [Normalize](normalize.md).
 The components are readonly. To change one, spread the components into a
 new object.
 
+### Get one component
+
+To get one component, use `getScheme`, `getPath`, `getQuery`, or
+`getFragment`. They give what `parseIri` gives for that component,
+without splitting out the others, which makes them faster:
+
+```typescript
+const uri = "https://example.com/schema?a#/$defs/b";
+assertIri(uri);
+
+getScheme(uri); // "https"
+getPath(uri); // "/schema"
+getQuery(uri); // "a"
+getFragment(uri); // "/$defs/b"
+```
+
+`getScheme` takes an IRI, which always has a scheme. The others take
+references too. `getQuery` and `getFragment` return `undefined` for a
+component that isn't there.
+
 ### Parse a URN or a tag
 
 `parseUrn(value)` splits a Uniform Resource Name (URN) into the parts that

@@ -1,7 +1,7 @@
 import {
   InvalidUriError, UnknownSchemeError, UnknownUrnNamespaceError, UnsupportedIpVersionError,
   assertAbsoluteIri, assertIri, assertIriReference, defineScheme, isAbsoluteUri, isIri, isUri, isUriReference,
-  normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
+  getFragment, getPath, getQuery, getScheme, normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
 } from "./index.js";
 import { abnf } from "../abnf/index.js";
 import { asciiPath, host, path } from "./abnf.js";
@@ -82,6 +82,21 @@ resolveIri(reference, uri);
 toAbsoluteIri(uri) satisfies AbsoluteUri;
 declare const normalizedIri: NormalizedIri;
 toAbsoluteIri(normalizedIri) satisfies NormalizedIri & AbsoluteIri;
+
+// getScheme takes an IRI, which always has a scheme, and getFragment takes a reference, which might not have a fragment
+getScheme(uri) satisfies string;
+// @ts-expect-error A reference like ../foo has no scheme
+getScheme(reference);
+// @ts-expect-error A string has to be checked first
+getScheme(value);
+getFragment(reference) satisfies string | undefined;
+// @ts-expect-error A fragment might not be there
+getFragment(uri) satisfies string;
+// Every identifier has a path, and a query might not be there
+getPath(reference) satisfies string;
+getQuery(reference) satisfies string | undefined;
+// @ts-expect-error A query might not be there
+getQuery(uri) satisfies string;
 
 // Normalizing keeps an absolute IRI absolute, but normalizeIri doesn't keep a URI a URI, since it decodes Unicode
 normalizeIri(absoluteIri) satisfies AbsoluteIri & NormalizedIri;

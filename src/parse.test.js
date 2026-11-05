@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { parseIri } from "./index.js";
+import { getFragment, getPath, getQuery, getScheme, parseIri } from "./index.js";
 
-/** @import { IriReference } from "./index.d.ts" */
+/** @import { Iri, IriReference } from "./index.d.ts" */
 
 describe("parseIri, a URI", () => {
   test("Full", () => {
@@ -374,6 +374,47 @@ describe("parsed components", () => {
   });
 });
 
+describe("getScheme, getPath, getQuery, and getFragment", () => {
+  const iris = [
+    "https://jason:pass@example.com:80/a:b?c:d#e:f",
+    "https://[::1]:8080/a",
+    "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66",
+    "file:///a/b#",
+    "tag:example.com,2004:a?b#c?d#",
+    "a+b-c.d:e",
+    "x:?#"
+  ];
+  const references = [
+    ...iris, "#a:b", "?a#b?c", "//h/a#b", "a/b:c", "", "#", "//h", "//h?q", "//[::1]:80", "///a", "a?", "./a:b?c:d", "/a//b"
+  ];
+
+  test.each(iris)("getScheme(%s) is parseIri's scheme", (value) => {
+    expect(getScheme(trustedIri(value))).to.equal(parseIri(trustedIri(value)).scheme);
+  });
+
+  test.each(references)("getPath(%s) is parseIri's path", (value) => {
+    expect(getPath(trusted(value))).to.equal(parseIri(trusted(value)).path);
+  });
+
+  test.each(references)("getQuery(%s) is parseIri's query", (value) => {
+    expect(getQuery(trusted(value))).to.equal(parseIri(trusted(value)).query);
+  });
+
+  test.each(references)("getFragment(%s) is parseIri's fragment", (value) => {
+    expect(getFragment(trusted(value))).to.equal(parseIri(trusted(value)).fragment);
+  });
+
+  test("a query or fragment that isn't there is undefined, and an empty one is \"\"", () => {
+    expect(getQuery(trusted("a#?"))).to.equal(undefined);
+    expect(getQuery(trusted("a?"))).to.equal("");
+    expect(getFragment(trusted("a"))).to.equal(undefined);
+    expect(getFragment(trusted("a#"))).to.equal("");
+  });
+});
+
 // parseIri trusts what it's given, so these are cast, like a value a validator checked
 /** @type (value: string) => IriReference */
 const trusted = (value) => /** @type IriReference */ (value);
+
+/** @type (value: string) => Iri */
+const trustedIri = (value) => /** @type Iri */ (value);

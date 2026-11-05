@@ -18,3 +18,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 - [Schemes and trust](schemes-and-trust.md) (2026-11-03)
 - [`defineScheme`](define-scheme.md) (2026-11-04)
 - [ABNF](abnf.md) (2026-11-04)
+- [Getters](getters.md) (2026-11-04)

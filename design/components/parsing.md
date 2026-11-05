@@ -70,6 +70,52 @@ bases, gave the same results and the same errors, 5.3 million calls in
 all. `src/parse.test.js` has the cases where a delimiter is most likely to
 be mistaken for the end of a component.
 
+## Getters
+
+`getScheme`, `getPath`, `getQuery`, and `getFragment` each get one
+component, the way `split` finds it, without splitting out the others.
+They trust what they're given, like `parseIri` (see [Trust](trust.md)).
+
+The dependents mostly want one component. `json-schema`'s `$id`,
+`$dynamicRef`, and bundler, and `browser`'s `get`, want a fragment, often
+next to `toAbsoluteIri`, which removes it. `browser`'s scheme plugins,
+`json-schema`'s bundler, and `json-language-server` want a scheme.
+`parseIri` takes about 0.1 microseconds, and a getter for a scheme or a
+fragment takes a fifth of that or less (see [Getters](../benchmarks/getters.md)).
+
+- `getScheme(value: Iri): string` is `value` up to its first `:`. It
+  takes an `Iri`, which always has a scheme.
+- `getFragment(value: IriReference): string | undefined` is what's after
+  the first `#`.
+- `getQuery(value: IriReference): string | undefined` is what's after the
+  first `?`, if it's before the first `#`, up to it.
+- `getPath(value: IriReference): string` skips the scheme and the
+  authority the way `split` does, and ends where the query or the fragment
+  starts. It's only 1.6 times as fast as `parseIri(value).path`, because
+  finding where the path ends needs `indexOf("#")` and `indexOf("?")` over
+  the whole value, as `split` does, so it only saves building the
+  components.
+
+They're checked against `parseIri`: `src/parse.test.js` has the cases
+where a delimiter is most likely to be mistaken for the end of a
+component, and `benchmark/differential-getters.js` compares the four with
+`parseIri`'s components for every valid reference the other differential
+tests make, about 250,000 checks on each of three seeds, with no
+differences.
+
+### Rejected
+
+- **A getter for every component**, like `getHost` and `getPort`. Nothing
+  in the dependents gets only one of them. They can be added in a minor
+  version.
+- **One function for any component**, like `getComponent(value, "fragment")`.
+  Its return type would depend on the name, and each call would dispatch on
+  it.
+- **Scanning for `getPath`'s end from where the path starts**, a character
+  at a time, instead of `indexOf` over the whole value. It was 1.2 to 1.3
+  times slower than `indexOf`, and a global regular expression with
+  `lastIndex` was 1.5 to 1.6 times slower.
+
 ## Performance
 
 Before scheme validation, every function was faster than v1, which used

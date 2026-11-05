@@ -317,6 +317,36 @@ export const parseTag: (value: Iri) => TagComponents;
 export const toAbsoluteIri: <T extends Iri>(value: T) => T & AbsoluteIri;
 
 /**
+ * The scheme of an IRI or a URI, as written: `value` up to its first `:`.
+ * It's what `parseIri(value).scheme` is, without splitting the other
+ * components out.
+ */
+export const getScheme: (value: Iri) => string;
+
+/**
+ * The fragment of an IRI or a URI, or of a reference, as written: what's
+ * after the first `#`, or `undefined` if there isn't one. It's what
+ * `parseIri(value).fragment` is, without splitting the other components
+ * out.
+ */
+export const getFragment: (value: IriReference) => string | undefined;
+
+/**
+ * The path of an IRI or a URI, or of a reference, as written. It's what
+ * `parseIri(value).path` is, without splitting the other components out.
+ * Every identifier has a path, but it can be `""`.
+ */
+export const getPath: (value: IriReference) => string;
+
+/**
+ * The query of an IRI or a URI, or of a reference, as written: what's
+ * after the first `?` and before the fragment, or `undefined` if there
+ * isn't one. It's what `parseIri(value).query` is, without splitting the
+ * other components out.
+ */
+export const getQuery: (value: IriReference) => string | undefined;
+
+/**
  * Normalizes a URI, so that equivalent URIs are equal strings: the
  * syntax-based normalization of RFC 3986 §6.2.2, then its scheme's. It
  * decodes percent-encoded characters that don't need to be encoded,
