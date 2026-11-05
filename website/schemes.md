@@ -77,6 +77,9 @@ you resolve or normalize it without that scheme.
 `validate` has a rule for each component that has one:
 
 ```typescript
+import { abnf } from "@hyperjump/abnf";
+import { path } from "@hyperjump/uri/abnf";
+
 const exampleScheme = defineScheme({
   name: "example",
   rule: "example-URI",
@@ -84,8 +87,8 @@ const exampleScheme = defineScheme({
     authority: "required",
     query: "forbidden",
     path: {
-      pattern: /\/v1\/.*/u,
-      description: "a path under /v1/"
+      pattern: abnf(path)`"/v1" path-abempty`,
+      description: "/v1 or a path under it"
     }
   }
 });
@@ -97,29 +100,63 @@ A component's rule is one of the following:
 | --- | --- |
 | `"required"` | The component has to be there. |
 | `"forbidden"` | The component can't be there. |
-| `{ pattern, description }` | When the component is there, it has to match `pattern`. `description` is optional, and finishes the error message, like `an example URI's path must be a path under /v1/`. |
+| `{ pattern, description }` | When the component is there, it has to match `pattern`. `description` is optional, and finishes the error message, like `an example URI's path must be /v1 or a path under it`. |
 
 The components are `authority`, `userinfo`, `host`, `port`, `path`,
 `query`, and `fragment`.
 
-A pattern is a `RegExp` with the `u` flag and no other flags. The
-functions check the generic syntax too, so a pattern only needs to check
-the component's structure, not its characters, and it can't make an
+### Patterns
+
+Write a pattern in Augmented Backus-Naur Form (ABNF), the notation that
+RFCs write syntax in, and compile it with
+[`@hyperjump/abnf`](https://github.com/hyperjump-io/abnf/blob/main/website/README.md).
+To install it, run the following command:
+
+```bash
+npm install @hyperjump/abnf
+```
+
+Give `abnf` the context of the pattern's component from
+`@hyperjump/uri/abnf`. Each component has one, with its name: `authority`,
+`userinfo`, `host`, `port`, `path`, `query`, and `fragment`. A context
+gives a pattern the following:
+
+- **RFC 3986's rules**, like `segment`, `pchar`, and `IP-literal`, so you
+  can copy a scheme's rules from its specification. In an IRI, they mean
+  RFC 3987's rules, so `pchar` allows `é` too.
+- **Where the component ends**, so the pattern matches only its
+  component.
+- **What the generic syntax already checked**, so the pattern doesn't
+  check the characters or the percent-encoding again, which would make
+  validation slower.
+
+The functions check the generic syntax too, so a pattern can't make an
 identifier valid that the generic syntax doesn't allow.
 
-Checking the characters again makes validation slower, so leave them out
-of your patterns. For example, a path that has to be ASCII and can't
-start with `/` is `/[^/?#\u{80}-\u{10FFFF}][^?#\u{80}-\u{10FFFF}]*/u`. It
-doesn't need to list the characters that a path can have, or check
-percent-encoding, since the generic syntax already did.
+Each context has an ASCII form, like `asciiPath`, whose rules are RFC
+3986's in an IRI too. Use it for a scheme that allows only ASCII
+characters, like `urn`.
 
-A pattern matches from where its component starts, and what comes after
-its match has to be something that can follow the component, like `?`,
-`#`, or the end of the identifier for a path. So a pattern that can match
-those delimiters can run past the end of its component. For example,
-`/.+/u` for a host matches `/a` in `example:///a`, whose host is empty. To
-check that a host isn't empty, use a pattern that can't match the
-delimiters after a host, like `/[^:/?#]+/u`.
+### Hand-written patterns
+
+A pattern is a `RegExp` with the `u` flag and no other flags. In
+TypeScript, a pattern that isn't compiled with a context needs a cast,
+like one that you compiled ahead of time and load from its source:
+
+```typescript
+import type { ComponentPattern } from "@hyperjump/uri";
+
+const pattern = new RegExp(source, "u") as ComponentPattern<"path">;
+```
+
+A pattern that you write by hand has to do what a context does. It
+matches from where its component starts, and what comes after its match
+has to be something that can follow the component, like `?`, `#`, or the
+end of the identifier for a path. So a pattern that can match those
+delimiters can run past the end of its component. For example, `/.+/u`
+for a host matches `/a` in `example:///a`, whose host is empty, and
+`/[^:/?#]+/u` doesn't. `^` and `$` are the start and end of the whole
+identifier, not the component.
 
 ### Normalization
 
@@ -172,9 +209,12 @@ pass it in `customSchemes`, where it replaces the built-in one.
 `namespaces` has a namespace for each name:
 
 ```typescript
+import { abnf } from "@hyperjump/abnf";
+import { asciiPath } from "@hyperjump/uri/abnf";
+
 const urn = urnScheme({
   isbn: {
-    pattern: /\d[\d-]*[\dX]/u,
+    pattern: abnf(asciiPath)`DIGIT *( DIGIT / "-" ) ( DIGIT / "X" )`,
     description: "an ISBN, like 0-395-36341-1",
     normalize: (nss) => nss.replaceAll("-", "")
   },
@@ -191,6 +231,8 @@ normalizeIri(value, options); // "urn:isbn:0395363411"
 
 A namespace's `pattern`, `description`, and `normalize` work on its
 namespace-specific string, which is the part after the namespace, like
-`0-395-36341-1`. A `pattern` works like a component's. They're all
+`0-395-36341-1`. Compile a `pattern` with `asciiPath`, since the
+namespace-specific string ends where the path does, and a URN can have
+only ASCII characters. They're all
 optional, so `{}` is a namespace without rules. The scheme still knows
 `uuid`, unless you replace it.
