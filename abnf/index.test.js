@@ -13,8 +13,17 @@ describe("Parsing", () => {
     expect(pattern.test("2004-1-15")).to.equal(false);
   });
 
-  test("text with no rule is an expression", () => {
+  test("text that doesn't start with a rule is an expression", () => {
     expect(abnf()`1*DIGIT`.test("123")).to.equal(true);
+  });
+
+  test("an expression can be followed by the rules it references", () => {
+    const pattern = abnf()`date-month "/" date-mday
+      date-month = 2DIGIT
+      date-mday  = 2DIGIT
+    `;
+    expect(pattern.test("01/15")).to.equal(true);
+    expect(pattern.test("1/15")).to.equal(false);
   });
 
   test("lines don't matter, and comments are ignored", () => {
@@ -117,7 +126,7 @@ describe("Errors", () => {
   test.each([
     ["text that isn't ABNF", "a = \"x\" &", "Not ABNF at 8"],
     ["a group that isn't closed", "a = ( \"x\"", "Expected \")\", found the end"],
-    ["a rule list after an expression", "\"x\" a = \"y\"", "Expected the end"],
+    ["what isn't a rule after an expression", "\"x\" ) a = \"y\"", "Expected a rule, found \")\""],
     ["a rule that's defined twice", "a = \"x\"\na = \"y\"", "a is defined twice"],
     ["=/ for a rule that isn't defined", "a =/ \"x\"", "\"=/\" for a, which isn't defined"],
     ["a rule that isn't defined", "a = b", "ABNF rule b isn't defined"],

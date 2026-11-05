@@ -52,7 +52,8 @@ export type Context<T extends RegExp = RegExp> = {
  * case-sensitive strings) into a `RegExp` with the `u` flag.
  *
  * The text is a rule list, and its first rule is the one matched, or an
- * expression with no rules. `${}` splices text in.
+ * expression, which can be followed by the rules it references. `${}`
+ * splices text in.
  *
  * ```js
  * const date = abnf()`

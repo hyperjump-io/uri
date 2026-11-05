@@ -52,33 +52,33 @@ such a URI reference MUST reject it as invalid." The same for https (§4.2.2).`,
     "path",
     `RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ]. The "?" that specific allows starts the
 generic query, which has the same characters, so only the path has a pattern.`,
-    abnf(path)`tag-path = taggingEntity ":" specific ${tagRules}`
+    abnf(path)`taggingEntity ":" specific ${tagRules}`
   ],
   [
     "nid",
     undefined,
     `RFC 8141 §2's NID, for urnScheme's keys`,
-    abnf()`urn-nid = NID ${urnRules}`
+    abnf()`NID ${urnRules}`
   ],
   [
     "urnPath",
     "path",
     `RFC 8141 §2: assigned-name = "urn" ":" NID ":" NSS. A URN is ASCII in an IRI too: RFC 8141 "does not extend the URN
 syntax to allow direct use of characters outside the ASCII range".`,
-    abnf(asciiPath)`urn-path = NID ":" NSS ${urnRules}`
+    abnf(asciiPath)`NID ":" NSS ${urnRules}`
   ],
   [
     "urnQuery",
     "query",
     `RFC 8141 §2: rq-components = [ "?+" r-component ] [ "?=" q-component ], which starts with the query's delimiter, so
 it's written for what's after the "?"`,
-    abnf(asciiQuery)`urn-query = "+" r-component [ "?=" q-component ] / "=" q-component ${urnRules}`
+    abnf(asciiQuery)`"+" r-component [ "?=" q-component ] / "=" q-component ${urnRules}`
   ],
   [
     "urnFragment",
     "fragment",
     `RFC 8141 §2: f-component = fragment`,
-    abnf(asciiFragment)`urn-fragment = f-component ${urnRules}`
+    abnf(asciiFragment)`f-component ${urnRules}`
   ],
   [
     "uuidNss",

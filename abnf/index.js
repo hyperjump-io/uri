@@ -118,7 +118,7 @@ function parseRules(text) {
 }
 
 /**
- * The first rule of a rule list, with the others in its scope, or an expression
+ * The first rule of a rule list, with the others in its scope, or an expression, with the rules after it in its scope
  *
  * @param {string} text
  * @returns {{ node: Node; rules: Rules }}
@@ -132,9 +132,11 @@ function parseText(text) {
     return { node: { type: "ref", name: first, display: first }, rules };
   }
 
+  // An expression ends where a rule starts
   const node = parser.alternation();
+  const rules = parser.rules();
   parser.end();
-  return { node, rules: new Map() };
+  return { node, rules };
 }
 
 /**

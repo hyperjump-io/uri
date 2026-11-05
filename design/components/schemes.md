@@ -130,7 +130,7 @@ const tagScheme = defineScheme({
     authority: "forbidden",
     path: {
       pattern: abnf(path)`
-        tag-path = taggingEntity ":" specific
+        taggingEntity ":" specific
 
         taggingEntity = authorityName "," date
         authorityName = DNSname / emailAddress
@@ -150,7 +150,7 @@ const tagScheme = defineScheme({
 });
 ```
 
-Everything under `tag-path` is RFC 4151 §2.1, pasted in.
+The rules after `taggingEntity ":" specific` are RFC 4151 §2.1, pasted in.
 
 The top level of a definition has only what's about the
 whole scheme: `name`, `rule`, and `syntaxNormalization`. The rules and the

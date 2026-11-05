@@ -59,8 +59,15 @@ date.test("2004-01-15"); // true
   `u` flag.
 - The text is a rule list, and the first rule is the one matched. RFC 5234
   doesn't name a start rule, so this is the convention, and it's what lets
-  an RFC's rules be pasted in with one line on top. Text with no rule in
-  it is an expression, like `` abnf(path)`path-absolute` ``.
+  an RFC's rules be pasted in with one line on top.
+- Text that doesn't start with a rule is an expression, like
+  `` abnf(path)`path-absolute` ``, and it can be followed by the rules it
+  references: `` abnf(asciiPath)`NID ":" NSS ${urnRules}` ``. It's
+  unambiguous, since a rule list starts with a name and `=`, and an
+  expression ends where the first rule starts. So a pattern doesn't need a
+  rule named only to be first, like `urn-path = NID ":" NSS`. It was
+  written that way twice by mistake while building, when it was a
+  `SyntaxError`.
 - `${}` splices text in, so a rule list can be shared, like `urn`'s rules
   for its path and its query.
 - Rule names match without case, and so do strings, as RFC 5234 says.
@@ -232,17 +239,12 @@ So nobody pays for the compiler who doesn't use it (see
 - **Widening every range of a class**, not only the last. It turned single
   characters into classes, like `"?"` into `[>?]`, and `urn:uuid` was
   slower.
+- **Only a rule list or an expression**, with a rule named only to be
+  first, like `urn-path = NID ":" NSS`. It's one shape fewer, but a
+  caller reaches for an expression with its rules after it, and the
+  start rule's name adds nothing.
 - **A rule for the whole identifier**, like RFC 8089's `file-URI`, in
   place of one per component. The RFCs' rules leave out the fragment, which RFC
   3986 §3.5 leaves to the generic syntax, so `http-URI` would forbid one.
   And per-component rules are what errors and `#f` need (see
   [Schemes](schemes.md#patterns-are-regexps)).
-
-## Open questions
-
-- **An expression followed by rules**, like `` abnf(path)`NID ":" NSS ${urnRules}` ``.
-  The text is a rule list or an expression, so this is a `SyntaxError`
-  now, and it has to be `urn-path = NID ":" NSS`. It was written that way
-  twice while building, so a caller will probably reach for it too. It's
-  unambiguous, since a rule list starts with a name and `=`, and allowing
-  it later isn't a breaking change.
