@@ -4,7 +4,7 @@ import {
   assertIri, assertIriReference, assertUri, isAbsoluteIri, isIri, isIriReference, isUri, lowercaseComponent,
   defineScheme, normalizeIri, normalizeUri, parseTag, parseUrn, resolveIri, urnScheme
 } from "./index.js";
-import { abnf } from "../abnf/index.js";
+import { abnf } from "@hyperjump/abnf";
 import { asciiPath, host, path, query } from "./abnf.js";
 
 /** @import { AbsoluteIri, ComponentPattern, Iri, IriReference, Uri } from "./index.d.ts" */

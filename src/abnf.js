@@ -1,4 +1,4 @@
-/** @import { Context } from "../abnf/index.d.ts" */
+/** @import { Context } from "@hyperjump/abnf" */
 /** @import { ComponentPattern } from "./index.d.ts" */
 
 // Contexts for compiling a scheme's ABNF with @hyperjump/abnf, one for each component. They're data: RFC 3986's and

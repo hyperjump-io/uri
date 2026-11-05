@@ -49,7 +49,7 @@ median of 5 runs of 200,000 iterations, in milliseconds.
 | `normalizeIri` | 198 | 198 | 1.00x |
 
 It took the compiler's rewrites to get there (see
-[Rewrites](../components/abnf.md#rewrites)). Compiled directly, `file`
+[Rewrites](https://github.com/hyperjump-io/abnf/blob/main/design/components/compiling.md#rewrites)). Compiled directly, `file`
 took 82 and `urn:uuid` 125:
 
 - `file`'s `path-absolute` was nested loops,

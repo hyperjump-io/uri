@@ -1,4 +1,4 @@
-import type { Context } from "../abnf/index.d.ts";
+import type { Context } from "@hyperjump/abnf";
 import type { ComponentPattern } from "./index.d.ts";
 
 /*

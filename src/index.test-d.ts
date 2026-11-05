@@ -3,7 +3,7 @@ import {
   assertAbsoluteIri, assertIri, assertIriReference, defineScheme, isAbsoluteUri, isIri, isUri, isUriReference,
   getFragment, getPath, getQuery, getScheme, normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
 } from "./index.js";
-import { abnf } from "../abnf/index.js";
+import { abnf } from "@hyperjump/abnf";
 import { asciiPath, host, path } from "./abnf.js";
 import type {
   AbsoluteIri, AbsoluteUri, ComponentPattern, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri, Scheme,

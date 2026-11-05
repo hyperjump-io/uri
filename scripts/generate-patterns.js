@@ -2,7 +2,7 @@
 // changing them. src/patterns.test.js fails when src/patterns.js isn't what this generates.
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { abnf } from "../abnf/index.js";
+import { abnf } from "@hyperjump/abnf";
 import { asciiFragment, asciiPath, asciiQuery, host, path } from "../src/abnf.js";
 
 // RFC 4151 §2.1, verbatim

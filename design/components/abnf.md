@@ -1,11 +1,13 @@
 # ABNF
 
-A compiler from ABNF (RFC 5234, with RFC 7405's case-sensitive strings)
-to regular expressions. It's written here first, for scheme patterns, and
-will move to its own package, `@hyperjump/abnf`, which
-`json-schema-formats` will use too. Nothing in it knows about URIs. What a
-URI component needs is passed to it as a value (see
-[Contexts](#contexts)).
+Scheme patterns are written in ABNF and compiled by
+[`@hyperjump/abnf`](https://github.com/hyperjump-io/abnf), a compiler from
+ABNF to regular expressions. It was written here, for scheme patterns, and
+moved to its own package, which `json-schema-formats` uses too. Nothing in
+it knows about URIs. How it parses, compiles, and rewrites is in
+[its design docs](https://github.com/hyperjump-io/abnf/tree/main/design).
+This document is what `@hyperjump/uri` gives it, and how the built-ins use
+it.
 
 ## Why
 
@@ -22,7 +24,7 @@ writing one had to know that:
 - A lookahead in a pattern sees the components after it.
 
 The specifications a scheme comes from write its syntax in ABNF. Compiled
-by a compiler that knows the component, a scheme's ABNF can't leave its
+with a context for the component, a scheme's ABNF can't leave its
 component, ABNF has no anchors and can't look ahead or behind, and the
 rules can be copied from the RFC.
 
@@ -31,163 +33,48 @@ rules can be copied from the RFC.
 - **Custom schemes' patterns**, for `defineScheme` and `urnScheme`.
 - **The built-in schemes**, whose patterns are generated from their RFCs'
   ABNF (see [Shipping](#shipping)).
-- **`json-schema-formats`**, whose formats are defined in ABNF by their
-  RFCs, like RFC 3339's `date-time`.
-
-Not supported on purpose:
-
-- **Grammars a regular expression can't match.** A recursive rule throws.
-- **Capturing or parsing.** The result only says whether a string
-  matches, like the library's own patterns (see [Parsing](parsing.md)).
-
-## The tag
-
-```js
-import { abnf } from "@hyperjump/abnf";
-
-const date = abnf()`
-  full-date   = date-fullyear "-" date-month "-" date-mday
-  date-fullyear = 4DIGIT
-  date-month  = 2DIGIT
-  date-mday   = 2DIGIT
-`;
-
-date.test("2004-01-15"); // true
-```
-
-- `abnf(context?)` returns a tag, and the tag returns a `RegExp` with the
-  `u` flag.
-- The text is a rule list, and the first rule is the one matched. RFC 5234
-  doesn't name a start rule, so this is the convention, and it's what lets
-  an RFC's rules be pasted in with one line on top.
-- Text that doesn't start with a rule is an expression, like
-  `` abnf(path)`path-absolute` ``, and it can be followed by the rules it
-  references: `` abnf(asciiPath)`NID ":" NSS ${urnRules}` ``. It's
-  unambiguous, since a rule list starts with a name and `=`, and an
-  expression ends where the first rule starts. So a pattern doesn't need a
-  rule named only to be first, like `urn-path = NID ":" NSS`. It was
-  written that way twice by mistake while building, when it was a
-  `SyntaxError`.
-- `${}` splices text in, so a rule list can be shared, like `urn`'s rules
-  for its path and its query.
-- Rule names match without case, and so do strings, as RFC 5234 says.
-  `%s"…"` is case-sensitive and `%i"…"` isn't (RFC 7405).
-- Without a context, the result matches a whole string: it's anchored at
-  both ends.
-
-It throws a `SyntaxError` for text that isn't ABNF, a rule that's defined
-twice in one rule list, a rule that isn't defined, a recursive rule, and a
-prose value (`<…>`), which can't be compiled. A prose value repeated zero times is empty, which RFC 3986's
-own grammar needs: `path-empty = 0<pchar>`.
-
-A rule defined in the text replaces one of the same name from the context
-or RFC 5234's core rules. RFC 9562 defines `DIGIT` and `HEXDIG` again, the
-same way, and its rules have to paste in. Rules from a context are
-resolved among the context's own rules, so a caller's `DIGIT` doesn't
-change them.
 
 ## Contexts
 
-A context says what's known about the input before the pattern runs.
-It's a value:
+`@hyperjump/uri/abnf` exports a context for each component: `authority`,
+`userinfo`, `host`, `port`, `path`, `query`, and `fragment`, and an ASCII
+one of each, like `asciiPath`. They're values, in `src/abnf.js`, and
+nothing there imports the compiler:
 
-```ts
-type Context<T extends RegExp = RegExp> = {
-  readonly rules?: string;          // a rule list the text can reference
-  readonly alphabet?: string;       // ABNF for the characters the input can have
-  readonly delimiters?: string;     // ABNF for the characters that end what's matched
-  readonly percentEncoded?: boolean; // each "%" starts a pct-encoded
-  readonly anchored?: boolean;      // whether to match a whole string
-  readonly [result]?: T;            // only says what the tag returns
-};
+```js
+import { abnf } from "@hyperjump/abnf";
+import { path } from "@hyperjump/uri/abnf";
+
+const filePath = abnf(path)`path-absolute`;
 ```
 
-`alphabet` and `delimiters` are ABNF that matches one character, like
-`"?" / "#"`, resolved among the context's rules. So they can say
-`iunreserved / sub-delims`, and there's no second notation for sets. One
-that doesn't match one character, like `"ab"`, is a `TypeError` when the
-tag is made.
+- **`rules`** are RFC 3986's and RFC 3987's. In an IRI context, each of
+  RFC 3986's rules that RFC 3987 renamed means the renamed one, like
+  `pchar = ipchar`: an IRI is valid for a scheme when its URI is, and its
+  URI percent-encodes what RFC 3987 adds (RFC 3987 §3.1). An ASCII
+  context's rules are both RFCs' under their own names, for schemes that
+  are ASCII in an IRI too, like `urn` (RFC 8141 "does not extend the URN
+  syntax to allow direct use of characters outside the ASCII range").
+- **`alphabet`** is what the generic grammar has already allowed in the
+  component, so `*pchar` compiles to `[^/?#]*`.
+- **`delimiters`** are what ends the component: `/`, `?`, and `#` for the
+  authority and its parts, `@` for the userinfo, `?` and `#` for the path,
+  and `#` for the query. A fragment is the last component, so nothing ends
+  it.
+- **`percentEncoded`** is `true`, since the generic grammar has checked
+  each `%`, and **`anchored`** is `false`, since the pattern goes in a
+  lookahead.
 
-- **`delimiters` are removed from every character set.** A pattern can't
-  match one, so it ends where its component ends. Without this, the
-  differential test found 17,859 differences, like `http://?` being valid
-  (see [ABNF](../benchmarks/abnf.md)). A rule that can't match anything
-  once they're removed throws, like a path rule that only allows `?`.
-  `tag`'s `specific = *( pchar / "/" / "?" )` still compiles for a path:
-  only its `"?"` is removed, and that part is the generic query.
-- **`alphabet` lets sets be widened.** A character the input can't have is
-  free to be in a set or not, without changing what matches, so each set
-  is compiled as whichever class is shortest. That's what lets `*pchar`
-  compile to `[^/?#]*` where the generic grammar has already checked the
-  characters.
-- **`percentEncoded`** says the input has already been checked to have two
-  hex digits after each `%`, so `*( unreserved / pct-encoded )` can match
-  `%` as one character (see [Rewrites](#rewrites)).
-- **`rules`** are the rules the text can reference, like RFC 3986's.
-
-The URI contexts are exported by `@hyperjump/uri/abnf`, one for each
-component (see [Schemes](schemes.md#patterns-come-from-abnf)).
-
-The phantom `[result]` is how a context says what type the tag returns,
-so `@hyperjump/uri`'s contexts make tags that return its
-`ComponentPattern` brand, and neither package imports the other's code.
-`@hyperjump/uri` imports the `Context` type, as a development dependency.
-
-## Compiling
-
-The text is parsed, its references resolved into one tree, and the tree
-rewritten and compiled to a regular expression source:
-
-- Parsing doesn't depend on lines: a rule starts where a name is followed
-  by `=` or `=/`, which can't happen inside a rule. So the text can be
-  indented however it's written.
-- Alternatives are flattened, and character sets among them merged into
-  one.
-- What's kept while compiling, like the compiled character sets, is kept
-  for one compilation and dropped after it. Nothing is kept between calls,
-  so nothing depends on what was compiled before.
-
-### Rewrites
-
-Each of these matches the same strings as what it replaces, on input the
-context describes. They're what make compiled patterns as fast as
-hand-written ones (see [ABNF](../benchmarks/abnf.md)).
-
-- **Percent-encoding as one character.** With `percentEncoded`,
-  `( set / pct-encoded )` repeated without a bound matches the same as
-  `( set / "%" )` when the set has every hex digit, unless a hex digit can
-  follow the repetition: `*( unreserved / pct-encoded ) "1"` matches
-  `%41` once `%` is a character, and doesn't before. So does one
-  `( set / pct-encoded )` followed by a repetition whose set has every hex
-  digit, which takes them.
-- **Star identities.** `*( b *a )` is `[ b *( a / b ) ]`, and
-  `n*a [ b *( a / b ) ]` is `n(a) *( a / b )`, for sets `a` and `b`. These
-  take `path-absolute`, `"/" [ segment-nz *( "/" segment ) ]`, from
-  nested loops to one.
-- **An option as a lookahead.** `[ a *b ]`, where `b` has every character
-  of `a`, is `*b` not starting with what's only in `b`, if that can't
-  follow it. `path-absolute` becomes `\/(?!\/)[^?#]*`, which is what the
-  hand-written pattern was. It was 5% faster than `\/(?:[^/?#][^?#]*)?`.
-- **Repetitions of what can be empty.** A repetition without a bound of a
-  repetition that can be empty is any number of its item: `1*( *a )` and
-  `1*( [ a ] )` are `*a`. It's what `1*query` is, since `query` can be
-  empty. Nested, they backtrack through every way of splitting a string
-  that doesn't match: `^(?:[^#]*)+$` took 15 milliseconds on 16
-  characters and a `#`, and 606 on 24, where `^[^#]*$` took less than 1.
-- **Classes.** A set is compiled as a class or a negated class, whichever
-  has fewer ranges, and a negated class when they have as many. A range to
-  the end of Unicode starts as low as the alphabet allows: V8 checks a
-  class of all non-ASCII characters by checking for ASCII. `urn:uuid`'s
-  pattern took 282 milliseconds for 2 million tests when its range started
-  at U+A0, and 254 when it started at U+7F.
+A context's phantom `[result]` type is `ComponentPattern<C>`, so a tag
+made with `path` returns `ComponentPattern<"path">`, which is what a
+scheme's `validate.path` takes (see
+[Schemes](schemes.md#patterns-are-regexps)). Neither package imports the
+other's code. `@hyperjump/uri` imports the `Context` type, as a
+development dependency: a caller who uses the contexts has the compiler
+installed.
 
 ## Shipping
 
-- The compiler is in `abnf/` until it's its own package. It's laid out as
-  one, with its own `index.d.ts` and tests, and nothing in it imports from
-  `src/`. `src/abnf.d.ts` imports its `Context` type from `../abnf/` until
-  then, and from `@hyperjump/abnf` after, which has to be published before
-  `@hyperjump/uri` 2.0.0 is.
 - The built-in schemes' patterns are generated from their ABNF by
   `scripts/generate-patterns.js` into `src/patterns.js`, with
   `npm run generate`. The generated file is committed, and
@@ -207,12 +94,6 @@ So nobody pays for the compiler who doesn't use it (see
   tokenizer of regular expression syntax, what runs isn't what was
   written, and the host's `:` is still a problem. Writing ABNF removes the
   reason to rewrite.
-- **Public functions for building patterns**, like `seq`, `alt`, and
-  `rep`. They'd be
-  checked by editors and types, but they're an API to design and name,
-  they read like neither ABNF nor a regular expression, and a `raw(/…/u)`
-  escape hatch would bring the problem back. The parsed tree is made of
-  the same parts, and it stays internal.
 - **The compiler in `@hyperjump/uri`**, with `defineScheme` taking
   `{ abnf }` and compiling it, which the prototype did. Everyone would
   load it: importing took 27 milliseconds instead of 5, and the library
@@ -230,19 +111,6 @@ So nobody pays for the compiler who doesn't use it (see
   delimiters are `/`, `?`, and `#`. A host rule that needs a `:` outside
   an IP literal can match into the port, and no `reg-name` has one (see
   [Schemes](schemes.md#patterns-come-from-abnf)).
-- **Caches of compiled sets or rules kept between calls**, keyed by a
-  context. They'd be hidden channels. Kept for one compilation, the
-  compiled sets were what brought `http`'s host from 22 milliseconds to 6.
-- **Renaming RFC 3986's rules to RFC 3987's in the compiler**, so that
-  `pchar` means `ipchar` in an IRI. It's data: an IRI context's rules
-  define `pchar = ipchar`, and an ASCII context's don't.
-- **Widening every range of a class**, not only the last. It turned single
-  characters into classes, like `"?"` into `[>?]`, and `urn:uuid` was
-  slower.
-- **Only a rule list or an expression**, with a rule named only to be
-  first, like `urn-path = NID ":" NSS`. It's one shape fewer, but a
-  caller reaches for an expression with its rules after it, and the
-  start rule's name adds nothing.
 - **A rule for the whole identifier**, like RFC 8089's `file-URI`, in
   place of one per component. The RFCs' rules leave out the fragment, which RFC
   3986 §3.5 leaves to the generic syntax, so `http-URI` would forbid one.

@@ -44,6 +44,7 @@
     "version": "node scripts/version-docs.js && git add website"
   },
   "devDependencies": {
+    "@hyperjump/abnf": "*",
     "@stylistic/eslint-plugin": "*",
     "@types/node": "*",
     "@vitest/coverage-v8": "*",
