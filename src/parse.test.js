@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { getFragment, getPath, getQuery, getScheme, parseIri } from "./index.js";
+import { getFragment, getPath, getQuery, getScheme, hasScheme, parseIri } from "./index.js";
 
 /** @import { Iri, IriReference } from "./index.d.ts" */
 
@@ -374,7 +374,7 @@ describe("parsed components", () => {
   });
 });
 
-describe("getScheme, getPath, getQuery, and getFragment", () => {
+describe("getScheme, hasScheme, getPath, getQuery, and getFragment", () => {
   const iris = [
     "https://jason:pass@example.com:80/a:b?c:d#e:f",
     "https://[::1]:8080/a",
@@ -385,11 +385,16 @@ describe("getScheme, getPath, getQuery, and getFragment", () => {
     "x:?#"
   ];
   const references = [
-    ...iris, "#a:b", "?a#b?c", "//h/a#b", "a/b:c", "", "#", "//h", "//h?q", "//[::1]:80", "///a", "a?", "./a:b?c:d", "/a//b"
+    ...iris, "#a:b", "?a#b?c", "//h/a#b", "a/b:c", "", "#", "//h", "//h?q", "//[::1]:80", "///a", "a?", "./a:b?c:d", "/a//b",
+    "//h:80", "a?b:c", "/a:b", "//[::1]/a:b"
   ];
 
   test.each(iris)("getScheme(%s) is parseIri's scheme", (value) => {
     expect(getScheme(trustedIri(value))).to.equal(parseIri(trustedIri(value)).scheme);
+  });
+
+  test.each(references)("hasScheme(%s) is whether parseIri has a scheme", (value) => {
+    expect(hasScheme(trusted(value))).to.equal(parseIri(trusted(value)).scheme !== undefined);
   });
 
   test.each(references)("getPath(%s) is parseIri's path", (value) => {

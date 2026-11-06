@@ -9,7 +9,7 @@ string, and only a function that checks gives one.
 | --- | --- |
 | `isUri`, `isUriReference`, `isAbsoluteUri`, and their IRI forms | `parseIri`, `parseUrn`, `parseTag` |
 | `assertUri`, `assertUriReference`, `assertAbsoluteUri`, and their IRI forms | `resolveIri`, `toRelativeIri`, `toAbsoluteIri` |
-| | `getScheme`, `getPath`, `getQuery`, `getFragment` |
+| | `getScheme`, `getPath`, `getQuery`, `getFragment`, `hasScheme` |
 | | `normalizeUri`, `normalizeIri` |
 
 `is*` and `assert*` give the same answers. `is*` returns a boolean and is
@@ -98,6 +98,17 @@ That makes a function that makes an identifier responsible for its brand.
 against a valid base can make an invalid identifier (see
 [Schemes](schemes.md#resolving)). `toRelativeIri`'s result doesn't need
 checking: it resolves to the target, which has its brand.
+
+A reference that was checked can become an `Iri` without being checked
+again. `isIriReference` checks a reference with a scheme against the
+scheme's rules, so a checked reference with a scheme is everything
+`isIri` would say. `hasScheme` is that narrowing: it only looks for the
+scheme, and it keeps the reference's other brands, so a `UriReference`
+with a scheme is a `Uri`. It's how a reference is used where there's no
+base to resolve it against, like a relative URL in a runtime without a
+location. Re-checking it with `isIri` would give the same answer at the
+cost of the whole check, and a caller's cast would put this reasoning
+outside the package that makes the brands.
 
 `toRelativeIri` takes normalized identifiers. A normalized identifier
 has no dot segments, so it doesn't remove them, and identifiers that are

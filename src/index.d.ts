@@ -324,6 +324,14 @@ export const toAbsoluteIri: <T extends Iri>(value: T) => T & AbsoluteIri;
 export const getScheme: (value: Iri) => string;
 
 /**
+ * Whether a reference has a scheme, which makes it an IRI, or a URI if
+ * it's a URI-reference. It's how a reference that was already checked
+ * becomes an {@link Iri} without being checked again, so it doesn't check
+ * `value`. It keeps every other brand `value` has.
+ */
+export const hasScheme: <T extends IriReference>(value: T) => value is T & Iri;
+
+/**
  * The fragment of an IRI or a URI, or of a reference, as written: what's
  * after the first `#`, or `undefined` if there isn't one. It's what
  * `parseIri(value).fragment` is, without splitting the other components

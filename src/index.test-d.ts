@@ -1,7 +1,7 @@
 import {
   InvalidUriError, UnknownSchemeError, UnknownUrnNamespaceError, UnsupportedIpVersionError,
   assertAbsoluteIri, assertIri, assertIriReference, defineScheme, isAbsoluteUri, isIri, isUri, isUriReference,
-  getFragment, getPath, getQuery, getScheme, normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
+  getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
 } from "./index.js";
 import { abnf } from "@hyperjump/abnf";
 import { asciiPath, host, path } from "./abnf.js";
@@ -89,6 +89,15 @@ getScheme(uri) satisfies string;
 getScheme(reference);
 // @ts-expect-error A string has to be checked first
 getScheme(value);
+// hasScheme makes a reference an IRI, and keeps a URI-reference a URI
+if (hasScheme(reference)) {
+  getScheme(reference) satisfies string;
+}
+if (hasScheme(uriReference)) {
+  uriReference satisfies Uri;
+}
+// @ts-expect-error A string has to be checked first
+hasScheme(value);
 getFragment(reference) satisfies string | undefined;
 // @ts-expect-error A fragment might not be there
 getFragment(uri) satisfies string;

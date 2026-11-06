@@ -446,6 +446,29 @@ export const toAbsoluteIri = (value) => {
 /** @type typeof API.getScheme */
 export const getScheme = (value) => value.slice(0, value.indexOf(":"));
 
+// In a trusted reference, a ":" before the first "/", "?", or "#" ends a scheme, since a relative reference's first
+// segment can't have one. A type guard can't be given with `typeof API.hasScheme`, so it's declared here.
+/**
+ * @template {API.IriReference} T
+ * @param {T} value
+ * @returns {value is T & API.Iri}
+ */
+export const hasScheme = (value) => {
+  const colon = value.indexOf(":");
+  if (colon === -1) {
+    return false;
+  }
+
+  for (let index = 0; index < colon; index++) {
+    const character = value[index];
+    if (character === "/" || character === "?" || character === "#") {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 // In a trusted reference, nothing before the fragment can have "#"
 /** @type typeof API.getFragment */
 export const getFragment = (value) => {

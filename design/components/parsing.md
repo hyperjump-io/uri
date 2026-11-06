@@ -85,6 +85,13 @@ fragment takes a fifth of that or less (see [Getters](../benchmarks/getters.md))
 
 - `getScheme(value: Iri): string` is `value` up to its first `:`. It
   takes an `Iri`, which always has a scheme.
+- `hasScheme(value: IriReference): value is Iri` is whether a `:` comes
+  before the first `/`, `?`, or `#`. A relative reference's first segment
+  can't have a `:`, so one before those ends a scheme. It's a type guard,
+  so it's how a reference becomes an `Iri` without being checked again
+  (see [Trust](trust.md#what-a-brand-says)). `getScheme` can't answer it:
+  it takes an `Iri`, so it can assume the first `:` ends the scheme, and
+  a value it returns can't narrow what it was given.
 - `getFragment(value: IriReference): string | undefined` is what's after
   the first `#`.
 - `getQuery(value: IriReference): string | undefined` is what's after the
@@ -100,8 +107,10 @@ They're checked against `parseIri`: `src/parse.test.js` has the cases
 where a delimiter is most likely to be mistaken for the end of a
 component, and `benchmark/differential-getters.js` compares the four with
 `parseIri`'s components for every valid reference the other differential
-tests make, about 250,000 checks on each of three seeds, with no
-differences.
+tests make, with no differences on each of three seeds. It compares
+`hasScheme` with `parseIri` and with `isIri` too, since its narrowing
+says a checked reference with a scheme is an `Iri`: about 390,000
+checks on each seed in all.
 
 ### Rejected
 

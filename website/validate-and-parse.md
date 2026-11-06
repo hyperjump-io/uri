@@ -153,6 +153,19 @@ getFragment(uri); // "/$defs/b"
 references too. `getQuery` and `getFragment` return `undefined` for a
 component that isn't there.
 
+`hasScheme` tells you whether a reference you've already checked is an
+IRI, without checking it again. It's a type guard, so after it, the
+reference has the `Iri` type, or `Uri` for a URI-reference:
+
+```typescript
+const reference = "https://example.com/schema";
+assertIriReference(reference);
+
+if (hasScheme(reference)) {
+  getScheme(reference); // "https"
+}
+```
+
 ### Parse a URN or a tag
 
 `parseUrn(value)` splits a Uniform Resource Name (URN) into the parts that
