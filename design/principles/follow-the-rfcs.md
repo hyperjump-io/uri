@@ -26,4 +26,5 @@ other implementations that follow it agree with this one.
   standard, made for browsers: it rewrites `\` to `/`, adds `/` as a
   default path, and percent-encodes Unicode, so an IRI doesn't stay an
   IRI. Identifiers in JSON Schema and JRef are RFC 3986 and RFC 3987
-  identifiers.
+  identifiers. A caller that gets URLs from the platform converts them
+  where they come in, with `urlToIri` (see [URLs](../components/urls.md)).

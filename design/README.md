@@ -46,6 +46,8 @@ hand and have JSDoc explaining the details. Documentation for users is in
   `toAbsolute*`
 - [Normalizing](components/normalizing.md): `normalize*` and
   `encode*Fragment`
+- [URLs](components/urls.md): `urlToIri`, for WHATWG URLs that come in
+  from the platform
 - [Schemes](components/schemes.md): the built-in schemes' rules and
   normalization, and unknown schemes
 - [ABNF](components/abnf.md): the contexts the built-in schemes'
