@@ -59,7 +59,8 @@ changed in v2, see [Migrate from v1](migrate-from-v1.md).
 - [Install](install.md): setup for Node.js, browsers, and TypeScript
 - [Validate and parse](validate-and-parse.md): the kinds of identifier,
   checking them, and their components
-- [Schemes](schemes.md): the rules of each scheme, and adding your own
+- [Schemes](schemes.md): the rules of each built-in scheme, and how
+  the package checks other schemes
 - [Resolve references](resolve-references.md): `resolveIri`,
   `toRelativeIri`, and `toAbsoluteIri`
 - [Normalize](normalize.md): comparing identifiers, and encoding

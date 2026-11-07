@@ -10,7 +10,7 @@ They take URIs too, and return a `Uri` for URIs.
 
 ## Resolve a reference
 
-`resolveIri(reference, base, options)` resolves a reference against a
+`resolveIri(reference, base)` resolves a reference against a
 base IRI, with the algorithm in RFC 3986:
 
 ```typescript

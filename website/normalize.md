@@ -2,7 +2,7 @@
 
 The same resource can have identifiers that are different strings. For
 example, `HTTPS://Example.com:443/a/./b` and `https://example.com/a/b` are
-the same IRI. `normalizeIri(iri, options)` turns equivalent IRIs into the
+the same IRI. `normalizeIri(iri)` turns equivalent IRIs into the
 same string, so you can compare them with `===`:
 
 ```typescript
