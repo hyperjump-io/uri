@@ -7,14 +7,17 @@ When a question can't be answered from what the RFCs define, the answer is
   `[v7.future]`, throws. RFC 3986 defines that syntax but no addresses for
   it, so whether the identifier is valid can't be known (see
   [Future IP versions](../components/future-ip-versions.md)).
-- A validator given an identifier whose scheme it doesn't know throws
-  `UnknownSchemeError`. The generic syntax is only the first layer of
-  what's valid, and the scheme's rules are the second (see
-  [Schemes](../components/schemes.md)). So do `resolveIri` and
-  `normalizeIri`, which need the scheme's rules to check their result or
-  to normalize, and would otherwise return something they can't vouch for.
-  A URN whose namespace it doesn't know throws `UnknownUrnNamespaceError`
-  the same way.
+An identifier whose scheme isn't built in is the exception. It's checked
+with the generic syntax only, which is the first layer of what's valid,
+without the scheme's rules, which are the second. It used to throw
+`UnknownSchemeError`, and a caller defined the scheme. That meant passing
+the schemes to every call, through every layer of every dependent, and
+calls given different schemes disagreed without saying so. So the
+exception is a trade: answering "I don't know" put a burden on every
+caller that was easy to get wrong (see
+[Schemes](../components/schemes.md#unknown-schemes)). A URN whose
+namespace isn't built in is checked with RFC 8141's syntax only, the same
+way.
 
 Functions that only need to know what something looks like, not whether
 it's valid, aren't affected. Parsing, resolving, and normalizing accept a

@@ -32,8 +32,8 @@ removal only with a dot segment.
   brand, or `NormalizedUri` from `normalizeUri`, which `toRelativeIri`
   requires (see [Trust](trust.md#normalized-brands)). It doesn't check
   its input.
-- It takes `customSchemes`, and throws `UnknownSchemeError` for a scheme
-  it doesn't know.
+- It applies only the syntax-based normalization for a scheme that isn't
+  built in.
 - It keeps its URI and IRI forms, because they decode different
   characters.
 

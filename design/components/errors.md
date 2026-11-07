@@ -8,17 +8,6 @@ instead of by its message.
 | `InvalidUriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of URI a function needs |
 | `InvalidIriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of IRI a function needs |
 | `UnsupportedIpVersionError` | `Error` | `value`, `host` | A validator is given a future IP literal (see [Future IP versions](future-ip-versions.md)) |
-| `UnknownSchemeError` | `Error` | `value`, `scheme` | A function that needs a scheme's rules is given one it doesn't know (see [Schemes](schemes.md#unknown-schemes)) |
-| `UnknownUrnNamespaceError` | `Error` | `value`, `nid` | A function that needs a URN namespace's rules is given a NID it doesn't know (see [Schemes](schemes.md#the-urn-scheme)) |
-
-Each "I don't know" error names what isn't
-known. "Unsupported" is for what the library can't do, which no
-configuration fixes. "Unknown" is for what the caller hasn't configured:
-a scheme in `customSchemes`, or a namespace in `urnScheme`. `scheme` and
-`nid` are lowercased, since they name what to configure, and `value` has
-them as written. Neither has a span, because a scheme is always at the
-start and a NID always follows `urn:`. Messages are
-`Unknown scheme: did` and `Unknown URN namespace: isbn`.
 
 `InvalidUriError` and `InvalidIriError` are
 thrown by `assert*`, which checks like `is*` does, and by `resolveIri`
@@ -208,16 +197,10 @@ have all nine, since `assert*` and `resolveIri` throw the scheme reasons.
 
 ## Rejected
 
-- **An unknown NID as an `UnknownSchemeError`**, with `scheme: "urn"` and
-  a `namespace` field, or with `scheme: "urn:isbn"`. `urn` is known, so
-  the error would tell a caller to configure a scheme they have. A caller
-  who handles every "I don't know" checks one more class. A base class
-  for them can be added without breaking anything if a caller needs it.
-- **`UnsupportedUrnNamespaceError`.** A caller can configure a namespace,
-  so it's unknown, like a scheme, not unsupported, like an IP version.
-- **A span on `UnknownSchemeError` or `UnknownUrnNamespaceError`.** Where
-  the scheme and the NID are is fixed, and a field can be added later but
-  not taken away.
+- **`UnknownSchemeError`, with `value` and `scheme`, and
+  `UnknownUrnNamespaceError`, with `value` and `nid`**, for a scheme or a
+  URN namespace that wasn't configured. They went with custom schemes
+  (see [Schemes](schemes.md#unknown-schemes)).
 
 - **`Error` only**, as in v1. Callers could only tell errors apart by
   their messages.

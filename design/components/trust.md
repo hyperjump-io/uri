@@ -7,7 +7,7 @@ string, and only a function that checks gives one.
 
 | Checks | Trusts |
 | --- | --- |
-| `isUri`, `isUriReference`, `isAbsoluteUri`, and their IRI forms | `parseIri`, `parseUrn`, `parseTag` |
+| `isUri`, `isUriReference`, `isAbsoluteUri`, and their IRI forms | `parseIri`, `parseUrn` |
 | `assertUri`, `assertUriReference`, `assertAbsoluteUri`, and their IRI forms | `resolveIri`, `toRelativeIri`, `toAbsoluteIri` |
 | | `getScheme`, `getPath`, `getQuery`, `getFragment`, `hasScheme` |
 | | `normalizeUri`, `normalizeIri` |
@@ -15,8 +15,6 @@ string, and only a function that checks gives one.
 `is*` and `assert*` give the same answers. `is*` returns a boolean and is
 a type guard. `assert*` throws an error that says what's wrong and where
 (see [Errors](errors.md)), and is an assertion function. Both throw
-`UnknownSchemeError` for a scheme they don't know,
-`UnknownUrnNamespaceError` for a URN namespace they don't know, and
 `UnsupportedIpVersionError` for a future IP literal, because "I don't
 know" isn't `true` or `false` (see
 [Answer only what's known](../principles/answer-only-whats-known.md)).
@@ -87,11 +85,11 @@ brand.
 
 ## What a brand says
 
-A brand says everything `is*` checks: the generic syntax and the rules of
-its scheme. So a brand only exists for a scheme that's known,
-built in or custom (see [Schemes](schemes.md)). A value with a scheme
-that isn't configured can't get one, and that's on purpose: it's "I don't
-know".
+A brand says everything `is*` checks: the generic syntax and, for a
+built-in scheme, its rules. A value with any other scheme gets one for
+the generic syntax alone (see
+[Schemes](schemes.md#unknown-schemes)). So every value with a brand is
+valid for every scheme the library knows.
 
 That makes a function that makes an identifier responsible for its brand.
 `resolveIri` checks its result's scheme rules, because a valid reference
@@ -116,14 +114,6 @@ equivalent compare equal, so its result is as short as it can be. Its
 callers in `@hyperjump/json-schema` already have normalized identifiers,
 because a registry's keys are normalized.
 
-## Configuration
-
-`is*` brands a value under the schemes it was given, but the brand
-doesn't say which. A value branded with `{ customSchemes: [did] }` and
-then resolved without that option throws `UnknownSchemeError` at runtime.
-A caller keeps one configuration and passes it to every call that takes
-options: `is*`, `assert*`, `resolveIri`, and `normalize*`.
-
 ## Rejected
 
 - **A brand that only says the generic syntax.** It's all that the
@@ -131,14 +121,15 @@ options: `is*`, `assert*`, `resolveIri`, and `normalize*`.
   checking. But a brand would then mean less than `is*` says, and a value
   could have one while it's invalid for its scheme.
 - **A generic-only check that gives a brand**, like `isIriSyntax`, for
-  values with schemes that aren't configured. It's the same as allowing
-  unknown schemes, which "I don't know" rules out. A caller with such
-  values defines their schemes.
+  values with schemes that aren't configured. Unknown schemes get the
+  generic syntax only now, from `is*` itself (see
+  [Schemes](schemes.md#unknown-schemes)).
 - **Casts as the way to trust a value.** They're there for a caller who
   needs one, but a cast that's the documented way in would be used where
   a check belongs.
 - **Brands that say which schemes they were checked under**, like
-  `Iri<"did">`, so a missing configuration is a type error. It was
+  `Iri<"did">`, so a missing configuration is a type error, when there
+  were custom schemes. It was
   prototyped and works, with a scheme's name as a literal type and a
   conditional rest parameter on `resolveIri`. But a configuration typed
   as plain `Options`, like one passed through `@hyperjump/json-schema`'s

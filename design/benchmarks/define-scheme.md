@@ -2,10 +2,13 @@
 
 First recorded 2026-11-04, on Node.js 22.22.1, when `defineScheme`
 replaced the schemes' predicates with patterns compiled into one pattern
-per scheme (see [Schemes](../components/schemes.md#custom-schemes)). Last
+per scheme (see [Schemes](../components/schemes.md#how-a-built-ins-rules-are-checked)). Last
 run the same day, after the built-ins' patterns stopped checking
 characters again, and `resolveIri` stopped checking a merged result's
 authority.
+
+`defineScheme` was removed with custom schemes on 2026-11-06, and the
+built-ins are compiled the same way internally.
 
 `benchmark/bench-define.js` times `src/` against a snapshot of it from
 just before, `benchmark/v2-predicates.js`, each in its own process:

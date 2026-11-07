@@ -27,9 +27,12 @@ brackets: `Unsupported IP version in host: v7.future`.
 ## Rejected
 
 - **`allowUnknownIpLiteral` in 2.0.0**, an option for validators to
-  accept one. It's the guess `allowUnknownScheme` was rejected for, as an
-  option, and nothing needs it. It's an option, so it can be added in a
-  minor version if a caller does.
+  accept one. It's a guess, as an option, and nothing needs it. It's an
+  option, so it can be added in a minor version if a caller does. An
+  unknown scheme gets the generic syntax only, but that's a trade made
+  for passing schemes through every layer (see
+  [Schemes](schemes.md#unknown-schemes)). An IP literal needs no
+  configuration, so there's nothing to trade.
 - **Returning `true`.** The syntax matches, but saying it's valid is a
   guess about addresses that don't exist yet.
 - **Returning `false`.** It isn't known to be invalid either. `false`

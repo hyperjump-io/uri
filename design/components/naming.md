@@ -29,11 +29,9 @@ URIs, IRIs, and references alike, like the merged functions. With the
 kind, `getIriScheme` would read as an IRI scheme, which RFC 3987 says
 there's no such thing as.
 
-`getScheme` could be read as getting a `Scheme`, which is what
-`defineScheme` makes. Its signature, `(value: Iri) => string`, says
-which, in an editor. If that turns out to confuse callers,
-`schemeOf(iri)` and `fragmentOf(reference)` read well imported by
-themselves too, and renaming before 2.0.0 is free.
+`getScheme` could have been read as getting a `Scheme`, which is what
+`defineScheme` made, until custom schemes were dropped (see
+[Schemes](schemes.md#unknown-schemes)). Nothing is named `Scheme` now.
 
 ## Merged functions
 

@@ -46,10 +46,10 @@ hand and have JSDoc explaining the details. Documentation for users is in
   `toAbsolute*`
 - [Normalizing](components/normalizing.md): `normalize*` and
   `encode*Fragment`
-- [Schemes](components/schemes.md): each scheme's own rules and
+- [Schemes](components/schemes.md): the built-in schemes' rules and
   normalization, and unknown schemes
-- [ABNF](components/abnf.md): the contexts that scheme patterns are
-  compiled with by `@hyperjump/abnf`
+- [ABNF](components/abnf.md): the contexts the built-in schemes'
+  patterns are compiled with by `@hyperjump/abnf`
 - [Errors](components/errors.md): error classes, and diagnosing what's wrong
   and where
 - [Types](components/types.md): optional authority, readonly components

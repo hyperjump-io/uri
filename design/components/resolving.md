@@ -18,7 +18,7 @@ removes one.
 
 The base is trusted, so it isn't checked, and when `reference` has a
 scheme, the base isn't read at all. The result is checked with its
-scheme's rules, because a valid reference against a valid base can make an
+scheme's rules, when the scheme is built in, because a valid reference against a valid base can make an
 invalid identifier, like `b` against `urn:example:a` (see
 [Schemes](schemes.md#resolving)).
 
@@ -52,7 +52,7 @@ a `Uri`.
   reported where it's passed. It made resolving such a reference 1.5
   times slower, for a base that's already checked.
 - **Not checking the result**, with callers calling `is*` on it. A brand
-  says that the scheme's rules hold, so `resolveIri` would give a brand
+  says that a built-in scheme's rules hold, so `resolveIri` would give a brand
   that isn't true (see [Trust](trust.md#what-a-brand-says)).
 - **`""` as a base meaning "no base"**, allowed when `reference` has a
   scheme. An empty base is often the result of a mistake, like a lookup
