@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import {
-  InvalidIriError, InvalidUriError, UnsupportedIpVersionError,
-  assertAbsoluteIri, assertAbsoluteUri, assertIri, assertIriReference, assertUri, assertUriReference, isIri, isUri
+  InvalidIriError, InvalidUriError,
+  assertAbsoluteIri, assertAbsoluteUri, assertIri, assertIriReference, assertUri, assertUriReference
 } from "./index.js";
 
 describe("InvalidUriError", () => {
@@ -144,28 +144,6 @@ describe("What's wrong and where", () => {
     }]
   ])("%s", (_description, fn, expected) => {
     expect(thrown(fn)).to.include(expected);
-  });
-});
-
-describe("UnsupportedIpVersionError", () => {
-  const error = thrown(() => isUri("http://[v7.future]/foo"));
-
-  test("is an Error", () => {
-    expect(error).to.be.instanceOf(UnsupportedIpVersionError);
-    expect(error).to.be.instanceOf(Error);
-    expect(error).to.include({ name: "UnsupportedIpVersionError" });
-  });
-
-  test("has the value and the host", () => {
-    expect(error).to.include({ value: "http://[v7.future]/foo", host: "[v7.future]" });
-  });
-
-  test("has v1's message", () => {
-    expect(error).to.include({ message: "Unsupported IP version in host: v7.future" });
-  });
-
-  test("is thrown for IRIs too", () => {
-    expect(thrown(() => isIri("http://[v7.future]/rosé"))).to.be.instanceOf(UnsupportedIpVersionError);
   });
 });
 

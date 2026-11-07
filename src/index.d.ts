@@ -42,10 +42,6 @@ export type NormalizedUri = Uri & { readonly [normalizedUri]: true };
  * a fragment. A built-in scheme's rules are checked too, for `http`,
  * `https`, `file`, `urn`, and `did`. Any other scheme gets the generic
  * syntax only.
- *
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version, like `[v7.future]`. Its syntax is known, but not
- *   whether the address is valid.
  */
 export const isUri: (value: string) => value is Uri;
 
@@ -53,43 +49,28 @@ export const isUri: (value: string) => value is Uri;
  * Whether `value` is a URI-reference (RFC 3986 §4.1): a URI, or a relative
  * reference like `../foo#bar`. A relative reference isn't checked against
  * a scheme.
- *
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const isUriReference: (value: string) => value is UriReference;
 
 /**
  * Whether `value` is an absolute-URI (RFC 3986 §4.3): a URI without a
  * fragment.
- *
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const isAbsoluteUri: (value: string) => value is AbsoluteUri;
 
 /**
  * Whether `value` is an IRI (RFC 3987): a URI that can have Unicode
  * characters.
- *
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const isIri: (value: string) => value is Iri;
 
 /**
  * Whether `value` is an IRI-reference: an IRI, or a relative reference.
- *
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const isIriReference: (value: string) => value is IriReference;
 
 /**
  * Whether `value` is an absolute-IRI: an IRI without a fragment.
- *
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const isAbsoluteIri: (value: string) => value is AbsoluteIri;
 
@@ -98,8 +79,6 @@ export const isAbsoluteIri: (value: string) => value is AbsoluteIri;
  * that says what's wrong and where if it isn't.
  *
  * @throws {InvalidUriError} If `value` isn't a URI.
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const assertUri: (value: string) => asserts value is Uri;
 
@@ -107,8 +86,6 @@ export const assertUri: (value: string) => asserts value is Uri;
  * Checks that `value` is a URI-reference, like {@link isUriReference}.
  *
  * @throws {InvalidUriError} If `value` isn't a URI-reference.
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const assertUriReference: (value: string) => asserts value is UriReference;
 
@@ -116,8 +93,6 @@ export const assertUriReference: (value: string) => asserts value is UriReferenc
  * Checks that `value` is an absolute-URI, like {@link isAbsoluteUri}.
  *
  * @throws {InvalidUriError} If `value` isn't an absolute-URI.
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const assertAbsoluteUri: (value: string) => asserts value is AbsoluteUri;
 
@@ -125,8 +100,6 @@ export const assertAbsoluteUri: (value: string) => asserts value is AbsoluteUri;
  * Checks that `value` is an IRI, like {@link isIri}.
  *
  * @throws {InvalidIriError} If `value` isn't an IRI.
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const assertIri: (value: string) => asserts value is Iri;
 
@@ -134,8 +107,6 @@ export const assertIri: (value: string) => asserts value is Iri;
  * Checks that `value` is an IRI-reference, like {@link isIriReference}.
  *
  * @throws {InvalidIriError} If `value` isn't an IRI-reference.
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const assertIriReference: (value: string) => asserts value is IriReference;
 
@@ -143,8 +114,6 @@ export const assertIriReference: (value: string) => asserts value is IriReferenc
  * Checks that `value` is an absolute-IRI, like {@link isAbsoluteIri}.
  *
  * @throws {InvalidIriError} If `value` isn't an absolute-IRI.
- * @throws {UnsupportedIpVersionError} If the host is an IP literal of a
- *   future version.
  */
 export const assertAbsoluteIri: (value: string) => asserts value is AbsoluteIri;
 
@@ -409,21 +378,6 @@ export class InvalidIriError extends Error {
    * same.
    */
   readonly end: number;
-
-  private constructor();
-}
-
-/**
- * The host is an IP literal of a version after IPv6, like `[v7.future]`.
- * RFC 3986 defines its syntax but not its addresses, so whether it's valid
- * can't be known.
- */
-export class UnsupportedIpVersionError extends Error {
-  /** The value with the host. */
-  readonly value: string;
-
-  /** The host, with its brackets, like `[v7.future]`. */
-  readonly host: string;
 
   private constructor();
 }

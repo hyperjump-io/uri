@@ -163,7 +163,6 @@ const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFF
 const rules = (unreserved, iprivate) => {
   const regName = `(?:${unreserved}|${pctEncoded}|${subDelims})*`;
   const host = `(?:${ipLiteral}|${ipV4Address}|${regName})`;
-  const hostWithoutFuture = `(?:\\[${ipV6Address}\\]|${ipV4Address}|${regName})`;
   const userinfo = `(?:${unreserved}|${pctEncoded}|${subDelims}|:)*`;
   const authority = `(?:${userinfo}@)?${host}(?::${port})?`;
 
@@ -193,9 +192,7 @@ const rules = (unreserved, iprivate) => {
     reference: `^(?:${uri}|${relativeRef})$`,
     absolute: `^${absoluteUri}$`,
     components: { scheme, userinfo, regName, port, pathAbEmpty, pathAbsolute, pathNoScheme, pathRootless, query, fragment },
-    // A scheme's host has no IP literal of a future version, so one fails the scheme's pattern and is looked at again,
-    // where it throws
-    parts: { userinfo, host: hostWithoutFuture, port, pathAbEmpty, pathAbsolute, pathRootless, query, fragment }
+    parts: { userinfo, host, port, pathAbEmpty, pathAbsolute, pathRootless, query, fragment }
   };
 };
 
@@ -578,28 +575,10 @@ export class InvalidIriError extends Error {
   }
 }
 
-export class UnsupportedIpVersionError extends Error {
-  /**
-   * @param {string} value
-   * @param {string} host
-   */
-  constructor(value, host) {
-    super(`Unsupported IP version in host: ${host.slice(1, -1)}`);
-    this.name = "UnsupportedIpVersionError";
-
-    /** @readonly */
-    this.value = value;
-
-    /** @readonly */
-    this.host = host;
-  }
-}
-
 // These are called while the module loads, so they're function declarations, which are hoisted
 
-// A validator tests an identifier with a built-in scheme against its scheme's pattern, and only a value that fails is
-// looked at again: the generic pattern says whether it's an identifier at all, and the scheme's rules say which one it
-// breaks. Any other value is tested against the generic pattern only.
+// A validator tests an identifier with a built-in scheme against its scheme's pattern, which is the generic syntax with
+// the scheme's rules, and any other value against the generic pattern
 /**
  * @param {RegExp} pattern
  * @param {"uri" | "iri"} form
@@ -609,11 +588,12 @@ export class UnsupportedIpVersionError extends Error {
 function createValidator(pattern, form, kind) {
   return (/** @type string */ value) => {
     const scheme = builtInSchemeOf(value);
-    return (scheme !== undefined && scheme[form][kind].test(value))
-      || (pattern.test(value) && checkScheme(value, scheme) === undefined);
+    return scheme === undefined ? pattern.test(value) : scheme[form][kind].test(value);
   };
 }
 
+// An assertion tests what a validator does, and only a value that fails is looked at again: the generic pattern says
+// whether it's an identifier at all, and the scheme's rules say which one it breaks
 /**
  * @param {RegExp} pattern
  * @param {"uri" | "iri"} form
@@ -633,7 +613,8 @@ function createAssertion(pattern, form, kind, rule, invalid) {
       throw invalid(value, rule, diagnose(rule, value));
     }
 
-    const problem = checkScheme(value, scheme);
+    // A relative reference isn't checked against a scheme
+    const problem = scheme === undefined ? undefined : checkComponents(scheme, split(value), allComponents, value);
     if (problem !== undefined) {
       throw invalid(value, problem.rule, locate(value, problem));
     }
@@ -936,26 +917,6 @@ const startsWithScheme = (value, name) => {
   }
 
   return true;
-};
-
-// Checks what a validator checks after its pattern: whether an IP literal is of a future version, and the rules of
-// its built-in scheme, if it has one. A relative reference isn't checked against a scheme.
-/** @type (value: string, scheme: Scheme | undefined) => SchemeProblem | undefined */
-const checkScheme = (value, scheme) => {
-  /** @type Components | undefined */
-  let components;
-
-  // An IP literal of a future version has a known syntax, but whether its address is valid can't be known. "[" is
-  // only allowed in an IP literal, so the host is only split out for an identifier that has one.
-  if (value.includes("[")) {
-    components = split(value);
-    const host = /** @type string */ (components.host);
-    if (host[1] === "v" || host[1] === "V") {
-      throw new UnsupportedIpVersionError(value, host);
-    }
-  }
-
-  return scheme === undefined ? undefined : checkComponents(scheme, components ?? split(value), allComponents, value);
 };
 
 // The first of `names` that breaks the scheme's rules, in the order the components are in. A pattern is tested where

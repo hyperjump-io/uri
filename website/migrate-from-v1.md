@@ -152,12 +152,25 @@ compares the result with an object that has `undefined` properties,
 changes. For more information, see
 [Components](validate-and-parse.md#components).
 
+## Future IP addresses are valid
+
+In v1, the validation functions threw an error for a host that's an IP
+address of a version after IPv6, like `[v7.future]`. In v2, they check
+its syntax, like any other host:
+
+```typescript
+// v1
+isIri("http://[v7.future]/"); // throws "Unsupported IP version in host: v7.future"
+
+// v2
+isIri("http://[v7.future]/"); // true
+```
+
 ## Errors are classes
 
 The `assert` functions throw an `InvalidUriError` or an `InvalidIriError`
-instead of an `Error`, and the validation functions throw an
-`UnsupportedIpVersionError`. Each one extends `Error`, so code that
-catches them keeps working. To tell them apart, use `instanceof` instead
+instead of an `Error`. Each one extends `Error`, so code that catches them
+keeps working. To tell them apart, use `instanceof` instead
 of checking the message.
 
 The messages of `InvalidUriError` and `InvalidIriError` start with v1's

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
-  InvalidIriError, InvalidUriError, UnsupportedIpVersionError,
+  InvalidIriError, InvalidUriError,
   assertIri, assertIriReference, assertUri, isAbsoluteIri, isIri, isIriReference, isUri,
   normalizeIri, normalizeUri, parseUrn, resolveIri
 } from "./index.js";
@@ -112,8 +112,9 @@ describe("Built-in schemes", () => {
     expect(isUri("tag:é")).to.equal(false);
   });
 
-  test("an IP literal of a future version still throws", () => {
-    expect(() => isIri("https://[v1.a]/")).to.throw(UnsupportedIpVersionError);
+  test("an IP literal of a future version is a host", () => {
+    expect(isIri("https://[v1.a]/")).to.equal(true);
+    expect(isIri("file://[v1.a]/a")).to.equal(true);
   });
 });
 

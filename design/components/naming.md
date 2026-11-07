@@ -8,8 +8,8 @@ v1's names already follow it. Each is a verb and the kind of identifier it
 works on: `parseUri`, `resolveIri`, `isAbsoluteUri`, `toRelativeIri`. So
 they didn't change.
 
-The error classes name what went wrong: `InvalidUriError`,
-`InvalidIriError`, and `UnsupportedIpVersionError`.
+The error classes name what went wrong: `InvalidUriError` and
+`InvalidIriError`.
 
 ## Rejected
 

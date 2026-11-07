@@ -1,5 +1,5 @@
 import {
-  InvalidUriError, UnsupportedIpVersionError,
+  InvalidIriError, InvalidUriError,
   assertAbsoluteIri, assertIri, assertIriReference, isAbsoluteUri, isIri, isUri, isUriReference,
   getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri
 } from "./index.js";
@@ -182,12 +182,9 @@ if (error instanceof InvalidUriError) {
   // @ts-expect-error A reason is one of the listed codes
   error.reason satisfies "not-a-reason";
 }
-if (error instanceof UnsupportedIpVersionError) {
-  error.host satisfies string;
-}
 
 // The errors can't be constructed outside the package
 // @ts-expect-error The constructor is private
 new InvalidUriError();
 // @ts-expect-error The constructor is private
-new UnsupportedIpVersionError();
+new InvalidIriError();

@@ -195,7 +195,6 @@ The functions throw the following errors:
 | --- | --- |
 | `InvalidUriError` | A string passed to an `assert` function for URIs isn't that kind of URI |
 | `InvalidIriError` | A string passed to an `assert` function for IRIs isn't that kind of IRI, or `resolveIri`'s result breaks its scheme's rules |
-| `UnsupportedIpVersionError` | A validation function gets an identifier whose host is an IP address of a future version. For more information, see [Future IP versions](#future-ip-versions). |
 
 Each error has a `value` property with the string that caused it.
 
@@ -266,7 +265,9 @@ two.
 
 RFC 3986 reserves a syntax for IP addresses of versions after IPv6, like
 `[v7.future]`. It defines what they look like, but not which addresses are
-valid. A validation function can't say whether an identifier with one is
-valid, so it throws an `UnsupportedIpVersionError` instead of returning
-`true` or `false`. The error's `host` property is the host, like
-`[v7.future]`.
+valid. The validation functions check the syntax only, so an identifier
+with one is valid:
+
+```typescript
+isIri("http://[v7.future]/"); // true
+```

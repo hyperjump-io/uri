@@ -31,7 +31,7 @@ need them, so a caller who only splits and resolves doesn't load them.
 
 ## Validating, then splitting
 
-How `src/` parses now, and how the validators find future IP literals:
+How `src/` parses now:
 
 1. **Validate** with the rule's regular expression, built from the ABNF
    with no capture groups, using `test`.
@@ -55,11 +55,6 @@ each kind ends that component:
   `userinfo`.
 - Only an IP literal can have `:` or `[`, so the port's `:` is the first
   one after the `]`, if the host starts with `[`.
-
-Validators use the same fact for future IP literals: `[` is only allowed in
-an IP literal, so a validator splits out the host only for a valid string
-with a `[` in it, and checks whether the host starts with `[v` (see
-[Future IP versions](future-ip-versions.md)).
 
 The split can disagree with the patterns without any test failing, so it
 was checked against the version with capture groups: 146,686 inputs, the
@@ -174,7 +169,7 @@ Measured in [Parsing strategies](../benchmarks/parsing-strategies.md).
 - **Capture groups**, as in v1. Named groups made a match about 2.4 times
   as slow as the same pattern without them, and they needed groups that
   weren't components, like `path2` for a path without an authority and
-  `ipVFuture` for the validators.
+  `ipVFuture`, which v1's validators threw for.
 - **A parser composed from a function for each rule**, like a small
   version of `json-schema`'s kernel: the grammar as data, compiled to
   closures. The rules would still read like the ABNF, but V8 compiles a

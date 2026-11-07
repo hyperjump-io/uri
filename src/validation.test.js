@@ -27,9 +27,8 @@ describe("isUri", () => {
     expect(isUri("http://examplé.org/rosé#")).to.equal(false);
   });
 
-  test("IPvFuture is not supported", () => {
-    expect(() => isUri("http://[v7.future]/foo"))
-      .to.throw(Error, "Unsupported IP version in host: v7.future");
+  test("IPvFuture", () => {
+    expect(isUri("http://[v7.future]/foo")).to.equal(true);
   });
 });
 
@@ -82,9 +81,8 @@ describe("isUriReference", () => {
     expect(isUriReference("/rosé#")).to.equal(false);
   });
 
-  test("IPvFuture is not supported", () => {
-    expect(() => isUriReference("//[V1.a]/foo"))
-      .to.throw(Error, "Unsupported IP version in host: V1.a");
+  test("IPvFuture", () => {
+    expect(isUriReference("//[V1.a]/foo")).to.equal(true);
   });
 });
 
@@ -105,9 +103,8 @@ describe("isAbsoluteUri", () => {
     expect(isAbsoluteUri("http://examplé.org/rosé")).to.equal(false);
   });
 
-  test("IPvFuture is not supported", () => {
-    expect(() => isAbsoluteUri("http://[v7.future]/foo"))
-      .to.throw(Error, "Unsupported IP version in host: v7.future");
+  test("IPvFuture", () => {
+    expect(isAbsoluteUri("http://[v7.future]/foo")).to.equal(true);
   });
 });
 
@@ -136,9 +133,8 @@ describe("isIri", () => {
     expect(isAbsoluteIri("examplé://examplé.org/rosé")).to.equal(false);
   });
 
-  test("IPvFuture is not supported", () => {
-    expect(() => isIri("http://[v7.future]/rosé"))
-      .to.throw(Error, "Unsupported IP version in host: v7.future");
+  test("IPvFuture", () => {
+    expect(isIri("http://[v7.future]/rosé")).to.equal(true);
   });
 });
 
@@ -179,9 +175,8 @@ describe("isIriReference", () => {
     expect(isIriReference("1:rosé")).to.equal(false);
   });
 
-  test("IPvFuture is not supported", () => {
-    expect(() => isIriReference("//[vF.a]/rosé"))
-      .to.throw(Error, "Unsupported IP version in host: vF.a");
+  test("IPvFuture", () => {
+    expect(isIriReference("//[vF.a]/rosé")).to.equal(true);
   });
 });
 
@@ -202,8 +197,7 @@ describe("isAbsoluteIri", () => {
     expect(isAbsoluteIri("examplé://examplé.org/rosé")).to.equal(false);
   });
 
-  test("IPvFuture is not supported", () => {
-    expect(() => isAbsoluteIri("http://[v7.future]/rosé"))
-      .to.throw(Error, "Unsupported IP version in host: v7.future");
+  test("IPvFuture", () => {
+    expect(isAbsoluteIri("http://[v7.future]/rosé")).to.equal(true);
   });
 });

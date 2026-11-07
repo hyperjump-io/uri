@@ -7,7 +7,6 @@ instead of by its message.
 | --- | --- | --- | --- |
 | `InvalidUriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of URI a function needs |
 | `InvalidIriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of IRI a function needs |
-| `UnsupportedIpVersionError` | `Error` | `value`, `host` | A validator is given a future IP literal (see [Future IP versions](future-ip-versions.md)) |
 
 `InvalidUriError` and `InvalidIriError` are
 thrown by `assert*`, which checks like `is*` does, and by `resolveIri`

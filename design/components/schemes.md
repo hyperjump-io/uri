@@ -106,9 +106,9 @@ about would carry the same burden, and it's easy to get wrong.
 
 - **`UnknownSchemeError` for an unknown scheme, with custom schemes to
   configure them**, which this design had until 2026-11-06. A validator
-  that doesn't know a scheme said "I don't know" (see
-  [Answer only what's known](../principles/answer-only-whats-known.md)),
-  and adding a built-in wasn't breaking. It was dropped for the reasons
+  that doesn't know a scheme said "I don't know", by a principle that's
+  retired now (see [Principles](../principles/README.md#rejected)), and
+  adding a built-in wasn't breaking. It was dropped for the reasons
   above. The design of custom schemes, `defineScheme`, `urnScheme`,
   `lowercaseComponent`, `ComponentPattern`, and the contexts in
   `@hyperjump/uri/abnf`, is in this document as of `1aa6c9e`.
@@ -199,23 +199,26 @@ patterns took as long as the hand-written ones did, within 3% (see
 
 ### Checking
 
-A validator for an identifier with a built-in scheme tests the scheme's
-whole pattern. That's one regular expression, with no splitting. Only a
-value that fails is looked at again: the generic pattern says whether
-it's an identifier at all, and the scheme's rules say which one it
-breaks, for `is*` and `assert*` alike. So the slow path decides every
-`false` and every error, and the fast path only ever returns `true`.
+`is*` for an identifier with a built-in scheme tests the scheme's whole
+pattern, which is the generic syntax with the scheme's rules. That's one
+regular expression, with no splitting, and its answer is the answer. Any
+other value is tested against the generic pattern only.
 
-- The fast path finds the scheme by comparing each built-in's name with
-  the start of the value, a character at a time and without case, instead
-  of slicing the name out and making it lowercase. That took `isIri` from
-  163 milliseconds to 138. A name that's found wrongly is harmless, since
-  the scheme's pattern checks its name.
-- The scheme is found once, and the slow path is given it. A value without
-  a built-in scheme is tested against the generic pattern only. Looking
-  its scheme up again on the slow path made `isIri` of an unknown scheme
-  1.4 times as slow.
-- On the slow path, and in `resolveIri`'s check of its result, each
+`assert*` tests the same pattern, and only a value that fails is looked
+at again, to say why: the generic pattern says whether it's an identifier
+at all, and the scheme's rules say which one it breaks. So `is*` and
+`assert*` agree, which differential tests check.
+
+- The scheme is found by comparing each built-in's name with the start of
+  the value, a character at a time and without case, instead of slicing
+  the name out and making it lowercase. That took `isIri` from 163
+  milliseconds to 138. A name that's found for a value that isn't valid
+  is harmless, since the scheme's pattern checks its name.
+- `is*` used to look at a value that failed again too, to throw for an IP
+  literal of a future version. Without it, `isIri` of an invalid value
+  takes a fifth of the time (see
+  [Future IP literals](../benchmarks/future-ip-literals.md)).
+- On `assert*`'s second look, and in `resolveIri`'s check of its result, each
   component's pattern is sticky and tested where its component starts in
   the value, without slicing it out. Slicing made `resolveIri` 1.1 times
   as slow.
@@ -720,9 +723,10 @@ Measured when the built-ins' patterns were built (see
 [`defineScheme`](../benchmarks/define-scheme.md)). `isIri` of the four
 benchmark identifiers takes 119 milliseconds, where it took 315 with
 predicates and 81 with the generic syntax only, before schemes. It's 0.7
-times v1's, where it was 1.7 times. A value that's invalid takes 1.2
-times as long as with predicates, since it's tested against its scheme's
-pattern first.
+times v1's, where it was 1.7 times. A value that's invalid took 1.2
+times as long as with predicates then, since it was tested against its
+scheme's pattern first. Since `is*` stopped looking at one again, it
+takes a fifth of that.
 
 Without custom schemes (see
 [Built-in schemes](../benchmarks/built-in-schemes.md)), the functions

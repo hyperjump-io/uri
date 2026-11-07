@@ -14,10 +14,7 @@ string, and only a function that checks gives one.
 
 `is*` and `assert*` give the same answers. `is*` returns a boolean and is
 a type guard. `assert*` throws an error that says what's wrong and where
-(see [Errors](errors.md)), and is an assertion function. Both throw
-`UnsupportedIpVersionError` for a future IP literal, because "I don't
-know" isn't `true` or `false` (see
-[Answer only what's known](../principles/answer-only-whats-known.md)).
+(see [Errors](errors.md)), and is an assertion function.
 
 Given input the types don't allow, like a string that was cast, a trusting
 function's result is undefined. It doesn't throw for it.
