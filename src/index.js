@@ -224,6 +224,12 @@ const isAllowedInIQuery = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|
 const isAllAllowedInFragment = new RegExp(`^(?:${unreserved}|${subDelims}|[:@/?])*$`);
 const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/?])*$`, "u");
 
+// Characters a URL's authority and path allow, in one piece, for urlToIri. "[" and "]" are only in a URL's authority
+// around an IPv6 address. Its query and fragment allow what isAllowedInQuery does.
+const isAllowedInUrlAuthority = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@\\[\\]]`));
+const isAllowedInUrlPath = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@/]`));
+const hexPair = /^[0-9a-fA-F]{2}$/;
+
 // The built-in schemes are compiled by compileScheme. A scheme's pattern for a component is a lookahead where the
 // component starts, next to the generic component, which is what's matched, so a scheme can only reject more than the
 // generic syntax. The lookahead ends with what can follow the component.
@@ -510,6 +516,20 @@ export const resolveIri = (/** @type string */ reference, /** @type string */ ba
 
 /** @type typeof API.toRelativeIri */
 export const toRelativeIri = (/** @type string */ target, /** @type string */ base) => /** @type any */ (toRelative(target, base));
+
+// Most URLs are already URIs, so they're only encoded if they aren't. One that's still not a URI breaks its scheme's
+// rules, which the URL Standard doesn't know.
+/** @type typeof API.urlToIri */
+export const urlToIri = (url) => {
+  const { href } = url;
+  if (isUri(href)) {
+    return href;
+  }
+
+  const uri = encodeUrl(href);
+  assertUri(uri);
+  return uri;
+};
 
 export class InvalidUriError extends Error {
   /**
@@ -1479,6 +1499,55 @@ const relativePath = (from, to) => {
 
   // Prefix "./" when the reference would otherwise be empty, start with an empty segment, or look like a scheme
   return result === "" || result.startsWith("/") || hasSchemeLikeSegment.test(result) ? "./" + result : result;
+};
+
+// URLs
+
+// Splits a URL's serialization at its delimiters, the way split does, and encodes each component. The URL Standard
+// encodes each delimiter where it doesn't end a component, so the first of each is where its component ends, like in
+// a URI.
+/** @type (href: string) => string */
+const encodeUrl = (href) => {
+  const fragmentStart = href.indexOf("#");
+  const queryEnd = fragmentStart === -1 ? href.length : fragmentStart;
+  const queryStart = href.indexOf("?");
+  const pathEnd = queryStart === -1 || queryStart > queryEnd ? queryEnd : queryStart;
+
+  // A URL always has a scheme
+  const colon = href.indexOf(":");
+  let encoded = href.slice(0, colon + 1);
+  let pathStart = colon + 1;
+
+  if (href.startsWith("//", pathStart)) {
+    const slash = href.indexOf("/", pathStart + 2);
+    const authorityEnd = slash === -1 || slash > pathEnd ? pathEnd : slash;
+    encoded += "//" + encodeUrlComponent(href.slice(pathStart + 2, authorityEnd), isAllowedInUrlAuthority);
+    pathStart = authorityEnd;
+  }
+
+  encoded += encodeUrlComponent(href.slice(pathStart, pathEnd), isAllowedInUrlPath);
+  if (pathEnd < queryEnd) {
+    encoded += "?" + encodeUrlComponent(href.slice(pathEnd + 1, queryEnd), isAllowedInQuery);
+  }
+  if (fragmentStart !== -1) {
+    encoded += "#" + encodeUrlComponent(href.slice(fragmentStart + 1), isAllowedInQuery);
+  }
+
+  return encoded;
+};
+
+// A URL's serialization is ASCII, so each character is one octet. A "%" that starts a percent-encoding is kept, and
+// any other is encoded.
+/** @type (text: string, isAllowed: (char: string) => boolean) => string */
+const encodeUrlComponent = (text, isAllowed) => {
+  let encoded = "";
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    const isKept = char === "%" ? hexPair.test(text.slice(index + 1, index + 3)) : isAllowed(char);
+    encoded += isKept ? char : encodeOctets([char.charCodeAt(0)]);
+  }
+
+  return encoded;
 };
 
 // Diagnosing why a value doesn't match a rule. The patterns only say whether it matches, so this finds what's wrong,

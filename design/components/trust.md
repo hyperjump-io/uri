@@ -8,7 +8,7 @@ string, and only a function that checks gives one.
 | Checks | Trusts |
 | --- | --- |
 | `isUri`, `isUriReference`, `isAbsoluteUri`, and their IRI forms | `parseIri`, `parseUrn` |
-| `assertUri`, `assertUriReference`, `assertAbsoluteUri`, and their IRI forms | `resolveIri`, `toRelativeIri`, `toAbsoluteIri` |
+| `assertUri`, `assertUriReference`, `assertAbsoluteUri`, and their IRI forms | `resolveIri`, `toRelativeIri`, `toAbsoluteIri`, `urlToIri` |
 | | `getScheme`, `getPath`, `getQuery`, `getFragment`, `hasScheme` |
 | | `normalizeUri`, `normalizeIri` |
 

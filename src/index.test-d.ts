@@ -1,7 +1,7 @@
 import {
   InvalidIriError, InvalidUriError,
   assertAbsoluteIri, assertIri, assertIriReference, isAbsoluteUri, isIri, isUri, isUriReference,
-  getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri
+  getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urlToIri
 } from "./index.js";
 import type {
   AbsoluteIri, AbsoluteUri, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri,
@@ -188,3 +188,9 @@ if (error instanceof InvalidUriError) {
 new InvalidUriError();
 // @ts-expect-error The constructor is private
 new InvalidIriError();
+
+// A URL is a URI, which is an IRI
+urlToIri(new URL("https://example.com")) satisfies Uri;
+urlToIri(new URL("https://example.com")) satisfies Iri;
+// @ts-expect-error It takes a URL, not a string
+urlToIri("https://example.com");

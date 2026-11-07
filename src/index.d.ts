@@ -234,6 +234,19 @@ export function toRelativeIri(target: NormalizedUri, base: NormalizedUri & Absol
 export function toRelativeIri(target: NormalizedIri, base: NormalizedIri & AbsoluteIri): IriReference;
 
 /**
+ * A WHATWG URL as an identifier, for a URL that comes from the platform,
+ * like `pathToFileURL`'s or `fetch`'s `response.url`. It percent-encodes the
+ * characters the URL Standard leaves that RFC 3986 doesn't allow in their
+ * component, like `|` in a path or a second `#`, and a `%` that doesn't
+ * start a percent-encoding. Nothing is decoded. The result is a URI, and
+ * every URI is an IRI.
+ *
+ * @throws {InvalidUriError} If it breaks its scheme's rules, like `urn:x`,
+ *   which has no namespace.
+ */
+export const urlToIri: (url: URL) => Uri;
+
+/**
  * The components of a URI or IRI. The authority's parts, `userinfo`,
  * `host`, and `port`, are there only if `authority` is.
  */
