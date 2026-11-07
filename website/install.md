@@ -44,14 +44,10 @@ The package exports the following types:
 | `Uri`, `UriReference`, `AbsoluteUri` | A string that a URI validation function checked |
 | `Iri`, `IriReference`, `AbsoluteIri` | A string that an IRI validation function checked |
 | `NormalizedUri`, `NormalizedIri` | A string from `normalizeUri` or `normalizeIri` |
-| `Options` | The options of the functions that know schemes, with `customSchemes` |
-| `Scheme` | A scheme from `defineScheme`, for `customSchemes` |
-| `SchemeDefinition`, `ComponentRule` | A scheme's rules and normalization, for `defineScheme`. For more information, see [Add a scheme](schemes.md#add-a-scheme). |
-| `UrnNamespace` | A URN namespace's rules and normalization, for `urnScheme` |
 | `IdentifierComponents` | The components of a URI or IRI, from `parseIri` |
 | `RelativeIdentifierComponents` | The components of a reference, from `parseIri` |
 | `AbsoluteIdentifierComponents` | The components of an absolute URI or IRI, from `parseIri` |
-| `UrnComponents`, `TagComponents` | The parts of a URN or a tag, from `parseUrn` and `parseTag` |
+| `UrnComponents` | The parts of a URN, from `parseUrn` |
 | `UriRule` | An RFC 3986 `rule` of an `InvalidUriError`: `"URI"`, `"URI-reference"`, or `"absolute-URI"` |
 | `IriRule` | An RFC 3987 `rule` of an `InvalidIriError`: `"IRI"`, `"IRI-reference"`, or `"absolute-IRI"` |
 | `InvalidIdentifierReason` | The `reason` of an `InvalidUriError` or an `InvalidIriError` |

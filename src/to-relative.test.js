@@ -1,17 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { defineScheme, normalizeIri, normalizeUri, resolveIri, toRelativeIri } from "./index.js";
+import { normalizeIri, normalizeUri, resolveIri, toRelativeIri } from "./index.js";
 
 /** @import { AbsoluteUri } from "./index.d.ts" */
 
-// Schemes with no normalization of their own, so the paths aren't changed by an http one
-const options = {
-  customSchemes: [
-    defineScheme({ name: "web", rule: "web" }),
-    defineScheme({ name: "foo", rule: "foo" }),
-    defineScheme({ name: "bar", rule: "bar" })
-  ]
-};
-
+// Schemes that aren't built in, so the paths aren't changed by an http normalization
 // toRelativeIri takes normalized identifiers, so each is normalized first, the way a caller would
 const relativeTests = /** @type [string, string, string][] */ ([
   ["web://example.com/var/lib", "web://example.com", "/var/lib"],
@@ -53,19 +45,19 @@ const relativeTests = /** @type [string, string, string][] */ ([
 
 describe("toRelativeIri", () => {
   test.each(relativeTests)("toRelativeIri(%s, %s) => %s", (target, base, expected) => {
-    const normalizedTarget = normalizeIri(trusted(target), options);
-    const normalizedBase = normalizeIri(trusted(base), options);
+    const normalizedTarget = normalizeIri(trusted(target));
+    const normalizedBase = normalizeIri(trusted(base));
     const relative = toRelativeIri(normalizedTarget, normalizedBase);
     expect(relative).to.equal(expected);
-    expect(resolveIri(relative, normalizedBase, options)).to.equal(normalizedTarget);
+    expect(resolveIri(relative, normalizedBase)).to.equal(normalizedTarget);
   });
 
   test.each(relativeTests)("toRelativeIri(%s, %s) => %s, for URIs", (target, base, expected) => {
-    const normalizedTarget = normalizeUri(trusted(target), options);
-    const normalizedBase = normalizeUri(trusted(base), options);
+    const normalizedTarget = normalizeUri(trusted(target));
+    const normalizedBase = normalizeUri(trusted(base));
     const relative = toRelativeIri(normalizedTarget, normalizedBase);
     expect(relative).to.equal(expected);
-    expect(resolveIri(relative, normalizedBase, options)).to.equal(normalizedTarget);
+    expect(resolveIri(relative, normalizedBase)).to.equal(normalizedTarget);
   });
 });
 

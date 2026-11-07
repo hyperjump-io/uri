@@ -1,11 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { defineScheme, normalizeIri, normalizeUri } from "./index.js";
+import { normalizeIri, normalizeUri } from "./index.js";
 
 /** @import { Uri } from "./index.d.ts" */
 
-// A scheme with no normalization of its own, for the syntax-based normalization
-const options = { customSchemes: [defineScheme({ name: "foo", rule: "foo" })] };
-
+// foo isn't built in, so it gets the syntax-based normalization only
 const rootlessPathTests = [
   ["foo:a/b", "foo:a/b"], // No dot segments
   ["foo:./a", "foo:a"], // Leading dot segment
@@ -80,13 +78,13 @@ describe("normalizeIri", () => {
 
 describe("normalizeUri", () => {
   test.each(rootlessPathTests)("normalizeUri(%s) => %s", (uri, expected) => {
-    expect(normalizeUri(trusted(uri), options)).to.equal(expected);
+    expect(normalizeUri(trusted(uri))).to.equal(expected);
   });
 });
 
 describe("normalizeIri", () => {
   test.each(rootlessPathTests)("normalizeIri(%s) => %s", (iri, expected) => {
-    expect(normalizeIri(trusted(iri), options)).to.equal(expected);
+    expect(normalizeIri(trusted(iri))).to.equal(expected);
   });
 });
 

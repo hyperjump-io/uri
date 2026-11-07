@@ -1,9 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { defineScheme, resolveIri } from "./index.js";
+import { resolveIri } from "./index.js";
 
-// A scheme with no rules of its own, for the generic algorithm
-const options = { customSchemes: [defineScheme({ name: "foo", rule: "foo" })] };
-
+// foo isn't built in, so it has no rules for the result to break
 const resolveTests = [
   ["http://a/b/c/d;p?q", "g:h", "g:h"],
   ["http://a/b/c/d;p?q", "g:h", "g:h"],
@@ -69,7 +67,7 @@ const resolveTests = [
 describe("resolveIri", () => {
   resolveTests.forEach(([base, reference, expected]) => {
     test(`resolveIri('${reference}', '${base}') === '${expected}'`, () => {
-      expect(resolveIri(trustedReference(reference), trustedBase(base), options)).to.equal(expected);
+      expect(resolveIri(trustedReference(reference), trustedBase(base))).to.equal(expected);
     });
   });
 });

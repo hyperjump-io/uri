@@ -19,3 +19,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 - [`defineScheme`](define-scheme.md) (2026-11-04)
 - [ABNF](abnf.md) (2026-11-04)
 - [Getters](getters.md) (2026-11-04)
+- [Built-in schemes](built-in-schemes.md) (2026-11-06)

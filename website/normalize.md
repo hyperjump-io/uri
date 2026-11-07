@@ -41,10 +41,8 @@ port of an `https` URI. A scheme can also turn off the rules from RFC
 3986. For example, `urn` and `tag` identifiers aren't decoded. For what
 each scheme changes, see [Built-in schemes](schemes.md#built-in-schemes).
 
-The functions need the scheme's normalization, so they throw an
-`UnknownSchemeError` for a scheme that they don't know. They take the
-`customSchemes` option, like the validation functions. For more
-information, see [Add a scheme](schemes.md#add-a-scheme).
+An identifier with a scheme that isn't built in gets only the
+normalization from RFC 3986.
 
 ## Encode a fragment
 

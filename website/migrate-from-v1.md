@@ -7,37 +7,26 @@ TypeScript reports many of them, but some don't change any types.
 ## Scheme rules apply
 
 In v1, the validation functions checked only the generic syntax. In v2,
-they check the rules of its scheme too, and throw an
-`UnknownSchemeError` for a scheme that they don't know:
+they check the rules of the scheme that the identifier has too, for the
+schemes that the package knows: `http`, `https`, `file`, `urn`, `tag`,
+and `did`. Other schemes are checked with the generic syntax only, like
+v1 did:
 
 ```typescript
 // v1
 isIri("http:///a"); // true
-isIri("did:example:123"); // true
+isIri("did:Example:123"); // true
+isIri("example:a"); // true
 
 // v2
 isIri("http:///a"); // false: an http URI needs a host
-isIri("did:example:123"); // throws UnknownSchemeError
+isIri("did:Example:123"); // false: a method's name is lowercase
+isIri("example:a"); // true
 ```
 
-`normalizeIri`, `normalizeUri`, and `resolveIri` throw it too. If you use
-identifiers with schemes other than `http`, `https`, `file`, `tag`, and
-`urn`, make a scheme for each of them with `defineScheme`, and pass them
-in the `customSchemes` option of each of these functions. A scheme
-without rules checks only the generic syntax, like v1 did:
-
-```typescript
-const options = {
-  customSchemes: [defineScheme({ name: "did", rule: "did" })]
-};
-
-isIri("did:example:123", options); // true
-```
-
-Make the options once, like when your module loads, and reuse them,
-because `defineScheme` compiles the scheme's rules. For a URN, add its
-namespace with `urnScheme`. For more information, see
-[Schemes](schemes.md).
+`resolveIri` checks its result against its scheme's rules too, and
+`normalizeIri` and `normalizeUri` apply the scheme's normalization. For
+more information, see [Schemes](schemes.md).
 
 ## Check identifiers before you use them
 
@@ -167,7 +156,6 @@ changes. For more information, see
 
 The `assert` functions throw an `InvalidUriError` or an `InvalidIriError`
 instead of an `Error`, and the validation functions throw an
-`UnknownSchemeError`, an `UnknownUrnNamespaceError`, or an
 `UnsupportedIpVersionError`. Each one extends `Error`, so code that
 catches them keeps working. To tell them apart, use `instanceof` instead
 of checking the message.

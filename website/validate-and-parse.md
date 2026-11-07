@@ -30,16 +30,15 @@ isIriReference("../schema.json"); // true
 isAbsoluteIri("https://example.com/schema.json#foo"); // false
 ```
 
-An identifier has to follow the rules of its scheme too. For example, an
-`https` URI needs a host, so `https:///a` isn't valid. For which schemes
-the functions know, and how to add one, see [Schemes](schemes.md):
+An identifier has to follow the rules of its scheme too, if the package
+knows the scheme. For example, an `https` URI needs a host, so
+`https:///a` isn't valid. An identifier with another scheme is checked
+with the generic syntax only. For which schemes the functions know, see
+[Schemes](schemes.md):
 
 ```typescript
 isIri("https:///a"); // false
-isIri("did:example:123"); // throws UnknownSchemeError
-isIri("did:example:123", {
-  customSchemes: [defineScheme({ name: "did", rule: "did" })]
-}); // true
+isIri("example:a"); // true
 ```
 
 A relative reference doesn't have a scheme, so it's checked with the
@@ -166,11 +165,10 @@ if (hasScheme(reference)) {
 }
 ```
 
-### Parse a URN or a tag
+### Parse a URN
 
 `parseUrn(value)` splits a Uniform Resource Name (URN) into the parts that
-RFC 8141 defines, and `parseTag(value)` splits a tag URI into the parts
-that RFC 4151 defines:
+RFC 8141 defines:
 
 ```typescript
 const urn = "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66#a";
@@ -186,18 +184,8 @@ parseUrn(urn);
 }
 ```
 
-```typescript
-const tag = "tag:ada@example.com,2004-01:a";
-assertIri(tag);
-parseTag(tag);
-```
-
-```json
-{ "authorityName": "ada@example.com", "date": "2004-01", "specific": "a" }
-```
-
-The parts are as written, like the components from `parseIri`. Neither
-function checks that `value` has its scheme.
+The parts are as written, like the components from `parseIri`.
+`parseUrn` doesn't check that `value` is a URN.
 
 ## Errors
 
@@ -207,14 +195,9 @@ The functions throw the following errors:
 | --- | --- |
 | `InvalidUriError` | A string passed to an `assert` function for URIs isn't that kind of URI |
 | `InvalidIriError` | A string passed to an `assert` function for IRIs isn't that kind of IRI, or `resolveIri`'s result breaks its scheme's rules |
-| `UnknownSchemeError` | A function that needs a scheme's rules gets a scheme that it doesn't know. For more information, see [Unknown schemes](schemes.md#unknown-schemes). |
-| `UnknownUrnNamespaceError` | A function that needs a URN namespace's rules gets a namespace that it doesn't know. For more information, see [The `urn` scheme](schemes.md#the-urn-scheme). |
 | `UnsupportedIpVersionError` | A validation function gets an identifier whose host is an IP address of a future version. For more information, see [Future IP versions](#future-ip-versions). |
 
 Each error has a `value` property with the string that caused it.
-`UnknownSchemeError` has a `scheme` property, and
-`UnknownUrnNamespaceError` has a `nid` property, with the name to
-configure, in lowercase.
 
 `InvalidUriError` and `InvalidIriError` have a `rule` property, with the
 rule that the string doesn't match. It's the kind of identifier, like
@@ -259,19 +242,19 @@ try {
 | `fragment-not-allowed` | A fragment, for a function that needs an absolute identifier | `https://example.com#foo` passed to `assertAbsoluteIri` |
 | `colon-in-first-segment` | A relative reference with `:` before its first `/`, which reads like a scheme | `1a:b`, which you can write as `./1a:b` |
 | `missing-component` | A component that the scheme requires isn't there | `http:/a`, which needs an authority |
-| `forbidden-component` | A component that the scheme doesn't allow is there | `file:///a?b`, which can't have a query |
-| `component-mismatch` | A component doesn't match the scheme's rule for it | `tag:a`, whose path needs a date |
+| `forbidden-component` | A component that the scheme doesn't allow is there | `file://h:1/a`, which can't have a port |
+| `component-mismatch` | A component doesn't match the scheme's rule for it | `did:Example:a`, whose method's name has to be lowercase |
 
 Something that's missing is an empty span where it would go. For example,
 a missing scheme has `start` and `end` both `0`. The span of a component
-that the scheme doesn't allow includes its delimiter, like `?b`.
+that the scheme doesn't allow includes its delimiter, like `:1`.
 
 The message for a scheme's rule says what the rule needs:
 
 ```text
 Invalid http-URI: http:/a — an http URI must have an authority
-Invalid file-URI: file:///a?b — a file URI can't have a query
-Invalid tagURI: tag:a — a tag URI's path must be a domain name or an email address, ",", a date, and ":", like example.com,2004:a
+Invalid file-URI: file://h:1/a — a file URI can't have a port
+Invalid did-url: did:Example:a — a did URI's path must be a method name, ":", and a method-specific ID, in ASCII, like example:123456
 ```
 
 `start` and `end` count UTF-16 code units, like every index of a

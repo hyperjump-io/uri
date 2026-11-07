@@ -1,9 +1,8 @@
 /** @import { Context } from "@hyperjump/abnf" */
-/** @import { ComponentPattern } from "./index.d.ts" */
 
-// Contexts for compiling a scheme's ABNF with @hyperjump/abnf, one for each component. They're data: RFC 3986's and
-// RFC 3987's rules, the characters a component can have, and the delimiters that end it. Nothing here depends on the
-// compiler, and index.js doesn't import this.
+// Contexts for compiling the built-in schemes' ABNF with @hyperjump/abnf, one for each component, which
+// scripts/generate-patterns.js uses. They're data: RFC 3986's and RFC 3987's rules, the characters a component can
+// have, and the delimiters that end it. Nothing here depends on the compiler, and index.js doesn't import this.
 
 // RFC 3986 Appendix A
 const rfc3986 = `
@@ -148,32 +147,32 @@ const components = {
   fragment: [`${pathCharacters} / "?"`]
 };
 
-/** @type Context<ComponentPattern<"authority">> */
+/** @type Context<RegExp> */
 export const authority = context(iriRules, ...components.authority);
-/** @type Context<ComponentPattern<"userinfo">> */
+/** @type Context<RegExp> */
 export const userinfo = context(iriRules, ...components.userinfo);
-/** @type Context<ComponentPattern<"host">> */
+/** @type Context<RegExp> */
 export const host = context(iriRules, ...components.host);
-/** @type Context<ComponentPattern<"port">> */
+/** @type Context<RegExp> */
 export const port = context(iriRules, ...components.port);
-/** @type Context<ComponentPattern<"path">> */
+/** @type Context<RegExp> */
 export const path = context(iriRules, ...components.path);
-/** @type Context<ComponentPattern<"query">> */
+/** @type Context<RegExp> */
 export const query = context(iriRules, ...components.query);
-/** @type Context<ComponentPattern<"fragment">> */
+/** @type Context<RegExp> */
 export const fragment = context(iriRules, ...components.fragment);
 
-/** @type Context<ComponentPattern<"authority">> */
+/** @type Context<RegExp> */
 export const asciiAuthority = context(asciiRules, ...components.authority);
-/** @type Context<ComponentPattern<"userinfo">> */
+/** @type Context<RegExp> */
 export const asciiUserinfo = context(asciiRules, ...components.userinfo);
-/** @type Context<ComponentPattern<"host">> */
+/** @type Context<RegExp> */
 export const asciiHost = context(asciiRules, ...components.host);
-/** @type Context<ComponentPattern<"port">> */
+/** @type Context<RegExp> */
 export const asciiPort = context(asciiRules, ...components.port);
-/** @type Context<ComponentPattern<"path">> */
+/** @type Context<RegExp> */
 export const asciiPath = context(asciiRules, ...components.path);
-/** @type Context<ComponentPattern<"query">> */
+/** @type Context<RegExp> */
 export const asciiQuery = context(asciiRules, ...components.query);
-/** @type Context<ComponentPattern<"fragment">> */
+/** @type Context<RegExp> */
 export const asciiFragment = context(asciiRules, ...components.fragment);

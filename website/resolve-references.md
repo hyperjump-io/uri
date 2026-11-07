@@ -53,9 +53,7 @@ scheme's rules, and throws an `InvalidIriError` if it breaks them. The
 error is about the reference: its `value` is the reference, and its span
 is in the reference.
 
-`resolveIri` takes the `customSchemes` option, like the validation
-functions. Pass it the same options that you checked the base with. For
-more information, see [Add a scheme](schemes.md#add-a-scheme).
+A result with a scheme that isn't built in has no scheme rules to check.
 
 ## Find a reference
 

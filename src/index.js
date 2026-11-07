@@ -1,5 +1,5 @@
 /** @import * as API from "./index.d.ts" */
-import { filePath, httpHost, nid as isNid, tagPath, urnFragment, urnPath, urnQuery, uuidNss } from "./patterns.js";
+import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPath, urnQuery, uuidNss } from "./patterns.js";
 
 /**
  * @typedef {{
@@ -34,35 +34,44 @@ import { filePath, httpHost, nid as isNid, tagPath, urnFragment, urnPath, urnQue
  * }} SchemeProblem
  */
 
+// What a built-in scheme requires of a component: to be there, not to be there, or to match a pattern when it's there.
+// A description finishes "a urn URI's path must be …" in the error.
+/** @typedef {"required" | "forbidden" | { readonly pattern: RegExp; readonly description: string }} ComponentRule */
+
 /**
  * @typedef {{
  *   readonly name: string;
  *   readonly rule: string;
  *   readonly syntaxNormalization?: boolean;
- *   readonly validate?: API.SchemeDefinition["validate"];
- *   readonly normalize?: API.SchemeDefinition["normalize"];
- *   readonly [compiled]: Compiled;
- * }} InternalScheme
+ *   readonly validate?: { readonly [Component in SchemeComponent]?: ComponentRule };
+ *   readonly normalize?: {
+ *     readonly userinfo?: (userinfo: string) => string | undefined;
+ *     readonly host?: (host: string) => string;
+ *     readonly port?: (port: string) => string | undefined;
+ *     readonly path?: (path: string) => string;
+ *     readonly query?: (query: string) => string | undefined;
+ *   };
+ * }} SchemeDefinition
+ */
+
+// A URN namespace's rules, on its NSS
+/**
+ * @typedef {{
+ *   readonly nid: string;
+ *   readonly pattern: RegExp;
+ *   readonly description: string;
+ *   readonly normalize: (nss: string) => string;
+ * }} NamespaceDefinition
  */
 
 /**
- * @typedef {{
- *   name: string;
- *   uri: { identifier: RegExp; absolute: RegExp };
- *   iri: { identifier: RegExp; absolute: RegExp };
- *   ruled: readonly SchemeComponent[];
- *   patterns: Partial<Record<SchemeComponent, RegExp>>;
- *   namespaces: Map<string, Namespace> | undefined;
- * }} Compiled
- */
-
-/**
- * @typedef {{
- *   source: string | undefined;
- *   nss: RegExp | undefined;
- *   description: string | undefined;
- *   normalize: ((nss: string) => string) | undefined;
- * }} Namespace
+ * @typedef {SchemeDefinition & {
+ *   readonly uri: { readonly identifier: RegExp; readonly absolute: RegExp };
+ *   readonly iri: { readonly identifier: RegExp; readonly absolute: RegExp };
+ *   readonly ruled: readonly SchemeComponent[];
+ *   readonly patterns: Partial<Record<SchemeComponent, RegExp>>;
+ *   readonly namespace: (NamespaceDefinition & { readonly nss: RegExp }) | undefined;
+ * }} Scheme
  */
 
 /**
@@ -218,9 +227,9 @@ const isAllowedInIQuery = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|
 const isAllAllowedInFragment = new RegExp(`^(?:${unreserved}|${subDelims}|[:@/?])*$`);
 const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/?])*$`, "u");
 
-// Schemes are compiled by defineScheme. A scheme's pattern for a component is a lookahead where the component starts,
-// next to the generic component, which is what's matched, so a scheme can only reject more than the generic syntax.
-// The lookahead ends with what can follow the component.
+// The built-in schemes are compiled by compileScheme. A scheme's pattern for a component is a lookahead where the
+// component starts, next to the generic component, which is what's matched, so a scheme can only reject more than the
+// generic syntax. The lookahead ends with what can follow the component.
 /** @type Readonly<Record<SchemeComponent, string>> */
 const componentEnds = {
   authority: "(?=[/?#]|$)",
@@ -238,17 +247,12 @@ const allComponents = ["authority", "userinfo", "host", "port", "path", "query",
 // A pattern that never matches, for a scheme whose rules rule out a form
 const never = "(?!)";
 
-const schemeName = new RegExp(`^${scheme}$`);
-
-// The symbol a defined scheme keeps its compiled patterns behind
-const compiled = Symbol("compiled");
-
 // The built-in schemes. Their patterns are generated from their RFCs' ABNF by scripts/generate-patterns.js, which has
 // the ABNF, with a context for each component that removes its delimiters (see src/abnf.js).
 
 // RFC 9110 §4.2.1: http-URI = "http" "://" authority path-abempty [ "?" query ], and its host can't be empty. The
 // default port and an empty path are normalized (§4.2.3).
-/** @type (name: string, rule: string, defaultPort: string) => InternalScheme */
+/** @type (name: string, rule: string, defaultPort: string) => Scheme */
 const httpScheme = (name, rule, defaultPort) => compileScheme({
   name,
   rule,
@@ -260,43 +264,50 @@ const httpScheme = (name, rule, defaultPort) => compileScheme({
     port: (port) => port === "" || port === defaultPort ? undefined : port,
     path: (path) => path === "" ? "/" : path
   }
-}, undefined);
+});
 
 // RFC 8089 §2: file-URI = file-scheme ":" file-hier-part, where file-hier-part = ( "//" auth-path ) / local-path,
 // auth-path = [ file-auth ] path-absolute, local-path = path-absolute, and file-auth = "localhost" / host. So there's
-// no userinfo, port, or query, and the path is path-absolute. A host of "localhost" is the same as none.
+// no userinfo or port, and the path is path-absolute. A host of "localhost" is the same as none. A query is allowed,
+// which RFC 8089's ABNF leaves out but never forbids, because Node.js makes file URLs with queries.
 const fileScheme = compileScheme({
   name: "file",
   rule: "file-URI",
   validate: {
     userinfo: "forbidden",
     port: "forbidden",
-    path: { pattern: filePath, description: "an absolute path, like /a/b" },
-    query: "forbidden"
+    path: { pattern: filePath, description: "an absolute path, like /a/b" }
   },
   normalize: {
     host: (host) => host === "localhost" ? "" : host
   }
-}, undefined);
+});
 
-// RFC 4151 §2.1: tagURI = "tag:" taggingEntity ":" specific [ "#" fragment ]. Tags are equal "if and only if they are
-// completely indistinguishable" (§2.4), so nothing but the scheme is normalized.
+// RFC 4151 says software "MUST NOT reject" tags outside its syntax (§2.1, §3), so a tag has no rules. Tags are equal
+// "if and only if they are completely indistinguishable" (§2.4), so nothing but the scheme is normalized.
 const tagScheme = compileScheme({
   name: "tag",
   rule: "tagURI",
-  syntaxNormalization: false,
+  syntaxNormalization: false
+});
+
+// DID 1.1 §3.2: did-url = did path-abempty [ "?" query ] [ "#" fragment ], where did = "did:" method-name ":"
+// method-specific-id. So there's no authority, and the path is the rest of the DID and path-abempty. Every rule is
+// ASCII. A method defines its own normalization (§7.1), so only the syntax-based normalization applies.
+const didScheme = compileScheme({
+  name: "did",
+  rule: "did-url",
   validate: {
     authority: "forbidden",
-    path: {
-      pattern: tagPath,
-      description: `a domain name or an email address, ",", a date, and ":", like example.com,2004:a`
-    }
+    path: { pattern: didPath, description: `a method name, ":", and a method-specific ID, in ASCII, like example:123456` },
+    query: { pattern: didQuery, description: "ASCII, with other characters percent-encoded" },
+    fragment: { pattern: didFragment, description: "ASCII, with other characters percent-encoded" }
   }
-}, undefined);
+});
 
 // RFC 8141 §2: namestring = assigned-name [ rq-components ] [ "#" f-component ], where assigned-name = "urn" ":" NID
 // ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components
-/** @type API.SchemeDefinition["validate"] */
+/** @type SchemeDefinition["validate"] */
 const urnValidate = {
   authority: "forbidden",
   path: { pattern: urnPath, description: `a NID, ":", and an NSS, in ASCII, like example:a` },
@@ -309,7 +320,7 @@ const urnValidate = {
 
 // RFC 8141 §3.1: only the scheme and the NID are case-insensitive, and percent-encoded characters "MUST NOT be
 // decoded", but their hex digits are case-insensitive
-/** @type API.SchemeDefinition["normalize"] */
+/** @type SchemeDefinition["normalize"] */
 const urnNormalize = {
   path: (path) => {
     const colon = path.indexOf(":");
@@ -318,21 +329,24 @@ const urnNormalize = {
   query: (query) => uppercaseHex(query)
 };
 
-// RFC 9562 §4: a UUID is lowercase when it's output
-/** @type API.UrnNamespace */
+// RFC 9562 §4: a UUID is lowercase when it's output. It's the only namespace that's built in, and a URN of another
+// namespace has RFC 8141's rules only.
+/** @type NamespaceDefinition */
 const uuidNamespace = {
+  nid: "uuid",
   pattern: uuidNss,
   description: "a UUID, like f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
   normalize: (nss) => lowercaseComponent(nss)
 };
 
-/** @type readonly InternalScheme[] */
+/** @type readonly Scheme[] */
 const builtInSchemes = [
   httpScheme("http", "http-URI", "80"),
   httpScheme("https", "https-URI", "443"),
   fileScheme,
+  createUrnScheme(uuidNamespace),
   tagScheme,
-  createUrnScheme({})
+  didScheme
 ];
 
 /** @type Strategy */
@@ -412,29 +426,6 @@ export const parseUrn = (value) => {
   return components;
 };
 
-/** @type typeof API.parseTag */
-export const parseTag = (value) => {
-  const { path, query, fragment } = split(value);
-
-  // Neither an authorityName nor a date can have "," or ":", so the first of each ends them. The "?" of specific
-  // starts the generic query.
-  const comma = path.indexOf(",");
-  const colon = path.indexOf(":", comma);
-
-  /** @type {{ -readonly [Key in keyof API.TagComponents]: API.TagComponents[Key] }} */
-  const components = {
-    authorityName: path.slice(0, comma),
-    date: path.slice(comma + 1, colon),
-    specific: path.slice(colon + 1) + (query === undefined ? "" : "?" + query)
-  };
-
-  if (fragment !== undefined) {
-    components.fragment = fragment;
-  }
-
-  return components;
-};
-
 /** @type typeof API.toAbsoluteIri */
 export const toAbsoluteIri = (value) => {
   // In a trusted identifier, nothing before the fragment can have "#"
@@ -508,14 +499,9 @@ export const getQuery = (value) => {
 };
 
 /** @type typeof API.normalizeUri */
-export const normalizeUri = (/** @type string */ uri, /** @type API.Options | undefined */ options) => /** @type any */ (normalize(uriStrategy, uri, options));
+export const normalizeUri = (/** @type string */ uri) => /** @type any */ (normalize(uriStrategy, uri));
 /** @type typeof API.normalizeIri */
-export const normalizeIri = (/** @type string */ iri, /** @type API.Options | undefined */ options) => /** @type any */ (normalize(iriStrategy, iri, options));
-
-/** @type typeof API.lowercaseComponent */
-export const lowercaseComponent = (component) => hasUppercase.test(component)
-  ? component.replace(uppercaseOrPercentEncoded, (match) => match.startsWith("%") ? match : match.toLowerCase())
-  : component;
+export const normalizeIri = (/** @type string */ iri) => /** @type any */ (normalize(iriStrategy, iri));
 
 /** @type typeof API.encodeUriFragment */
 export const encodeUriFragment = createEncoder(isAllowedInQuery, isAllAllowedInFragment);
@@ -523,16 +509,10 @@ export const encodeUriFragment = createEncoder(isAllowedInQuery, isAllAllowedInF
 export const encodeIriFragment = createEncoder(isAllowedInIQuery, isAllAllowedInIFragment);
 
 /** @type typeof API.resolveIri */
-export const resolveIri = (/** @type string */ reference, /** @type string */ base, /** @type API.Options | undefined */ options) => /** @type any */ (resolve(reference, base, options));
+export const resolveIri = (/** @type string */ reference, /** @type string */ base) => /** @type any */ (resolve(reference, base));
 
 /** @type typeof API.toRelativeIri */
 export const toRelativeIri = (/** @type string */ target, /** @type string */ base) => /** @type any */ (toRelative(target, base));
-
-/** @type typeof API.defineScheme */
-export const defineScheme = (definition) => /** @type any */ (compileScheme(definition, undefined));
-
-/** @type typeof API.urnScheme */
-export const urnScheme = (namespaces) => /** @type any */ (createUrnScheme(namespaces));
 
 export class InvalidUriError extends Error {
   /**
@@ -615,44 +595,11 @@ export class UnsupportedIpVersionError extends Error {
   }
 }
 
-export class UnknownSchemeError extends Error {
-  /**
-   * @param {string} value
-   * @param {string} scheme
-   */
-  constructor(value, scheme) {
-    super(`Unknown scheme: ${scheme}`);
-    this.name = "UnknownSchemeError";
-
-    /** @readonly */
-    this.value = value;
-
-    /** @readonly */
-    this.scheme = scheme;
-  }
-}
-
-export class UnknownUrnNamespaceError extends Error {
-  /**
-   * @param {string} value
-   * @param {string} nid
-   */
-  constructor(value, nid) {
-    super(`Unknown URN namespace: ${nid}`);
-    this.name = "UnknownUrnNamespaceError";
-
-    /** @readonly */
-    this.value = value;
-
-    /** @readonly */
-    this.nid = nid;
-  }
-}
-
 // These are called while the module loads, so they're function declarations, which are hoisted
 
-// A validator tests an identifier with a scheme against its scheme's pattern, and only a value that fails is looked at
-// again: the generic pattern says whether it's an identifier at all, and the scheme's rules say which one it breaks
+// A validator tests an identifier with a built-in scheme against its scheme's pattern, and only a value that fails is
+// looked at again: the generic pattern says whether it's an identifier at all, and the scheme's rules say which one it
+// breaks. Any other value is tested against the generic pattern only.
 /**
  * @param {RegExp} pattern
  * @param {"uri" | "iri"} form
@@ -660,8 +607,11 @@ export class UnknownUrnNamespaceError extends Error {
  * @returns {any} A type guard, which a function expression can't be declared as
  */
 function createValidator(pattern, form, kind) {
-  return (/** @type string */ value, /** @type API.Options | undefined */ options) => matchesScheme(value, form, kind, options)
-    || (pattern.test(value) && checkScheme(value, options) === undefined);
+  return (/** @type string */ value) => {
+    const scheme = builtInSchemeOf(value);
+    return (scheme !== undefined && scheme[form][kind].test(value))
+      || (pattern.test(value) && checkScheme(value, scheme) === undefined);
+  };
 }
 
 /**
@@ -670,11 +620,12 @@ function createValidator(pattern, form, kind) {
  * @param {"identifier" | "absolute"} kind
  * @param {API.UriRule | API.IriRule} rule
  * @param {(value: string, rule: string, problem: Problem | undefined) => Error} invalid
- * @returns {(value: string, options?: API.Options) => any}
+ * @returns {(value: string) => any}
  */
 function createAssertion(pattern, form, kind, rule, invalid) {
-  return (value, options) => {
-    if (matchesScheme(value, form, kind, options)) {
+  return (value) => {
+    const scheme = builtInSchemeOf(value);
+    if (scheme !== undefined && scheme[form][kind].test(value)) {
       return;
     }
 
@@ -682,7 +633,7 @@ function createAssertion(pattern, form, kind, rule, invalid) {
       throw invalid(value, rule, diagnose(rule, value));
     }
 
-    const problem = checkScheme(value, options);
+    const problem = checkScheme(value, scheme);
     if (problem !== undefined) {
       throw invalid(value, problem.rule, locate(value, problem));
     }
@@ -690,19 +641,14 @@ function createAssertion(pattern, form, kind, rule, invalid) {
 }
 
 // Builds a scheme's patterns from the generic grammar: each component's pattern as a lookahead where it starts, and
-// only the parts of the grammar its rules allow. A urn's namespaces are another lookahead on its path.
+// only the parts of the grammar its rules allow. A urn's namespace is another lookahead on its path.
 /**
- * @param {API.SchemeDefinition} definition
- * @param {string | undefined} pathNamespaces
- * @param {Map<string, Namespace>} [namespaces]
- * @returns {InternalScheme}
+ * @param {SchemeDefinition} definition
+ * @param {NamespaceDefinition} [namespace]
+ * @returns {Scheme}
  */
-function compileScheme(definition, pathNamespaces, namespaces) {
-  const name = definition.name.toLowerCase();
-  if (!schemeName.test(name)) {
-    throw new TypeError(`Not a scheme name: ${definition.name}`);
-  }
-
+function compileScheme(definition, namespace) {
+  const name = definition.name;
   const validate = definition.validate ?? {};
   /** @type Partial<Record<SchemeComponent, string>> */
   const lookaheads = {};
@@ -711,39 +657,36 @@ function compileScheme(definition, pathNamespaces, namespaces) {
   for (const component of allComponents) {
     const rule = validate[component];
     if (typeof rule === "object") {
-      const source = patternSource(rule.pattern, `The ${component} pattern of the ${definition.name} scheme`);
+      const source = rule.pattern.source;
       lookaheads[component] = `(?=(?:${source})${componentEnds[component]})`;
       patterns[component] = new RegExp(`(?:${source})${componentEnds[component]}`, "uy");
     }
   }
 
-  if (pathNamespaces !== undefined) {
-    lookaheads.path = (lookaheads.path ?? "") + pathNamespaces;
+  // A URN of the namespace has its NSS's pattern, and one of another namespace has none
+  if (namespace !== undefined) {
+    const nid = caseless(namespace.nid);
+    lookaheads.path = (lookaheads.path ?? "") + `(?=${nid}:(?:${namespace.pattern.source})${componentEnds.path}|(?!${nid}:))`;
   }
 
   /** @type (parts: GrammarParts, withFragment: boolean) => RegExp */
   const build = (parts, withFragment) => new RegExp(schemePattern(name, validate, lookaheads, parts, withFragment), "u");
 
-  return Object.freeze({
-    name: definition.name,
-    rule: definition.rule,
-    syntaxNormalization: definition.syntaxNormalization,
-    validate: definition.validate,
-    normalize: definition.normalize,
-    [compiled]: {
-      name,
-      uri: { identifier: build(uriRules.parts, true), absolute: build(uriRules.parts, false) },
-      iri: { identifier: build(iriRules.parts, true), absolute: build(iriRules.parts, false) },
-      ruled: allComponents.filter((component) => validate[component] !== undefined),
-      patterns,
-      namespaces
-    }
-  });
+  return {
+    ...definition,
+    uri: { identifier: build(uriRules.parts, true), absolute: build(uriRules.parts, false) },
+    iri: { identifier: build(iriRules.parts, true), absolute: build(iriRules.parts, false) },
+    ruled: allComponents.filter((component) => validate[component] !== undefined),
+    patterns,
+    namespace: namespace === undefined
+      ? undefined
+      : { ...namespace, nss: new RegExp(`(?:${namespace.pattern.source})${componentEnds.path}`, "uy") }
+  };
 }
 
 /**
  * @param {string} name
- * @param {NonNullable<API.SchemeDefinition["validate"]>} validate
+ * @param {NonNullable<SchemeDefinition["validate"]>} validate
  * @param {Partial<Record<SchemeComponent, string>>} lookaheads
  * @param {GrammarParts} parts
  * @param {boolean} withFragment
@@ -789,18 +732,6 @@ function schemePattern(name, validate, lookaheads, parts, withFragment) {
   return `^${caseless(name)}:${path}${hierPart}${query}${fragment}$`;
 }
 
-/**
- * @param {unknown} pattern
- * @param {string} what
- * @returns {string}
- */
-function patternSource(pattern, what) {
-  if (!(pattern instanceof RegExp) || pattern.flags !== "u") {
-    throw new TypeError(`${what} must be a RegExp with the u flag and no other`);
-  }
-  return pattern.source;
-}
-
 // A pattern for a lowercase name, or NID, that matches it without case
 /** @type (name: string) => string */
 function caseless(name) {
@@ -811,44 +742,16 @@ function caseless(name) {
   return pattern;
 }
 
-// The urn scheme's path has a lookahead with a branch for each namespace: its NID, and its NSS's pattern
-/**
- * @param {Readonly<Record<string, API.UrnNamespace>>} namespaces
- * @returns {InternalScheme}
- */
-function createUrnScheme(namespaces) {
-  /** @type Map<string, Namespace> */
-  const known = new Map([["uuid", namespaceOf("uuid", uuidNamespace)]]);
-  for (const [nid, namespace] of Object.entries(namespaces)) {
-    if (!isNid.test(nid)) {
-      throw new TypeError(`Not a NID: ${nid}`);
-    }
-    known.set(nid.toLowerCase(), namespaceOf(nid, namespace));
-  }
-
-  const branches = [];
-  for (const [nid, namespace] of known) {
-    branches.push(namespace.source === undefined ? `${caseless(nid)}:` : `${caseless(nid)}:(?:${namespace.source})${componentEnds.path}`);
-  }
-
+// RFC 8141's rules for every URN, and a namespace's for a URN of that namespace
+/** @type (namespace: NamespaceDefinition) => Scheme */
+function createUrnScheme(namespace) {
   return compileScheme({
     name: "urn",
     rule: "namestring",
     syntaxNormalization: false,
     validate: urnValidate,
     normalize: urnNormalize
-  }, `(?=${branches.join("|")})`, known);
-}
-
-/**
- * @param {string} nid
- * @param {API.UrnNamespace} namespace
- * @returns {Namespace}
- */
-function namespaceOf(nid, namespace) {
-  const source = namespace.pattern === undefined ? undefined : patternSource(namespace.pattern, `The pattern of the ${nid} namespace`);
-  const nss = source === undefined ? undefined : new RegExp(`(?:${source})${componentEnds.path}`, "uy");
-  return { source, nss, description: namespace.description, normalize: namespace.normalize };
+  }, namespace);
 }
 
 /**
@@ -995,52 +898,27 @@ const schemeOf = (value) => {
   return value[end] === ":" ? value.slice(0, end).toLowerCase() : undefined;
 };
 
-// A scan of a few entries. A cache keyed by the options would be a hidden channel.
-/** @type (name: string, options: API.Options | undefined) => InternalScheme | undefined */
-const findScheme = (name, options) => {
-  if (options?.customSchemes !== undefined) {
-    for (const scheme of /** @type readonly InternalScheme[] */ (/** @type unknown */ (options.customSchemes))) {
-      const definition = scheme[compiled];
-      if (definition === undefined) {
-        throw new TypeError(`A custom scheme is made by defineScheme: ${scheme.name}`);
-      }
-      if (definition.name === name) {
-        return scheme;
-      }
-    }
-  }
-
+// A scan of a few entries
+/** @type (name: string) => Scheme | undefined */
+const findScheme = (name) => {
   for (const scheme of builtInSchemes) {
-    if (scheme[compiled].name === name) {
+    if (scheme.name === name) {
       return scheme;
     }
   }
-
   return undefined;
 };
 
-// Whether a value with a scheme matches its scheme's pattern. A value that doesn't, or whose scheme isn't known, is
-// looked at again, to say why. The scheme is found without slicing its name out of the value. A scheme that's found
-// wrongly is harmless, since its pattern checks its name.
-/** @type (value: string, form: "uri" | "iri", kind: "identifier" | "absolute", options: API.Options | undefined) => boolean */
-const matchesScheme = (value, form, kind, options) => {
-  if (options?.customSchemes !== undefined) {
-    for (const scheme of /** @type readonly InternalScheme[] */ (/** @type unknown */ (options.customSchemes))) {
-      const definition = scheme[compiled];
-      if (definition !== undefined && startsWithScheme(value, definition.name)) {
-        return definition[form][kind].test(value);
-      }
-    }
-  }
-
+// The built-in scheme a value starts with, found without slicing its name out of the value. A scheme that's found for a
+// value that isn't valid is harmless, since its pattern checks its name.
+/** @type (value: string) => Scheme | undefined */
+const builtInSchemeOf = (value) => {
   for (const scheme of builtInSchemes) {
-    const definition = scheme[compiled];
-    if (startsWithScheme(value, definition.name)) {
-      return definition[form][kind].test(value);
+    if (startsWithScheme(value, scheme.name)) {
+      return scheme;
     }
   }
-
-  return false;
+  return undefined;
 };
 
 // Whether `value` starts with a lowercase scheme name and ":". Setting a character's 0x20 bit lowercases a letter, and
@@ -1060,19 +938,10 @@ const startsWithScheme = (value, name) => {
   return true;
 };
 
-/** @type (value: string, name: string, options: API.Options | undefined) => InternalScheme */
-const knownScheme = (value, name, options) => {
-  const scheme = findScheme(name, options);
-  if (scheme === undefined) {
-    throw new UnknownSchemeError(value, name);
-  }
-  return scheme;
-};
-
 // Checks what a validator checks after its pattern: whether an IP literal is of a future version, and the rules of
-// the scheme. A relative reference isn't checked against a scheme.
-/** @type (value: string, options: API.Options | undefined) => SchemeProblem | undefined */
-const checkScheme = (value, options) => {
+// its built-in scheme, if it has one. A relative reference isn't checked against a scheme.
+/** @type (value: string, scheme: Scheme | undefined) => SchemeProblem | undefined */
+const checkScheme = (value, scheme) => {
   /** @type Components | undefined */
   let components;
 
@@ -1086,25 +955,20 @@ const checkScheme = (value, options) => {
     }
   }
 
-  const name = schemeOf(value);
-  if (name === undefined) {
-    return undefined;
-  }
-
-  return checkComponents(knownScheme(value, name, options), components ?? split(value), allComponents, value);
+  return scheme === undefined ? undefined : checkComponents(scheme, components ?? split(value), allComponents, value);
 };
 
 // The first of `names` that breaks the scheme's rules, in the order the components are in. A pattern is tested where
 // its component starts in `value`, the way the scheme's pattern tests it, so the two always agree.
-/** @type (scheme: InternalScheme, components: Components, names: readonly SchemeComponent[], value: string) => SchemeProblem | undefined */
+/** @type (scheme: Scheme, components: Components, names: readonly SchemeComponent[], value: string) => SchemeProblem | undefined */
 const checkComponents = (scheme, components, names, value) => {
-  const { ruled, patterns, namespaces } = scheme[compiled];
+  const { ruled, patterns, namespace } = scheme;
   for (const component of ruled) {
     if (names !== allComponents && !names.includes(component)) {
       continue;
     }
 
-    const rule = /** @type API.ComponentRule */ (scheme.validate?.[component]);
+    const rule = /** @type ComponentRule */ (scheme.validate?.[component]);
     const text = components[component];
     if (rule === "required") {
       if (text === undefined) {
@@ -1120,10 +984,9 @@ const checkComponents = (scheme, components, names, value) => {
   }
 
   // Only the NSS has a namespace's rules, and its path has already passed RFC 8141's
-  if (namespaces !== undefined && names.includes("path")) {
+  if (namespace !== undefined && names.includes("path")) {
     const [nid] = splitUrnPath(components.path);
-    const namespace = knownNamespace(value, namespaces, nid);
-    if (namespace.nss !== undefined && !testAt(namespace.nss, value, startOf("path", components, value) + nid.length + 1)) {
+    if (nid.toLowerCase() === namespace.nid && !testAt(namespace.nss, value, startOf("path", components, value) + nid.length + 1)) {
       return { reason: "component-mismatch", component: "path", name: scheme.name, rule: scheme.rule, description: namespace.description, nid };
     }
   }
@@ -1171,15 +1034,6 @@ const startOf = (component, components, value) => {
 const splitUrnPath = (path) => {
   const colon = path.indexOf(":");
   return [path.slice(0, colon), path.slice(colon + 1)];
-};
-
-/** @type (value: string, namespaces: Map<string, Namespace>, nid: string) => Namespace */
-const knownNamespace = (value, namespaces, nid) => {
-  const namespace = namespaces.get(nid.toLowerCase());
-  if (namespace === undefined) {
-    throw new UnknownUrnNamespaceError(value, nid.toLowerCase());
-  }
-  return namespace;
 };
 
 // Where a scheme's problem is in `value`. A component that's missing is empty where it would go. One that's forbidden
@@ -1262,27 +1116,30 @@ const locate = (value, problem) => {
 
 // Normalizing
 
-/** @type (strategy: Strategy, value: string, options: API.Options | undefined) => string */
-const normalize = (strategy, value, options) => {
+// A scheme that isn't built in gets the syntax-based normalization only
+/** @type (strategy: Strategy, value: string) => string */
+const normalize = (strategy, value) => {
   const parsed = split(value);
   const name = /** @type string */ (parsed.scheme).toLowerCase();
-  const scheme = knownScheme(value, name, options);
+  const scheme = findScheme(name);
 
   // The syntax-based normalization comes first, then the scheme's, which is the order of RFC 3986's comparison
   // ladder (§6.2)
-  const components = scheme.syntaxNormalization === false
+  const components = scheme?.syntaxNormalization === false
     ? { ...parsed, scheme: name }
     : normalizeComponents(strategy, parsed);
 
-  normalizeScheme(scheme, components, value);
+  if (scheme !== undefined) {
+    normalizeScheme(scheme, components);
+  }
 
   return recompose(components);
 };
 
 // A scheme's normalization changes the components it has a function for. A function only runs when its component is
 // there, and returns undefined to remove it.
-/** @type (scheme: InternalScheme, components: Components, value: string) => void */
-const normalizeScheme = (scheme, components, value) => {
+/** @type (scheme: Scheme, components: Components) => void */
+const normalizeScheme = (scheme, components) => {
   const functions = scheme.normalize;
   if (functions !== undefined) {
     if (components.authority !== undefined) {
@@ -1311,12 +1168,11 @@ const normalizeScheme = (scheme, components, value) => {
     }
   }
 
-  // A namespace's normalization runs after RFC 8141's
-  const namespaces = scheme[compiled].namespaces;
-  if (namespaces !== undefined) {
+  // A namespace's normalization runs after RFC 8141's, which has lowercased the NID
+  const namespace = scheme.namespace;
+  if (namespace !== undefined) {
     const [nid, nss] = splitUrnPath(components.path);
-    const namespace = knownNamespace(value, namespaces, nid);
-    if (namespace.normalize !== undefined) {
+    if (nid === namespace.nid) {
       components.path = nid + ":" + namespace.normalize(nss);
     }
   }
@@ -1336,22 +1192,29 @@ const pctHex = new RegExp(pctEncoded, "g");
 /** @type (text: string) => string */
 const uppercaseHex = (text) => text.includes("%") ? text.replace(pctHex, (match) => match.toUpperCase()) : text;
 
+// Makes the case-insensitive part of a component lowercase: ASCII letters only, and not percent-encoded characters, so
+// "%2F" stays "%2F"
+/** @type (component: string) => string */
+const lowercaseComponent = (component) => hasUppercase.test(component)
+  ? component.replace(uppercaseOrPercentEncoded, (match) => match.startsWith("%") ? match : match.toLowerCase())
+  : component;
+
 const hasUppercase = /[A-Z]/;
 const uppercaseOrPercentEncoded = new RegExp(`${pctEncoded}|[A-Z]+`, "g");
 
 // Resolving
 
 // The algorithm of RFC 3986 §5.2, without normalizing. The base is trusted, and isn't read when the reference has a
-// scheme. The result is checked with its scheme's rules, except where they can't fail.
-/** @type (reference: string, base: string, options: API.Options | undefined) => string */
-const resolve = (reference, base, options) => {
+// scheme. The result is checked with its scheme's rules, if it's built in, except where they can't fail.
+/** @type (reference: string, base: string) => string */
+const resolve = (reference, base) => {
   if (reference === "") {
     return base;
   }
 
   // Only the fragment changes, so only its rule is checked
   if (reference.startsWith("#")) {
-    checkResolved(base, { scheme: "", path: "", fragment: reference.slice(1) }, fragmentOnly, reference, base + reference, options);
+    checkResolved(base, { scheme: "", path: "", fragment: reference.slice(1) }, fragmentOnly, reference, base + reference);
     return base + reference;
   }
 
@@ -1359,7 +1222,7 @@ const resolve = (reference, base, options) => {
   if (reference.startsWith("?")) {
     const queryStart = base.indexOf("?");
     const result = (queryStart === -1 ? base : base.slice(0, queryStart)) + reference;
-    checkResolved(base, split(reference), queryAndFragment, reference, result, options);
+    checkResolved(base, split(reference), queryAndFragment, reference, result);
     return result;
   }
 
@@ -1398,7 +1261,7 @@ const resolve = (reference, base, options) => {
   }
 
   const result = recompose(target);
-  checkResolved(result, target, names, reference, result, options);
+  checkResolved(result, target, names, reference, result);
   return result;
 };
 
@@ -1411,10 +1274,13 @@ const pathQueryAndFragment = ["path", "query", "fragment"];
 
 // A result that breaks its scheme's rules can only be the reference's fault, because the base has a brand, so the
 // error is about the reference, spanned in it
-/** @type (identifier: string, components: Components, names: readonly SchemeComponent[], reference: string, result: string, options: API.Options | undefined) => void */
-const checkResolved = (identifier, components, names, reference, result, options) => {
-  const name = /** @type string */ (schemeOf(identifier));
-  const scheme = knownScheme(result, name, options);
+/** @type (identifier: string, components: Components, names: readonly SchemeComponent[], reference: string, result: string) => void */
+const checkResolved = (identifier, components, names, reference, result) => {
+  const scheme = findScheme(/** @type string */ (schemeOf(identifier)));
+  if (scheme === undefined) {
+    return;
+  }
+
   const problem = checkComponents(scheme, components, names, result);
   if (problem !== undefined) {
     // A merged path spans the reference's path, since no one place in the reference made it

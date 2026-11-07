@@ -24,16 +24,13 @@
   "files": [
     "src/**/*.js",
     "src/**/*.d.ts",
-    "!src/**/*.test.js"
+    "!src/**/*.test.js",
+    "!src/abnf.js"
   ],
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
       "default": "./src/index.js"
-    },
-    "./abnf": {
-      "types": "./src/abnf.d.ts",
-      "default": "./src/abnf.js"
     }
   },
   "scripts": {

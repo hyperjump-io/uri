@@ -1,12 +1,10 @@
 import {
-  InvalidUriError, UnknownSchemeError, UnknownUrnNamespaceError, UnsupportedIpVersionError,
-  assertAbsoluteIri, assertIri, assertIriReference, defineScheme, isAbsoluteUri, isIri, isUri, isUriReference,
-  getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseTag, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urnScheme
+  InvalidUriError, UnsupportedIpVersionError,
+  assertAbsoluteIri, assertIri, assertIriReference, isAbsoluteUri, isIri, isUri, isUriReference,
+  getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri
 } from "./index.js";
-import { abnf } from "@hyperjump/abnf";
-import { asciiPath, host, path } from "./abnf.js";
 import type {
-  AbsoluteIri, AbsoluteUri, ComponentPattern, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri, Scheme,
+  AbsoluteIri, AbsoluteUri, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri,
   Uri, UriReference, UriRule
 } from "./index.d.ts";
 
@@ -140,50 +138,17 @@ declare const assertedAbsolute: string;
 assertAbsoluteIri(assertedAbsolute);
 assertedAbsolute satisfies AbsoluteIri;
 
-// A scheme is made by defineScheme, and the definition's type checks its shape
-const did = defineScheme({ name: "did", rule: "did" });
-did satisfies Scheme;
-isIri(value, { customSchemes: [did] });
-isIri(value, {
-  customSchemes: [defineScheme({
-    name: "x",
-    rule: "x",
-    validate: { authority: "required", path: { pattern: abnf(path)`1*pchar` } },
-    normalize: { port: () => undefined }
-  })]
-});
-// @ts-expect-error A custom scheme is made by defineScheme
-isIri(value, { customSchemes: [{ name: "x", rule: "x" }] });
-// @ts-expect-error A scheme needs a rule for its errors
-defineScheme({ name: "x" });
-// @ts-expect-error A scheme's name decides its scheme, so it has no rule
-defineScheme({ name: "x", rule: "x", validate: { scheme: "required" } });
-// @ts-expect-error A pattern is a RegExp, not a string
-defineScheme({ name: "x", rule: "x", validate: { path: { pattern: "a" } } });
-// @ts-expect-error A fragment isn't normalized by a scheme
-defineScheme({ name: "x", rule: "x", normalize: { fragment: (fragment: string) => fragment } });
-// @ts-expect-error A path is always there, so its function can't remove it
-defineScheme({ name: "x", rule: "x", normalize: { path: () => undefined } });
-isIri(value, { customSchemes: [urnScheme({ isbn: { pattern: abnf(asciiPath)`1*DIGIT` }, example: {} })] });
+// Only the built-in schemes are known, so nothing takes options
+// @ts-expect-error There are no custom schemes
+isIri(value, { customSchemes: [] });
 
-// A pattern comes from the compiler, with a context for its component
-abnf(host)`reg-name` satisfies ComponentPattern<"host">;
-// @ts-expect-error A hand-written RegExp needs a cast
-defineScheme({ name: "x", rule: "x", validate: { path: { pattern: /a/u } } });
-defineScheme({ name: "x", rule: "x", validate: { path: { pattern: /a/u as ComponentPattern<"path"> } } });
-// @ts-expect-error A host's pattern isn't a path's, since their delimiters are different
-defineScheme({ name: "x", rule: "x", validate: { path: { pattern: abnf(host)`reg-name` } } });
-// @ts-expect-error A pattern compiled without a context isn't for a component
-defineScheme({ name: "x", rule: "x", validate: { path: { pattern: abnf()`"a"` } } });
-
-// parseUrn and parseTag
+// parseUrn
 const urn = parseUrn(uri);
 urn.nid satisfies string;
 urn.nss satisfies string;
 urn.fComponent satisfies string | undefined;
 // @ts-expect-error A URN's scheme is always urn
 void urn.scheme;
-parseTag(uri).date satisfies string;
 
 // The errors say which rule a value didn't match
 declare const error: unknown;
@@ -220,15 +185,9 @@ if (error instanceof InvalidUriError) {
 if (error instanceof UnsupportedIpVersionError) {
   error.host satisfies string;
 }
-if (error instanceof UnknownSchemeError) {
-  error.scheme satisfies string;
-}
-if (error instanceof UnknownUrnNamespaceError) {
-  error.nid satisfies string;
-}
 
 // The errors can't be constructed outside the package
 // @ts-expect-error The constructor is private
 new InvalidUriError();
 // @ts-expect-error The constructor is private
-new UnknownSchemeError();
+new UnsupportedIpVersionError();

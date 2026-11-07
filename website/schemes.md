@@ -5,9 +5,9 @@ syntax. For example, RFC 9110 says that an `http` URI needs a host, so
 `http:///a` follows the generic syntax but isn't a valid `http` URI.
 
 The validation functions check the generic syntax, then the rules of the
-scheme that the identifier has. `normalizeIri` and `normalizeUri` apply
-the scheme's normalization, and `resolveIri` checks that its result
-follows its scheme's rules.
+scheme that the identifier has, if the package knows it. `normalizeIri`
+and `normalizeUri` apply the scheme's normalization, and `resolveIri`
+checks that its result follows its scheme's rules.
 
 ## Built-in schemes
 
@@ -16,223 +16,58 @@ The package knows the following schemes:
 | Scheme | Specification | Rules | Normalization |
 | --- | --- | --- | --- |
 | `http`, `https` | RFC 9110 | Has a host | Removes the default port, `80` or `443`, and an empty port. An empty path is `/`. |
-| `file` | RFC 8089 | Has a path that starts with `/`, and no query, userinfo, or port | A host of `localhost` is empty, so `file://localhost/a` is `file:///a`. |
-| `tag` | RFC 4151 | Has no authority, and its path is a domain name or an email address, `,`, a date, and `:` | Makes only the scheme lowercase. |
+| `file` | RFC 8089 | Has a path that starts with `/`, and no userinfo or port | A host of `localhost` is empty, so `file://localhost/a` is `file:///a`. |
 | `urn` | RFC 8141 | Has no authority, and its path is a namespace and a name, in ASCII. For more information, see [The `urn` scheme](#the-urn-scheme). | Makes only the scheme and the namespace lowercase, and doesn't decode percent-encoding. |
+| `tag` | RFC 4151 | None. RFC 4151 says not to reject a tag that doesn't follow its syntax. | Makes only the scheme lowercase. |
+| `did` | DID 1.1 | Has no authority, and its path is a method name, `:`, and a method-specific ID, in ASCII. The method's name is lowercase. | The same as a scheme that isn't built in. |
+
+RFC 8089 doesn't include a query in the syntax of a `file` URI, but the
+package allows one. Node.js makes `file:` URLs with a query, like the
+`import.meta.url` of a module imported as `./a.js?v=2`, and RFC 8089
+doesn't forbid it.
 
 A relative reference doesn't have a scheme, so it's checked with the
 generic syntax only.
 
-## Unknown schemes
+## Other schemes
 
-For a scheme that isn't built in, a validation function can't know
-whether an identifier is valid, so it throws an `UnknownSchemeError`
-instead of returning `true` or `false`:
-
-```typescript
-try {
-  isIri("did:example:123");
-} catch (error) {
-  if (error instanceof UnknownSchemeError) {
-    error.scheme; // "did"
-  }
-}
-```
-
-`normalizeIri`, `normalizeUri`, and `resolveIri` throw it too, because
-they need the scheme's normalization or rules. To use a scheme that isn't
-built in, add it. For more information, see [Add a scheme](#add-a-scheme).
-
-## Add a scheme
-
-Make a scheme with `defineScheme`, and pass it in the `customSchemes`
-option. A scheme has its name and the name of the rule that its
-specification defines it with, which errors include:
+An identifier with a scheme that isn't built in is checked with the
+generic syntax only:
 
 ```typescript
-const didScheme = defineScheme({ name: "did", rule: "did" });
-const options = { customSchemes: [didScheme] };
-
-isIri("did:example:123", options); // true
+isIri("example:anything"); // true
+isIri("example:a b"); // false
 ```
 
-A scheme without rules checks the generic syntax only. Scheme names match
-without case, so `DID:example:123` is a `did` identifier too.
-
-`defineScheme` compiles the scheme's rules into patterns, so make each
-scheme once, like when your module loads, and reuse it. It throws a
-`TypeError` for a name that isn't a scheme name.
-
-A scheme with the name of a built-in scheme replaces it. To turn off a
-built-in scheme's rules, replace it with a scheme without rules.
-
-The validation functions, `normalizeIri`, `normalizeUri`, and `resolveIri`
-take the option. Pass the same options to each of them. The `Iri` type
-doesn't say which schemes a function checked it with, so an identifier
-that you checked with a custom scheme throws an `UnknownSchemeError` when
-you resolve or normalize it without that scheme.
-
-### Rules
-
-`validate` has a rule for each component that has one:
-
-```typescript
-import { abnf } from "@hyperjump/abnf";
-import { path } from "@hyperjump/uri/abnf";
-
-const exampleScheme = defineScheme({
-  name: "example",
-  rule: "example-URI",
-  validate: {
-    authority: "required",
-    query: "forbidden",
-    path: {
-      pattern: abnf(path)`"/v1" path-abempty`,
-      description: "/v1 or a path under it"
-    }
-  }
-});
-```
-
-A component's rule is one of the following:
-
-| Rule | Description |
-| --- | --- |
-| `"required"` | The component has to be there. |
-| `"forbidden"` | The component can't be there. |
-| `{ pattern, description }` | When the component is there, it has to match `pattern`. `description` is optional, and finishes the error message, like `an example URI's path must be /v1 or a path under it`. |
-
-The components are `authority`, `userinfo`, `host`, `port`, `path`,
-`query`, and `fragment`.
-
-### Patterns
-
-Write a pattern in Augmented Backus-Naur Form (ABNF), the notation that
-RFCs write syntax in, and compile it with
-[`@hyperjump/abnf`](https://github.com/hyperjump-io/abnf/blob/main/website/README.md).
-To install it, run the following command:
-
-```bash
-npm install @hyperjump/abnf
-```
-
-Give `abnf` the context of the pattern's component from
-`@hyperjump/uri/abnf`. Each component has one, with its name: `authority`,
-`userinfo`, `host`, `port`, `path`, `query`, and `fragment`. A context
-gives a pattern the following:
-
-- **RFC 3986's rules**, like `segment`, `pchar`, and `IP-literal`, so you
-  can copy a scheme's rules from its specification. In an IRI, they mean
-  RFC 3987's rules, so `pchar` allows `é` too.
-- **Where the component ends**, so the pattern matches only its
-  component.
-- **What the generic syntax already checked**, so the pattern doesn't
-  check the characters or the percent-encoding again, which would make
-  validation slower.
-
-The functions check the generic syntax too, so a pattern can't make an
-identifier valid that the generic syntax doesn't allow.
-
-Each context has an ASCII form, like `asciiPath`, whose rules are RFC
-3986's in an IRI too. Use it for a scheme that allows only ASCII
-characters, like `urn`.
-
-### Hand-written patterns
-
-A pattern is a `RegExp` with the `u` flag and no other flags. In
-TypeScript, a pattern that isn't compiled with a context needs a cast,
-like one that you compiled ahead of time and load from its source:
-
-```typescript
-import type { ComponentPattern } from "@hyperjump/uri";
-
-const pattern = new RegExp(source, "u") as ComponentPattern<"path">;
-```
-
-A pattern that you write by hand has to do what a context does. It
-matches from where its component starts, and what comes after its match
-has to be something that can follow the component, like `?`, `#`, or the
-end of the identifier for a path. So a pattern that can match those
-delimiters can run past the end of its component. For example, `/.+/u`
-for a host matches `/a` in `example:///a`, whose host is empty, and
-`/[^:/?#]+/u` doesn't. `^` and `$` are the start and end of the whole
-identifier, not the component.
-
-### Normalization
-
-`normalize` has a function for each component that the scheme normalizes.
-A function gets the component after the syntax-based normalization, and
-returns it normalized, or `undefined` to remove it:
-
-```typescript
-const exampleScheme = defineScheme({
-  name: "example",
-  rule: "example-URI",
-  normalize: {
-    port: (port) => port === "8080" ? undefined : port,
-    path: (path) => path === "" ? "/" : path
-  }
-});
-```
-
-A function only runs when its component is there. The components are
-`userinfo`, `host`, `port`, `path`, and `query`. A scheme can't normalize
-its fragment, because RFC 3986 says a fragment isn't normalized by its
-scheme.
-
-To turn off the syntax-based normalization, set `syntaxNormalization` to
-`false`. Then `normalizeIri` only makes the scheme lowercase before it
-calls your functions.
-
-### Lowercase part of a component
-
-`lowercaseComponent(component)` makes a component lowercase, for a scheme
-with a part that's case-insensitive. Unlike `toLowerCase`, it changes only
-ASCII letters, and it leaves percent-encoded characters alone:
-
-```typescript
-lowercaseComponent("Ada%2FLovelace"); // "ada%2Flovelace"
-```
+`normalizeIri` and `normalizeUri` apply only the normalization from RFC
+3986 to it, and `resolveIri` has no scheme rules to check its result
+against.
 
 ## The `urn` scheme
 
 A Uniform Resource Name (URN) has a namespace, like `uuid` in
 `urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66`. RFC 8141 defines the
-syntax of every URN, and each namespace adds its own rules.
+syntax of every URN, and each namespace can add its own rules.
 
-The built-in `urn` scheme knows the `uuid` namespace (RFC 9562). For a
-URN of another namespace, the validation functions throw an
-`UnknownUrnNamespaceError`, whose `nid` property is the namespace.
-
-To add namespaces, make a `urn` scheme with `urnScheme(namespaces)` and
-pass it in `customSchemes`, where it replaces the built-in one.
-`namespaces` has a namespace for each name:
+The `urn` scheme checks RFC 8141's syntax for every URN. It also checks
+the rules of the `uuid` namespace (RFC 9562), and makes a UUID lowercase
+when it normalizes one. A URN of any other namespace is checked with RFC
+8141's syntax only:
 
 ```typescript
-import { abnf } from "@hyperjump/abnf";
-import { asciiPath } from "@hyperjump/uri/abnf";
-
-const urn = urnScheme({
-  isbn: {
-    pattern: abnf(asciiPath)`DIGIT *( DIGIT / "-" ) ( DIGIT / "X" )`,
-    description: "an ISBN, like 0-395-36341-1",
-    normalize: (nss) => nss.replaceAll("-", "")
-  },
-  example: {}
-});
-const options = { customSchemes: [urn] };
-
-const value = "URN:ISBN:0-395-36341-1";
-isIri(value, options); // true
-
-assertIri(value, options);
-normalizeIri(value, options); // "urn:isbn:0395363411"
+isIri("urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66"); // true
+isIri("urn:uuid:x"); // false
+isIri("urn:isbn:0-395-36341-1"); // true
 ```
 
-A namespace's `pattern`, `description`, and `normalize` work on its
-namespace-specific string, which is the part after the namespace, like
-`0-395-36341-1`. Compile a `pattern` with `asciiPath`, since the
-namespace-specific string ends where the path does, and a URN can have
-only ASCII characters. They're all
-optional, so `{}` is a namespace without rules. The scheme still knows
-`uuid`, unless you replace it.
+## The `did` scheme
+
+A decentralized identifier (DID) has a method, like `example` in
+`did:example:123456789abcdefghi`. DID 1.1 defines the syntax of every
+DID, and each method can add its own rules. The `did` scheme checks DID
+1.1's syntax for every DID, and no method's rules:
+
+```typescript
+isIri("did:example:123456789abcdefghi#key-1"); // true
+isIri("did:Example:123"); // false: a method's name is lowercase
+```

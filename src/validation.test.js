@@ -1,9 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { defineScheme, isUri, isUriReference, isAbsoluteUri, isIri, isIriReference, isAbsoluteIri } from "./index.js";
+import { isUri, isUriReference, isAbsoluteUri, isIri, isIriReference, isAbsoluteIri } from "./index.js";
 
-// A scheme with no rules of its own, for the generic syntax
-const options = { customSchemes: [defineScheme({ name: "uri", rule: "URI" })] };
-
+// uri isn't built in, so it's checked with the generic syntax only
 describe("isUri", () => {
   test("Full", () => {
     expect(isUri("https://jason@example.com:80/foo?bar#baz")).to.equal(true);
@@ -14,15 +12,15 @@ describe("isUri", () => {
   });
 
   test("No authority", () => {
-    expect(isUri("uri:/foo?bar#baz", options)).to.equal(true);
+    expect(isUri("uri:/foo?bar#baz")).to.equal(true);
   });
 
   test("No authority starting with double slash", () => {
-    expect(isUri("uri://12:34:56/foo?bar#baz", options)).to.equal(false);
+    expect(isUri("uri://12:34:56/foo?bar#baz")).to.equal(false);
   });
 
   test("Rootless path", () => {
-    expect(isUri("uri:foo?bar#baz", options)).to.equal(true);
+    expect(isUri("uri:foo?bar#baz")).to.equal(true);
   });
 
   test("Unicode is not allowed", () => {
@@ -77,7 +75,7 @@ describe("isUriReference", () => {
   });
 
   test("Rootless path with colon after a scheme", () => {
-    expect(isUriReference("uri:foo:bar", options)).to.equal(true);
+    expect(isUriReference("uri:foo:bar")).to.equal(true);
   });
 
   test("Unicode is not allowed", () => {
@@ -123,15 +121,15 @@ describe("isIri", () => {
   });
 
   test("No authority", () => {
-    expect(isIri("uri:/rosé?fóo#bár", options)).to.equal(true);
+    expect(isIri("uri:/rosé?fóo#bár")).to.equal(true);
   });
 
   test("No authority starting with double slash", () => {
-    expect(isIri("uri://12:23:45/rosé?fóo#bár", options)).to.equal(false);
+    expect(isIri("uri://12:23:45/rosé?fóo#bár")).to.equal(false);
   });
 
   test("Rootless path", () => {
-    expect(isIri("uri:rosé?fóo#bár", options)).to.equal(true);
+    expect(isIri("uri:rosé?fóo#bár")).to.equal(true);
   });
 
   test("Unicode is not allowed in scheme", () => {

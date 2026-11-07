@@ -211,6 +211,10 @@ breaks, for `is*` and `assert*` alike. So the slow path decides every
   of slicing the name out and making it lowercase. That took `isIri` from
   163 milliseconds to 138. A name that's found wrongly is harmless, since
   the scheme's pattern checks its name.
+- The scheme is found once, and the slow path is given it. A value without
+  a built-in scheme is tested against the generic pattern only. Looking
+  its scheme up again on the slow path made `isIri` of an unknown scheme
+  1.4 times as slow.
 - On the slow path, and in `resolveIri`'s check of its result, each
   component's pattern is sticky and tested where its component starts in
   the value, without slicing it out. Slicing made `resolveIri` 1.1 times
@@ -718,5 +722,12 @@ benchmark identifiers takes 119 milliseconds, where it took 315 with
 predicates and 81 with the generic syntax only, before schemes. It's 0.7
 times v1's, where it was 1.7 times. A value that's invalid takes 1.2
 times as long as with predicates, since it's tested against its scheme's
-pattern first. An identifier with an unknown scheme isn't measured yet.
-It's the generic check alone, after the scan of the built-ins' names.
+pattern first.
+
+Without custom schemes (see
+[Built-in schemes](../benchmarks/built-in-schemes.md)), the functions
+take what they did, within 5%. An identifier with an unknown scheme is
+the generic check alone, after the scan of the built-ins' names, and
+`isIri` of one takes what it took with the scheme defined with no rules.
+`did` takes twice as long as a custom `did` with no rules did, for its
+rules.
