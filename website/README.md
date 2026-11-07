@@ -64,5 +64,7 @@ changed in v2, see [Migrate from v1](migrate-from-v1.md).
   `toRelativeIri`, and `toAbsoluteIri`
 - [Normalize](normalize.md): comparing identifiers, and encoding
   fragments
+- [Convert URLs](urls.md): making a `URL` from Node.js or a browser an
+  IRI
 - [Migrate from v1](migrate-from-v1.md): what changed, and what to do
   about it
