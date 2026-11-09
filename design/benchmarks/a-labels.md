@@ -53,6 +53,34 @@ The hint was a regular expression at first,
 154. The `indexOf` scan for `--` is faster for the first and splits the
 second.
 
+## Profiling
+
+A CPU profile of `isIri` on three `http` IRIs with A-labels
+(`benchmark/profile/`) put 44% of the time in `URL.parse`, 15% in
+decoding, and 4% in splitting the value. `URL.parse` takes about 520
+nanoseconds for each non-ASCII label, and a host of two labels at once
+takes as long as two calls. Node.js's `url.domainToASCII` takes 471, and
+it's only in Node.js, so validating can't get much faster while the
+runtime's URL parser does the round trip.
+
+Profiling `normalizeIri` found 45% of its time in `hostToUnicode` itself,
+from splitting the host, mapping its labels, and joining them, which took
+98 nanoseconds for two labels. Replacing only the A-labels between slices
+of the host, and shifting the decoded code points by hand instead of with
+`splice`, which took 57 nanoseconds an insert, made it faster, against
+`d0c3b42` (`benchmark/v2-a-labels/`, `node benchmark/bench-punycode.js
+head`):
+
+| | `d0c3b42` | Now |
+| --- | --- | --- |
+| `normalizeIri`, one `xn--` label | 816 | 538 |
+| `normalizeIri`, two `xn--` labels | 1,061 | 726 |
+| `isIri`, one `xn--` label | 1,648 | 1,628 |
+| `isIri`, an invalid `xn--` label | 1,083 | 983 |
+
+The same change to `hasValidALabels` didn't make `isIri` faster, so it
+still splits.
+
 `benchmark/differential-punycode.js` checks 300,000 random labels on
 three seeds: the decoder against Node's deprecated `punycode.decode`,
 that an `http` IRI with a label is valid only when Node's
