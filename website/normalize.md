@@ -37,7 +37,9 @@ First, the functions apply the following rules from RFC 3986:
 4. Make the scheme and the host lowercase.
 
 Then they apply the normalization of the scheme, like removing the default
-port of an `https` URI. A scheme can also turn off the rules from RFC
+port of an `https` URI. `normalizeIri` also converts an internationalized
+domain name in an `http` or `https` host to Unicode, like
+`xn--caf-dma.example` to `café.example`. A scheme can also turn off the rules from RFC
 3986. For example, `urn` and `tag` identifiers aren't decoded. For what
 each scheme changes, see [Built-in schemes](schemes.md#built-in-schemes).
 

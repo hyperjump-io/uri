@@ -15,11 +15,13 @@ v1 did:
 ```typescript
 // v1
 isIri("http:///a"); // true
+isIri("http://xn--abc.example/"); // true
 isIri("did:Example:123"); // true
 isIri("example:a"); // true
 
 // v2
 isIri("http:///a"); // false: an http URI needs a host
+isIri("http://xn--abc.example/"); // false: xn--abc isn't a domain name
 isIri("did:Example:123"); // false: a method's name is lowercase
 isIri("example:a"); // true
 ```

@@ -15,7 +15,7 @@ The package knows the following schemes:
 
 | Scheme | Specification | Rules | Normalization |
 | --- | --- | --- | --- |
-| `http`, `https` | RFC 9110 | Has a host | Removes the default port, `80` or `443`, and an empty port. An empty path is `/`. |
+| `http`, `https` | RFC 9110 | Has a host. A part of the host that starts with `xn--` is an internationalized domain name. For more information, see [Domain names](#domain-names). | Removes the default port, `80` or `443`, and an empty port. An empty path is `/`. `normalizeIri` converts an internationalized domain name to Unicode. |
 | `file` | RFC 8089 | Has a path that starts with `/`, and no userinfo or port | A host of `localhost` is empty, so `file://localhost/a` is `file:///a`. |
 | `urn` | RFC 8141 | Has no authority, and its path is a namespace and a name, in ASCII. For more information, see [The `urn` scheme](#the-urn-scheme). | Makes only the scheme and the namespace lowercase, and doesn't decode percent-encoding. |
 | `tag` | RFC 4151 | None. RFC 4151 says not to reject a tag that doesn't follow its syntax. | Makes only the scheme lowercase. |
@@ -28,6 +28,33 @@ doesn't forbid it.
 
 A relative reference doesn't have a scheme, so it's checked with the
 generic syntax only.
+
+## Domain names
+
+An internationalized domain name, like `café.example`, has an ASCII
+form, like `xn--caf-dma.example`. Each part of the name that isn't ASCII
+starts with `xn--` in the ASCII form.
+
+In an `http` or `https` IRI, a part of the host that starts with `xn--`
+has to be the ASCII form of a valid name. The package checks it with the
+`URL` class, so it accepts the names that browsers and Node.js accept:
+
+```typescript
+isIri("https://xn--caf-dma.example/"); // true
+isIri("https://xn--abc.example/"); // false
+isIri("https://café.example/"); // true
+```
+
+Other hosts aren't checked, and a host like `my_host` is valid.
+
+`normalizeIri` converts the ASCII form to Unicode, so a URL's host and the
+same name in Unicode normalize to the same IRI. `normalizeUri` leaves it
+in ASCII, because a URI can't have Unicode characters:
+
+```typescript
+normalizeIri("https://XN--CAF-DMA.example/"); // "https://café.example/"
+normalizeUri("https://XN--CAF-DMA.example/"); // "https://xn--caf-dma.example/"
+```
 
 ## Other schemes
 

@@ -47,7 +47,20 @@ call `normalizeIri` on it. For more information, see
 [Normalize](normalize.md).
 
 A domain name stays the way the URL has it, like `xn--caf-dma.example`
-for `café.example`.
+for `café.example`. `normalizeIri` converts it to Unicode, and
+`new URL` converts it back, without losing anything:
+
+```typescript
+const iri = normalizeIri(urlToIri(new URL("https://café.example/")));
+// "https://café.example/"
+
+new URL(iri).href; // "https://xn--caf-dma.example/"
+```
+
+The `URL` class accepts some hosts with `xn--` that aren't valid
+internationalized domain names, like `xn--wq-.example`. `urlToIri` throws
+an `InvalidUriError` for an `http` or `https` URL with one. For more
+information, see [Domain names](schemes.md#domain-names).
 
 ## Scheme rules
 
