@@ -64,6 +64,20 @@ like `resolveIri`'s (see [Resolving](resolving.md)), and `urlToIri` throws
 an `InvalidUriError` for one. A brand has to be true (see
 [Trust](trust.md#what-a-brand-says)).
 
+The URL Standard accepts some `xn--` labels that aren't A-labels, like
+`xn--wq-`, which decodes to ASCII, and `xn---stnnm`, a second spelling of
+`xn--stnnm`. `urlToIri` throws for an `http` or `https` URL with one (see
+[Domain names](domain-names.md#checking)).
+
+## Domain names
+
+A domain is kept as the URL Standard serialized it, in its ASCII form,
+like `xn--rsum-bpad.example`, since `urlToIri` doesn't decode anything.
+`normalizeIri` converts an `http` or `https` host's A-labels to Unicode,
+and `new URL` of its result has the URL's host again, so a URL and an IRI
+convert to each other without loss (see
+[Domain names](domain-names.md#a-labels)).
+
 ## Rejected
 
 - **Decoding percent-encoded Unicode**, like RFC 3987 §3.2's conversion
@@ -80,9 +94,3 @@ an `InvalidUriError` for one. A brand has to be true (see
 - **`iriToUrl`**, for going the other way. `new URL(iri)` already does it,
   and APIs that take a URL, like `fetch` and `fileURLToPath`, take an IRI
   as a string. It can be added when a caller needs more than that.
-
-## Known limitations
-
-- A domain is kept as the URL Standard serialized it, in its ASCII form,
-  like `xn--rsum-bpad.example`. RFC 3987 makes converting it to Unicode
-  optional.

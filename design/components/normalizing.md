@@ -35,7 +35,9 @@ removal only with a dot segment.
 - It applies only the syntax-based normalization for a scheme that isn't
   built in.
 - It keeps its URI and IRI forms, because they decode different
-  characters.
+  characters. `normalizeIri` also converts the A-labels of an `http` or
+  `https` host to Unicode, and `normalizeUri` doesn't (see
+  [Domain names](domain-names.md#converting)).
 
 ## Rejected
 

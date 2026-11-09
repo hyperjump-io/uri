@@ -50,6 +50,8 @@ hand and have JSDoc explaining the details. Documentation for users is in
   from the platform
 - [Schemes](components/schemes.md): the built-in schemes' rules and
   normalization, and unknown schemes
+- [Domain names](components/domain-names.md): why hosts aren't checked,
+  except for `http` A-labels, which `normalizeIri` converts to Unicode
 - [ABNF](components/abnf.md): the contexts the built-in schemes'
   patterns are compiled with by `@hyperjump/abnf`
 - [Errors](components/errors.md): error classes, and diagnosing what's wrong
