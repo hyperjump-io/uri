@@ -190,8 +190,9 @@ export function normalizeUri(uri: Uri): NormalizedUri;
 
 /**
  * Normalizes an IRI, like {@link normalizeUri}. Percent-encoded Unicode
- * characters that an IRI allows are decoded, so the result isn't a
- * {@link Uri} even when `iri` is.
+ * characters that an IRI allows are decoded, and so are the A-labels of an
+ * `http` or `https` host, like `xn--caf-dma` for `café`. So the result
+ * isn't a {@link Uri} even when `iri` is.
  */
 export function normalizeIri(iri: AbsoluteIri): AbsoluteIri & NormalizedIri;
 export function normalizeIri(iri: Iri): NormalizedIri;

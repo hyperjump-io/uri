@@ -21,3 +21,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 - [Getters](getters.md) (2026-11-04)
 - [Built-in schemes](built-in-schemes.md) (2026-11-06)
 - [Future IP literals](future-ip-literals.md) (2026-11-06)
+- [A-labels](a-labels.md) (2026-11-09)

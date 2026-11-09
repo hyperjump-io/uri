@@ -20,6 +20,22 @@ describe("Built-in schemes", () => {
     ["http://user@example.com/", true], // A SHOULD NOT, so it's a policy
     ["http://my_host/", true], // Hosts aren't checked against DNS syntax
 
+    // RFC 5890 §2.3.1: a label that starts with "xn--" is an internationalized domain name's ASCII form
+    ["http://xn--caf-dma.example/", true],
+    ["https://XN--CAF-DMA.example/", true],
+    ["http://www.xn--caf-dma.xn--rsum-bpad.example/", true],
+    ["http://café.xn--rsum-bpad.example/", true],
+    ["http://café.example/", true], // A Unicode label isn't checked
+    ["http://xn--t9d.example/", true], // Ꮇ, which UTS #46 maps lowercase Cherokee to
+    ["http://xn--abc.example/", false], // Decodes to a character IDNA doesn't allow
+    ["http://xn--caf-.example/", false], // Decodes to ASCII
+    ["http://xn---stnnm.example/", false], // Another A-label for xn--stnnm
+    ["http://xn--9ca.xn--abc.example/", false], // Any invalid label
+    ["http://xn--.example/", false],
+    ["http://[v7.xn--abc]/", true], // An IP literal isn't a domain name
+    ["foo://xn--abc.example/", true], // Only http and https hosts are domain names
+    ["http://example.com/xn--abc", true], // Only the host
+
     // RFC 8089 §2: auth-path = [ file-auth ] path-absolute, and file-auth = "localhost" / host
     ["file:///a/b", true],
     ["file://localhost/a", true],
@@ -195,6 +211,10 @@ describe("What's wrong with a scheme's rules, and where", () => {
       component: "path", start: 4, end: 13,
       message: `Invalid namestring: urn:example:é — a urn URI's path must be a NID, ":", and an NSS, in ASCII, like example:a`
     }],
+    ["a label that starts with xn-- and isn't an A-label", () => assertIri("http://a.xn--abc.example/"), {
+      rule: "http-URI", reason: "component-mismatch", component: "host", start: 7, end: 24,
+      message: "Invalid http-URI: http://a.xn--abc.example/ — an http URI's host must be an internationalized domain name in a label that starts with xn--, like xn--caf-dma"
+    }],
     ["the scheme's rules, after the generic syntax", () => assertIri("http:///a b"), {
       rule: "IRI", reason: "invalid-character"
     }]
@@ -242,6 +262,12 @@ describe("Scheme-based normalization", () => {
     ["http://example.com", "http://example.com/"], // An empty path
     ["HTTP://Example.COM:80?q", "http://example.com/?q"],
     ["http://u@example.com:80/", "http://u@example.com/"], // The authority is rebuilt
+    ["http://xn--caf-dma.example/", "http://café.example/"], // RFC 3987 §5.3.3
+    ["HTTPS://WWW.XN--CAF-DMA.XN--RSUM-BPAD.example/", "https://www.café.résumé.example/"],
+    ["http://xn--t9d.example/", "http://ꮇ.example/"], // Lowercase, like the rest of the host
+    ["http://[v7.xn--abc]/", "http://[v7.xn--abc]/"],
+    ["foo://xn--caf-dma.example/", "foo://xn--caf-dma.example/"], // Not a scheme that's known to have domain names
+    ["file://xn--caf-dma.example/a", "file://xn--caf-dma.example/a"],
     ["file://localhost/a", "file:///a"],
     ["file://LocalHost/a", "file:///a"], // The host is lowercased first
     ["file://host/a/./b", "file://host/a/b"],
@@ -267,6 +293,10 @@ describe("Scheme-based normalization", () => {
   test("normalizeUri applies a scheme's normalization too", () => {
     expect(normalizeUri(/** @type Uri */ ("http://example.com:80"))).to.equal("http://example.com/");
   });
+
+  test("normalizeUri leaves an A-label in ASCII", () => {
+    expect(normalizeUri(/** @type Uri */ ("http://XN--CAF-DMA.example/"))).to.equal("http://xn--caf-dma.example/");
+  });
 });
 
 describe("Resolving checks the result's scheme rules", () => {
@@ -274,6 +304,7 @@ describe("Resolving checks the result's scheme rules", () => {
     ["urn:example:a", "b", "namestring", "path", 0, 1],
     ["urn:example:a", "?q", "namestring", "query", 1, 2],
     ["http://a/b", "//", "http-URI", "host", 2, 2],
+    ["http://a/b", "//xn--abc/c", "http-URI", "host", 2, 9],
     ["file:///a", "//h", "file-URI", "path", 3, 3],
     ["did:example:a", "b", "did-url", "path", 0, 1],
     ["did:example:a", "/b", "did-url", "path", 0, 2],

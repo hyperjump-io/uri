@@ -1,4 +1,5 @@
 /** @import * as API from "./index.d.ts" */
+import { hasValidALabels, hostToUnicode } from "./punycode.js";
 import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPath, urnQuery, uuidNss } from "./patterns.js";
 
 /**
@@ -35,8 +36,22 @@ import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPat
  */
 
 // What a built-in scheme requires of a component: to be there, not to be there, or to match a pattern when it's there.
-// A description finishes "a urn URI's path must be …" in the error.
-/** @typedef {"required" | "forbidden" | { readonly pattern: RegExp; readonly description: string }} ComponentRule */
+// A description finishes "a urn URI's path must be …" in the error. A check is for what a pattern can't say, and only
+// runs on a value that its hint matches, so most values aren't split to find the component.
+/**
+ * @typedef {{
+ *   readonly hint: (value: string) => boolean;
+ *   readonly test: (text: string) => boolean;
+ *   readonly description: string;
+ * }} ComponentCheck
+ */
+/**
+ * @typedef {"required" | "forbidden" | {
+ *   readonly pattern: RegExp;
+ *   readonly description: string;
+ *   readonly check?: ComponentCheck;
+ * }} ComponentRule
+ */
 
 /**
  * @typedef {{
@@ -46,7 +61,7 @@ import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPat
  *   readonly validate?: { readonly [Component in SchemeComponent]?: ComponentRule };
  *   readonly normalize?: {
  *     readonly userinfo?: (userinfo: string) => string | undefined;
- *     readonly host?: (host: string) => string;
+ *     readonly host?: (host: string, form: "uri" | "iri") => string;
  *     readonly port?: (port: string) => string | undefined;
  *     readonly path?: (path: string) => string;
  *     readonly query?: (query: string) => string | undefined;
@@ -69,6 +84,7 @@ import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPat
  *   readonly uri: { readonly identifier: RegExp; readonly absolute: RegExp };
  *   readonly iri: { readonly identifier: RegExp; readonly absolute: RegExp };
  *   readonly ruled: readonly SchemeComponent[];
+ *   readonly checks: readonly (ComponentCheck & { readonly component: SchemeComponent })[];
  *   readonly patterns: Partial<Record<SchemeComponent, RegExp>>;
  *   readonly namespace: (NamespaceDefinition & { readonly nss: RegExp }) | undefined;
  * }} Scheme
@@ -104,6 +120,7 @@ import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPat
 
 /**
  * @typedef {{
+ *   form: "uri" | "iri";
  *   normalizePath: (path: string) => string;
  *   normalizeQuery: (query: string) => string;
  *   normalizeFragment: (fragment: string) => string;
@@ -253,17 +270,39 @@ const never = "(?!)";
 // The built-in schemes. Their patterns are generated from their RFCs' ABNF by scripts/generate-patterns.js, which has
 // the ABNF, with a context for each component that removes its delimiters (see src/abnf.js).
 
+// Whether "xn--" is anywhere in a value, in any case. "--" is rare, so it's found first.
+/** @type (value: string) => boolean */
+const hasXnPrefix = (value) => {
+  for (let index = value.indexOf("--", 2); index !== -1; index = value.indexOf("--", index + 1)) {
+    if ((value.charCodeAt(index - 2) | 0x20) === 0x78 && (value.charCodeAt(index - 1) | 0x20) === 0x6E) {
+      return true;
+    }
+  }
+  return false;
+};
+
 // RFC 9110 §4.2.1: http-URI = "http" "://" authority path-abempty [ "?" query ], and its host can't be empty. The
-// default port and an empty path are normalized (§4.2.3).
+// default port and an empty path are normalized (§4.2.3). A label that starts with "xn--" is reserved for an
+// internationalized domain name's ASCII form (RFC 5890 §2.3.1), so it has to be one, and normalizeIri converts it to
+// Unicode (RFC 3987 §5.3.3).
 /** @type (name: string, rule: string, defaultPort: string) => Scheme */
 const httpScheme = (name, rule, defaultPort) => compileScheme({
   name,
   rule,
   validate: {
     authority: "required",
-    host: { pattern: httpHost, description: "non-empty" }
+    host: {
+      pattern: httpHost,
+      description: "non-empty",
+      check: {
+        hint: hasXnPrefix,
+        test: hasValidALabels,
+        description: "an internationalized domain name in a label that starts with xn--, like xn--caf-dma"
+      }
+    }
   },
   normalize: {
+    host: (host, form) => form === "iri" ? hostToUnicode(host) : host,
     port: (port) => port === "" || port === defaultPort ? undefined : port,
     path: (path) => path === "" ? "/" : path
   }
@@ -354,6 +393,7 @@ const builtInSchemes = [
 
 /** @type Strategy */
 const uriStrategy = {
+  form: "uri",
   normalizePath: createPathNormalizer(isAllowedInPath),
   normalizeQuery: createQueryNormalizer(isAllowedInQuery),
   normalizeFragment: createQueryNormalizer(isAllowedInQuery)
@@ -361,6 +401,7 @@ const uriStrategy = {
 
 /** @type Strategy */
 const iriStrategy = {
+  form: "iri",
   normalizePath: createPathNormalizer(isAllowedInIPath),
   normalizeQuery: createQueryNormalizer(isAllowedInIQuery),
   normalizeFragment: createQueryNormalizer(isAllowedInIQuery)
@@ -608,7 +649,7 @@ export class InvalidIriError extends Error {
 function createValidator(pattern, form, kind) {
   return (/** @type string */ value) => {
     const scheme = builtInSchemeOf(value);
-    return scheme === undefined ? pattern.test(value) : scheme[form][kind].test(value);
+    return scheme === undefined ? pattern.test(value) : scheme[form][kind].test(value) && passesChecks(scheme, value);
   };
 }
 
@@ -625,7 +666,7 @@ function createValidator(pattern, form, kind) {
 function createAssertion(pattern, form, kind, rule, invalid) {
   return (value) => {
     const scheme = builtInSchemeOf(value);
-    if (scheme !== undefined && scheme[form][kind].test(value)) {
+    if (scheme !== undefined && scheme[form][kind].test(value) && passesChecks(scheme, value)) {
       return;
     }
 
@@ -678,6 +719,10 @@ function compileScheme(definition, namespace) {
     uri: { identifier: build(uriRules.parts, true), absolute: build(uriRules.parts, false) },
     iri: { identifier: build(iriRules.parts, true), absolute: build(iriRules.parts, false) },
     ruled: allComponents.filter((component) => validate[component] !== undefined),
+    checks: allComponents.flatMap((component) => {
+      const rule = validate[component];
+      return typeof rule === "object" && rule.check !== undefined ? [{ component, ...rule.check }] : [];
+    }),
     patterns,
     namespace: namespace === undefined
       ? undefined
@@ -961,6 +1006,8 @@ const checkComponents = (scheme, components, names, value) => {
       }
     } else if (text !== undefined && !testAt(/** @type RegExp */ (patterns[component]), value, startOf(component, components, value))) {
       return { reason: "component-mismatch", component, name: scheme.name, rule: scheme.rule, description: rule.description };
+    } else if (text !== undefined && rule.check !== undefined && !rule.check.test(text)) {
+      return { reason: "component-mismatch", component, name: scheme.name, rule: scheme.rule, description: rule.check.description };
     }
   }
 
@@ -973,6 +1020,20 @@ const checkComponents = (scheme, components, names, value) => {
   }
 
   return undefined;
+};
+
+// Whether a value that matches its scheme's pattern passes the scheme's checks. It's only split when a hint matches.
+/** @type (scheme: Scheme, value: string) => boolean */
+const passesChecks = (scheme, value) => {
+  for (const check of scheme.checks) {
+    if (check.hint(value)) {
+      const text = split(value)[check.component];
+      if (text !== undefined && !check.test(text)) {
+        return false;
+      }
+    }
+  }
+  return true;
 };
 
 // Whether a sticky pattern matches where a component starts, without slicing the component out
@@ -1111,7 +1172,7 @@ const normalize = (strategy, value) => {
     : normalizeComponents(strategy, parsed);
 
   if (scheme !== undefined) {
-    normalizeScheme(scheme, components);
+    normalizeScheme(scheme, components, strategy.form);
   }
 
   return recompose(components);
@@ -1119,8 +1180,8 @@ const normalize = (strategy, value) => {
 
 // A scheme's normalization changes the components it has a function for. A function only runs when its component is
 // there, and returns undefined to remove it.
-/** @type (scheme: Scheme, components: Components) => void */
-const normalizeScheme = (scheme, components) => {
+/** @type (scheme: Scheme, components: Components, form: "uri" | "iri") => void */
+const normalizeScheme = (scheme, components, form) => {
   const functions = scheme.normalize;
   if (functions !== undefined) {
     if (components.authority !== undefined) {
@@ -1128,7 +1189,7 @@ const normalizeScheme = (scheme, components) => {
         setOrDelete(components, "userinfo", functions.userinfo(components.userinfo));
       }
       if (functions.host !== undefined) {
-        components.host = functions.host(/** @type string */ (components.host));
+        components.host = functions.host(/** @type string */ (components.host), form);
       }
       if (functions.port !== undefined && components.port !== undefined) {
         setOrDelete(components, "port", functions.port(components.port));
