@@ -2,8 +2,9 @@
 
 First recorded 2026-11-01, on Node.js 24.20.0, against identifier-js
 0.5.4, fast-uri 4.2.3, uri-js 4.4.1, and Node.js's `URL`. Last run
-2026-11-04, after `defineScheme` replaced the schemes' predicates, with
-v1, v2 from before schemes, and v2 with predicates added.
+2026-11-09, after `http` and `https` A-labels were checked and converted
+(see [A-labels](a-labels.md)), with v1, v2 from before schemes, v2 with
+predicates, and v2 from before A-labels added.
 
 The scripts are in `benchmark/other-implementations/`, which has its own
 `package.json` so the other libraries aren't dependencies of this one.
@@ -13,11 +14,11 @@ Install them with `npm ci` and run `node run-all.mjs`, both with Node.js
 
 `libs.mjs` maps each operation to each library's closest equivalent, on
 IRIs where the library has them. `check.mjs` prints every result, and
-they all agree on the ASCII inputs. v1 comes from the `json-schema`
-checkout next to this repo, at `1.4.0`, v2 before schemes is
-`benchmark/v2-before-schemes.js` (see
-[Schemes and trust](schemes-and-trust.md)), and v2 with predicates is
-`benchmark/v2-predicates.js` (see [`defineScheme`](define-scheme.md)).
+they all agree on the ASCII inputs. v1 is `benchmark/v1/`, from the
+`v1.4.0` tag, v2 before schemes is `benchmark/v2-before-schemes.js` (see
+[Schemes and trust](schemes-and-trust.md)), v2 with predicates is
+`benchmark/v2-predicates.js` (see [`defineScheme`](define-scheme.md)), and
+v2 before A-labels is `benchmark/v2-before-punycode/`, from `9b0263c`.
 
 ## Speed
 
@@ -25,20 +26,33 @@ checkout next to this repo, at `1.4.0`, v2 before schemes is
 operation in its own process, after 3 warm-up runs. Times are the median
 of 5 runs, in milliseconds.
 
-| Operation | v1 | v2, before schemes | v2, predicates | v2 | identifier-js | fast-uri | uri-js | `URL` |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Validate, ASCII | 207 | 104 | 333 | 130 | 265 | 909 | 1041 | 70 |
-| Validate, Unicode | 224 | 109 | 317 | 126 | 332 | 1129 | 2161 | 151 |
-| Parse, ASCII | 221 | 160 | 57 | 58 | 505 | 928 | 1049 | 154 |
-| Parse, Unicode | 234 | 196 | 84 | 86 | 601 | 1132 | 2142 | 339 |
-| Normalize, ASCII | 317 | 225 | 184 | 181 | 1249 | 1906 | 2608 | 157 |
-| Normalize, Unicode | 376 | 295 | 191 | 191 | 1399 | 2484 | 5267 | 365 |
-| Resolve | 847 | 644 | 877 | 415 | 2456 | 2981 | 3752 | 844 |
-| To relative | 2587 | 999 | 941 | 487 | 2137 | | | |
+| Operation | v1 | v2, before schemes | v2, predicates | v2, before A-labels | v2 | identifier-js | fast-uri | uri-js | `URL` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Validate, ASCII | 210 | 106 | 334 | 135 | 143 | 278 | 909 | 1080 | 70 |
+| Validate, Unicode | 227 | 109 | 313 | 129 | 142 | 327 | 1135 | 2145 | 150 |
+| Validate, `xn--` | 238 | 136 | 284 | 160 | 1461 | 401 | 1682 | 1768 | 172 |
+| Parse, ASCII | 216 | 159 | 57 | 60 | 58 | 501 | 913 | 1044 | 153 |
+| Parse, Unicode | 238 | 197 | 85 | 86 | 84 | 615 | 1123 | 2154 | 378 |
+| Normalize, ASCII | 333 | 243 | 205 | 189 | 203 | 1370 | 2059 | 2857 | 169 |
+| Normalize, Unicode | 411 | 319 | 205 | 205 | 220 | 1552 | 2735 | 5096 | 364 |
+| Normalize, `xn--` | 2001 | 1915 | 1830 | 1825 | 2348 | 2298 | 2798 | 4518 | 303 |
+| Resolve | 1318 | 600 | 376 | 366 | 363 | 2551 | 2953 | 3239 | 388 |
+| To relative | 2076 | 1112 | 964 | 937 | 959 | 2239 | | | |
 
 - The ASCII inputs are the four in [Comparison with v1](v1-comparison.md).
   The Unicode inputs have the same shapes with non-ASCII characters in the
-  host, path, query, or fragment.
+  host, path, query, or fragment. The `xn--` inputs are internationalized
+  domain names as URLs serialize them, with five A-labels in four IRIs:
+  `https://xn--caf-dma.example/a/b`, `https://www.xn--mnchen-3ya.de/`,
+  `https://xn--e1afmkfd.xn--p1ai/a`, and `https://xn--r8jz45g.jp/` with a
+  percent-encoded Japanese path, query, and fragment.
+- v2 checks each A-label with a `URL.parse` round trip, so it validates
+  `xn--` inputs 9.1 times slower than before A-labels. That's slower than
+  identifier-js and `URL`, which don't check them, and about as fast as
+  fast-uri and uri-js. Normalizing them is 1.3 times slower than before,
+  since most of that row is decoding the Japanese path. Without `xn--`,
+  validating is 6% slower, for the scan for `xn--`, and the rest is the
+  same within noise.
 - Resolve resolves `#/$defs/foo`, `../other.json`, `meta/core`, and
   `https://example.com/x` against
   `https://json-schema.org/draft/2020-12/schema`. To relative finds four
@@ -82,7 +96,8 @@ comparable.
   work than a validator's. `foo` is a valid reference, but not an IRI.
 - fast-uri and `URL` turn IRIs into URIs: `café` is `caf%C3%A9`, and a
   Unicode host is encoded in ASCII (`xn--`). `@hyperjump/uri`, identifier-js, and uri-js
-  keep them IRIs.
+  keep them IRIs. `@hyperjump/uri` and uri-js also convert an `xn--` host
+  to Unicode when they normalize an IRI. identifier-js keeps it in ASCII.
 - `URL` is the WHATWG URL Standard, not RFC 3986 and RFC 3987, and it's
   native code in Node.js, so it's a reference point rather than an
   alternative (see [Follow the RFCs](../principles/follow-the-rfcs.md#rejected)).
@@ -102,5 +117,7 @@ match about 2.4 times as slow here (see
 chooses a grammar by scheme on every call, which makes a new `RegExp`.
 
 It was 2.3–5.6 times slower than v2 before schemes. Against v2 now, it's
-2.0 times slower to validate ASCII and 2.6 times slower for Unicode, and
-4.4–8.7 times slower at everything else.
+1.9 times slower to validate ASCII and 2.3 times slower for Unicode, and
+2.3–8.6 times slower at everything else, except `xn--` inputs. It
+validates those 3.6 times faster, since it doesn't check A-labels, and
+normalizes them as fast, without converting them.
