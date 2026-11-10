@@ -31,8 +31,9 @@ const patterns = [
   [
     "httpHost",
     `RFC 9110 §4.2.1: "A sender MUST NOT generate an "http" URI with an empty host identifier. A recipient that processes
-such a URI reference MUST reject it as invalid." The same for https (§4.2.2).`,
-    abnf(host)`IP-literal / 1*( unreserved / pct-encoded / sub-delims )`
+such a URI reference MUST reject it as invalid." The same for https (§4.2.2). An IP literal is only its shape here, like
+in the generic patterns, which leave checking it to ipLiteralPattern.`,
+    abnf(host)`"[" *( unreserved / sub-delims / ":" ) "]" / 1*( unreserved / pct-encoded / sub-delims )`
   ],
   [
     "filePath",

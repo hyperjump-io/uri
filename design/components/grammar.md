@@ -6,7 +6,8 @@ Each constant is a rule, named after it in camel case: `path-abempty` is
 `pathAbEmpty`, and `IPv6address` is `ipV6Address`. Each holds exactly its
 rule, without the delimiter before it, so `port` is `*DIGIT`, not
 `":" *DIGIT`. The patterns have no capture groups. They only validate (see
-[Parsing](parsing.md)).
+[Parsing](parsing.md)). The one rule they don't have is `IP-literal`,
+which is checked on its own (see [IP literals](#ip-literals)).
 
 ## Paths
 
@@ -63,6 +64,50 @@ the `v` flag, which does).
 RFC aligns them, with the spaces removed before they're joined. On one
 line, as before, it was 400 characters, and comparing it with the RFC
 meant counting repetitions.
+
+## IP literals
+
+The patterns don't have `IP-literal`. In its place, they have its shape:
+a `[`, then any of the characters it can have between its brackets
+(`unreserved`, `sub-delims`, and `:`), then a `]`. That's
+`ipLiteralShape`. In a value a pattern accepts, a `[` can only be where an
+IP literal starts, because no other rule allows one. So every validator
+and assertion also checks a value that has a `[` against
+`ipLiteralPattern`, which is exactly `IP-literal` (`hasValidIpLiteral`).
+`http`'s and `https`'s host rule has the same shape, for the same reason.
+The patterns accept more than the grammar does, and the check rejects
+exactly what they accept that the grammar doesn't, so the functions
+accept the same values as before. The errors are the same too, because a
+value whose literal fails the check is diagnosed the way a value the
+pattern rejected is.
+
+It's for the first time a pattern is used. V8 compiles a regular
+expression to bytecode the first time it runs, and to native code the
+second time, and `IPv6address` was most of each large pattern. The first
+two uses of `iriReferencePattern` took about 12.5 milliseconds, most of it
+in V8's bytecode peephole optimizer. A dependent like `json-schema` uses
+several of the large patterns for the first time when it compiles its
+first schema. With the shape, the first two uses take 0.7 to 1.5
+milliseconds, and the IPv6 grammar is only compiled for a value that has
+an IP literal (see [IP-literal's shape](../benchmarks/ip-literal-shape.md)).
+
+The cost is an `indexOf("[")` on every call. It makes `is*` and `assert*`
+1 to 14 percent slower on a value without an IP literal, up to 25
+nanoseconds. A value with one is about twice as fast.
+
+### Rejected
+
+- **Giving the first match a string of 1,000 characters or more**, so that
+  V8 compiles it straight to native code. It took 2.2 milliseconds instead
+  of 12.5, without changing a pattern. But it depends on a threshold in
+  V8's source, which can change in any release, and the IPv6 grammar is
+  still compiled for every pattern.
+- **Compiling the patterns when the library loads.** It moves the cost
+  rather than removing it, and a caller who only splits and resolves would
+  pay for it (see
+  [Pay only for what you ask for](../principles/pay-only-for-what-you-ask-for.md)).
+- **Smaller Unicode classes.** Collapsing `ucschar`'s ranges into one, only
+  to measure it, didn't make a first use any faster.
 
 ## Small things
 

@@ -159,6 +159,10 @@ const ipV6Address = `(?:${[
 ].map((alternative) => alternative.replaceAll(" ", "")).join("|")})`;
 const ipVFuture = `[vV]${hexdig}+\\.(?:${unreserved}|${subDelims}|:)+`;
 const ipLiteral = `\\[(?:${ipV6Address}|${ipVFuture})\\]`;
+// The characters IP-literal allows between its brackets. The patterns have this in place of IP-literal, and a value with
+// a "[", which only an IP literal can have, is checked with ipLiteralPattern too (see hasValidIpLiteral). IPv6address is
+// most of a pattern, and V8 takes about 10 ms to compile one that has it, the first time it's used.
+const ipLiteralShape = `\\[(?:${unreserved}|${subDelims}|:)*\\]`;
 
 // RFC 3987
 const ucschar = `\\u{A0}-\\u{D7FF}\\u{F900}-\\u{FDCF}\\u{FDF0}-\\u{FFEF}\\u{10000}-\\u{1FFFD}\\u{20000}-\\u{2FFFD}\\u{30000}-\\u{3FFFD}\\u{40000}-\\u{4FFFD}\\u{50000}-\\u{5FFFD}\\u{60000}-\\u{6FFFD}\\u{70000}-\\u{7FFFD}\\u{80000}-\\u{8FFFD}\\u{90000}-\\u{9FFFD}\\u{A0000}-\\u{AFFFD}\\u{B0000}-\\u{BFFFD}\\u{C0000}-\\u{CFFFD}\\u{D0000}-\\u{DFFFD}\\u{E1000}-\\u{EFFFD}`;
@@ -179,7 +183,7 @@ const iprivate = `[\\u{E000}-\\u{F8FF}\\u{F0000}-\\u{FFFFD}\\u{100000}-\\u{10FFF
  */
 const rules = (unreserved, iprivate) => {
   const regName = `(?:${unreserved}|${pctEncoded}|${subDelims})*`;
-  const host = `(?:${ipLiteral}|${ipV4Address}|${regName})`;
+  const host = `(?:${ipLiteralShape}|${ipV4Address}|${regName})`;
   const userinfo = `(?:${unreserved}|${pctEncoded}|${subDelims}|:)*`;
   const authority = `(?:${userinfo}@)?${host}(?::${port})?`;
 
@@ -649,9 +653,17 @@ export class InvalidIriError extends Error {
 function createValidator(pattern, form, kind) {
   return (/** @type string */ value) => {
     const scheme = builtInSchemeOf(value);
-    return scheme === undefined ? pattern.test(value) : scheme[form][kind].test(value) && passesChecks(scheme, value);
+    return (scheme === undefined ? pattern.test(value) : scheme[form][kind].test(value) && passesChecks(scheme, value))
+      && hasValidIpLiteral(value);
   };
 }
+
+// A value a pattern accepts has at most one "[", where its IP literal starts, and the literal ends at the first "]"
+/** @type (value: string) => boolean */
+const hasValidIpLiteral = (value) => {
+  const start = value.indexOf("[");
+  return start === -1 || ipLiteralPattern.test(value.slice(start, value.indexOf("]", start) + 1));
+};
 
 // An assertion tests what a validator does, and only a value that fails is looked at again: the generic pattern says
 // whether it's an identifier at all, and the scheme's rules say which one it breaks
@@ -666,11 +678,11 @@ function createValidator(pattern, form, kind) {
 function createAssertion(pattern, form, kind, rule, invalid) {
   return (value) => {
     const scheme = builtInSchemeOf(value);
-    if (scheme !== undefined && scheme[form][kind].test(value) && passesChecks(scheme, value)) {
+    if (scheme !== undefined && scheme[form][kind].test(value) && passesChecks(scheme, value) && hasValidIpLiteral(value)) {
       return;
     }
 
-    if (!pattern.test(value)) {
+    if (!pattern.test(value) || !hasValidIpLiteral(value)) {
       throw invalid(value, rule, diagnose(rule, value));
     }
 
