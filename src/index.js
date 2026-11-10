@@ -245,6 +245,11 @@ const isAllowedInIQuery = RegExp.prototype.test.bind(new RegExp(`${iunreserved}|
 const isAllAllowedInFragment = new RegExp(`^(?:${unreserved}|${subDelims}|[:@/?])*$`);
 const isAllAllowedInIFragment = new RegExp(`^(?:${iunreserved}|${subDelims}|[:@/?])*$`, "u");
 
+// Each character a fragment doesn't allow, the classes above without their brackets. With the "u" flag, a character
+// outside the BMP is one match, so it's encoded whole, in a URI too.
+/** @type (unreserved: string) => RegExp */
+const notAllowedInFragment = (unreserved) => new RegExp(`[^${unreserved.slice(1, -1)}${subDelims.slice(1, -1)}:@/?]`, "gu");
+
 // Characters a URL's authority and path allow, in one piece, for urlToIri. "[" and "]" are only in a URL's authority
 // around an IPv6 address. Its query and fragment allow what isAllowedInQuery does.
 const isAllowedInUrlAuthority = RegExp.prototype.test.bind(new RegExp(`${unreserved}|${subDelims}|[:@\\[\\]]`));
@@ -552,9 +557,9 @@ export const normalizeUri = (/** @type string */ uri) => /** @type any */ (norma
 export const normalizeIri = (/** @type string */ iri) => /** @type any */ (normalize(iriStrategy, iri));
 
 /** @type typeof API.encodeUriFragment */
-export const encodeUriFragment = createEncoder(isAllowedInQuery, isAllAllowedInFragment);
+export const encodeUriFragment = createEncoder(isAllAllowedInFragment, notAllowedInFragment(unreserved));
 /** @type typeof API.encodeIriFragment */
-export const encodeIriFragment = createEncoder(isAllowedInIQuery, isAllAllowedInIFragment);
+export const encodeIriFragment = createEncoder(isAllAllowedInIFragment, notAllowedInFragment(iunreserved));
 
 /** @type typeof API.resolveIri */
 export const resolveIri = (/** @type string */ reference, /** @type string */ base) => /** @type any */ (resolve(reference, base));
@@ -854,23 +859,12 @@ function createQueryNormalizer(isAllowed) {
 // allowed unescaped, so an encoded fragment is already normalized.
 
 /**
- * @param {(value: string) => boolean} isAllowed
  * @param {RegExp} isAllAllowed
+ * @param {RegExp} notAllowed - A global pattern for one character that isn't allowed
  * @returns {(value: string) => string}
  */
-function createEncoder(isAllowed, isAllAllowed) {
-  return (value) => {
-    if (isAllAllowed.test(value)) {
-      return value;
-    }
-
-    let encoded = "";
-    for (const char of value) {
-      encoded += isAllowed(char) ? char : encodeOctets([...textEncoder.encode(char)]);
-    }
-
-    return encoded;
-  };
+function createEncoder(isAllAllowed, notAllowed) {
+  return (value) => isAllAllowed.test(value) ? value : value.replace(notAllowed, encodeCharacter);
 }
 
 // Splits an identifier that's already known to be valid into its components, by its delimiters (RFC 3986
@@ -1465,6 +1459,15 @@ const encodeOctets = (octets) => octets
     .toUpperCase()
     .padStart(2, "0"))
   .join("");
+
+// An ASCII character is one octet, so it's encoded without TextEncoder, which makes an array for each character
+const asciiEncoded = Array.from({ length: 0x80 }, (_, octet) => encodeOctets([octet]));
+
+/** @type (char: string) => string */
+const encodeCharacter = (char) => {
+  const code = char.charCodeAt(0);
+  return code < 0x80 ? asciiEncoded[code] : encodeOctets([...textEncoder.encode(char)]);
+};
 
 /**
  * @param {(value: string) => boolean} isAllowed

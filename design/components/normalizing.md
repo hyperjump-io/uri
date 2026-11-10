@@ -72,3 +72,18 @@ The brands are for identifiers, and a fragment isn't always a valid
 reference by itself: `a:b` is a fragment, and as a reference it has the
 scheme `a`. A caller puts it after a `#`, and that string is checked like
 any other.
+
+A value with nothing to encode is returned after one test of the whole
+value. Otherwise, one `replace` with a global pattern for a character the
+fragment doesn't allow encodes each of them. An ASCII character's escape,
+like `%5B` for `[`, is from a table. Other characters are encoded with
+`TextEncoder`, which makes an array for each one. A JSON Pointer to a
+`patternProperties` schema has a regular expression in it, often with
+`[`, `]`, `\`, `^`, and `|`, and `json-schema` encodes a pointer for every node
+it resolves. Encoding one of them took about 16 microseconds, and now takes
+under 1 (see [Fragment encoding](../benchmarks/fragment-encoding.md)).
+
+### Rejected
+
+- **Testing each character**, as before, with the table for ASCII. It was
+  twice as slow as one `replace`.
