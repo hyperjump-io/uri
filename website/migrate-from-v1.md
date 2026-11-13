@@ -78,6 +78,23 @@ normalizeIri(resolveIri(reference, base)); // "https://example.com/B"
 
 TypeScript can't catch this change.
 
+`resolveIri` still removes `.` and `..` segments, because resolving does,
+with one exception. A reference that's a `urn`, `tag`, or `data`
+identifier keeps them, because they aren't segments of a path there:
+
+```typescript
+const base = "https://example.com/";
+const reference = "data:text/plain,a/b/../c";
+
+// v1
+resolveIri(reference, base); // "data:text/plain,a/c"
+
+// v2
+assertAbsoluteIri(base);
+assertIriReference(reference);
+resolveIri(reference, base); // "data:text/plain,a/b/../c"
+```
+
 ## `toRelativeIri` takes normalized identifiers, target first
 
 `toRelativeIri` takes its arguments in the opposite order from v1. The IRI
