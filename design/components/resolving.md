@@ -28,7 +28,7 @@ references need no splitting:
 
 | Reference | Result |
 | --- | --- |
-| Has a scheme | The reference, with dot segments removed |
+| Has a scheme | The reference, with dot segments removed, unless its scheme turns off the syntax-based normalization (see [Dot segments](schemes.md#dot-segments)) |
 | `""` | The base |
 | `#…` | The base, then the reference |
 | `?…` | The base up to its `?`, if it has one, then the reference |

@@ -1324,6 +1324,12 @@ const resolve = (reference, base) => {
     if (!hasDotSegment.test(ref.path)) {
       return reference;
     }
+
+    // A scheme that turns off the syntax-based normalization has a path that isn't segments, like a data URL's data,
+    // so a "." in it isn't a dot segment
+    if (findScheme(ref.scheme.toLowerCase())?.syntaxNormalization === false) {
+      return reference;
+    }
     target = { ...ref, path: removeDotSegments(ref.path) };
   } else {
     const baseComponents = split(base);

@@ -215,10 +215,12 @@ export const encodeIriFragment: (fragment: string) => string;
 /**
  * Resolves a reference against a base (RFC 3986 §5.2), and nothing else:
  * it removes dot segments, because the algorithm does, but it doesn't
- * normalize. Neither argument is checked, and `base` isn't read when
- * `reference` has a scheme. The result is checked with its scheme's rules,
- * if it's built in, because a valid reference against a valid base can
- * make an identifier that isn't, like `b` against `urn:example:a`.
+ * normalize. A reference with a `urn`, `tag`, or `data` scheme keeps its
+ * dot segments, because its path isn't segments. Neither argument is
+ * checked, and `base` isn't read when `reference` has a scheme. The result
+ * is checked with its scheme's rules, if it's built in, because a valid
+ * reference against a valid base can make an identifier that isn't, like
+ * `b` against `urn:example:a`.
  *
  * @throws {InvalidIriError} If the result breaks its scheme's rules. The
  *   error is about `reference`.

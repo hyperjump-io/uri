@@ -533,12 +533,14 @@ valid only if the merged path still has its `,`, so `b` against
 | `/b` | ✓ | ✓ | ✗ `urn:/b` | ✗ `did:/b` |
 | `//h/b` | ✓ | ✓, but ✗ `//u@h/b` and `//h:1/b` | ✗ | ✗ |
 | `//` | ✗ `http://`, empty host | ✗ `file://`, no `path-absolute` | ✗ | ✗ |
-| Its own scheme | ✓ unless dot segments | ✓ | ✗ `urn:ex:a/../b` is `urn:b` | ✗ the same |
+| Its own scheme | ✓ unless dot segments | ✓ | ✓ | ✗ `did:ex:a/../../b` is `did:b` |
 
 Hierarchical schemes break only on an empty host, and for `file`, an
 empty path, userinfo, or a port. `urn` and `did` break on nearly every
-relative reference that isn't a fragment, and even an absolute reference
-can break, because removing its dot segments (§5.2.2) changes its path.
+relative reference that isn't a fragment, and for `did` even an absolute
+reference can break, because removing its dot segments (§5.2.2) changes
+its path. A URN keeps its dot segments (see
+[Dot segments](#dot-segments)).
 DID 1.1 §3.2.1 says relative DID URLs "MUST" be resolved with RFC 3986
 §5, so `/b` against a DID isn't special.
 
@@ -551,7 +553,8 @@ The check is skipped where it can't fail:
   components it changes. Rules are per component, so the others, which
   are the base's, still hold.
 - A reference with a scheme and no dot segments is returned as it is, and
-  passed a validator when it got its brand.
+  passed a validator when it got its brand. So is one whose scheme turns
+  off the syntax-based normalization, dot segments or not.
 - A reference without an authority, which is merged with the base,
   checks only the path's, the query's, and the fragment's rules. The
   result's authority is the base's. For `http` and `https`, which have
@@ -570,17 +573,30 @@ says resolving with the generic algorithm "should work predictably". So
 resolving against a URN isn't an error: the result is checked like any
 other. `c` against `urn:example:a/b` is `urn:example:a/c`, which is valid.
 
-### Open question
+### Dot segments
 
-Resolving removes dot segments from a reference that has a scheme too
-(RFC 3986 §5.2.2), whatever the scheme. So
-`resolveIri("data:text/plain,x/a/../b", base)` is `data:text/plain,x/b`,
-which is different data, and `data:text/plain,a/../b` throws, because
-`data:text/b` has no `,`. `urn` and `tag` have the same problem:
-`tag:a,2000:x/../y` resolves to `tag:/y`. The URL Standard leaves these
-paths alone. Whether a scheme that turns off the syntax-based
-normalization should also keep its dot segments when it's resolved isn't
-decided. A base's path is never touched by `#f` or `?q`.
+A reference with a scheme that turns off the syntax-based normalization,
+which is `urn`, `tag`, or `data`, is returned as it is, with its dot
+segments. Its path isn't segments: `data:text/plain,x/a/../b` is the text
+`x/a/../b`, and RFC 8141 compares a URN's `/` and `.` as octets. So a `.`
+in it isn't a dot segment, and removing it changes what the identifier
+says. The URL Standard leaves these paths alone too.
+
+It's an exception to RFC 3986 §5.2.2, which removes dot segments from a
+reference with a scheme, whatever the scheme. Decided 2026-11-13, when
+`data` was built in.
+
+A relative reference against a base with one of these schemes is still
+merged and has its dot segments removed, since that's what a relative
+path means, and the result is checked. `#f` and `?q` never touch the
+base's path.
+
+- **Rejected: removing them, as §5.2.2 says**, which this design had
+  until then. `resolveIri("data:text/plain,x/a/../b", base)` was
+  `data:text/plain,x/b`, which is different data, and
+  `tag:a,2000:x/../y` was `tag:/y`. `data:text/plain,a/../b` and
+  `urn:example:a/../b` threw, because the result broke its scheme's
+  rules.
 
 ### Rejected
 

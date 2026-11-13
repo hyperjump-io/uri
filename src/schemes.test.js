@@ -361,8 +361,18 @@ describe("Resolving checks the result's scheme rules", () => {
   });
 
   test("an absolute reference with dot segments is checked too", () => {
-    expect(() => resolveIri(trustedReference("urn:example:a/../b"), trustedBase("http://a/")))
-      .to.throw(InvalidIriError, "Invalid namestring: urn:example:a/../b");
+    expect(() => resolveIri(trustedReference("did:example:a/../../b"), trustedBase("http://a/")))
+      .to.throw(InvalidIriError, "Invalid did-url: did:example:a/../../b");
+  });
+
+  test.each([
+    ["data:text/plain,x/a/../b"],
+    ["data:text/plain,a/../b"],
+    ["DATA:text/plain,a/./b"],
+    ["urn:example:a/../b"],
+    ["tag:example.com,2004:a/../b"]
+  ])("%s keeps its dot segments, because its path isn't segments", (reference) => {
+    expect(resolveIri(trustedReference(reference), trustedBase("http://a/"))).to.equal(reference);
   });
 
   test.each([

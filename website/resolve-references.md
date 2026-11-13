@@ -38,7 +38,8 @@ first with `toAbsoluteIri`. For more information, see
 don't need to resolve: check that the reference is an IRI with `isIri`.
 
 `resolveIri` removes `.` and `..` segments, because resolving does, but it
-doesn't normalize the result. For example, it doesn't lowercase the host
+doesn't normalize the result. It leaves them in a reference that's a
+`urn`, `tag`, or `data` identifier, where they aren't segments of a path. For example, it doesn't lowercase the host
 or decode percent-encoded characters. Specifications like JSON-LD compare
 identifiers as strings, without normalizing them. To compare identifiers
 that are equivalent, call `normalizeIri` on the result. For more
