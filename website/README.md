@@ -37,7 +37,8 @@ The package offers the following:
   don't pay for checking the same identifier again. TypeScript types mark
   the strings that a validation function checked.
 - **Scheme rules.** It knows the rules of `http`, `https`, `file`, `urn`,
-  `tag`, and `did`, and checks other schemes with the generic syntax.
+  `tag`, `did`, and `data`, and checks other schemes with the generic
+  syntax.
 - **Resolve and relativize.** `resolveIri` resolves a reference against a
   base, and `toRelativeIri` finds the shortest reference from a base.
 - **Normalize.** Equivalent identifiers normalize to the same string, so

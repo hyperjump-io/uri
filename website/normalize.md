@@ -41,8 +41,8 @@ port of an `https` URI. `normalizeIri` also converts an internationalized
 domain name in an `http` or `https` host to Unicode, like
 `xn--caf-dma.example` to `café.example`.
 
-A scheme can also turn off the rules from RFC 3986. For example, `urn`
-and `tag` identifiers aren't decoded. A scheme can't turn them off for
+A scheme can also turn off the rules from RFC 3986. For example, `urn`,
+`tag`, and `data` identifiers aren't decoded. A scheme can't turn them off for
 the fragment, which the functions always normalize. For what each scheme
 changes, see [Built-in schemes](schemes.md#built-in-schemes).
 

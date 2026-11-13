@@ -19,6 +19,7 @@ The package knows the following schemes:
 | `file` | RFC 8089 | Has a path that starts with `/`, and no userinfo or port | A host of `localhost` is empty, so `file://localhost/a` is `file:///a`. |
 | `urn` | RFC 8141 | Has no authority, and its path is a namespace and a name, in ASCII. For more information, see [The `urn` scheme](#the-urn-scheme). | Makes only the scheme and the namespace lowercase, and the hex digits of percent-encoded characters uppercase. Doesn't decode percent-encoding, except in the fragment. |
 | `tag` | RFC 4151 | None. RFC 4151 says not to reject a tag that doesn't follow its syntax. | Makes only the scheme lowercase, and normalizes the fragment. |
+| `data` | RFC 2397 | Has no authority, and its path is a media type, `,`, and the data, in ASCII. For more information, see [The `data` scheme](#the-data-scheme). | Makes only the scheme lowercase, and normalizes the fragment. |
 | `did` | DID 1.1 | Has no authority, and its path is a method name, `:`, and a method-specific ID, in ASCII. The method's name is lowercase. | The same as a scheme that isn't built in, but `normalizeIri` leaves Unicode characters percent-encoded, because a DID is ASCII. |
 
 RFC 8089 doesn't include a query in the syntax of a `file` URI, but the
@@ -100,4 +101,37 @@ DID, and each method can add its own rules. The `did` scheme checks DID
 ```typescript
 isIri("did:example:123456789abcdefghi#key-1"); // true
 isIri("did:Example:123"); // false: a method's name is lowercase
+```
+
+## The `data` scheme
+
+A `data` URL has its content in it, like `data:text/plain,hello`. RFC
+2397 defines its syntax: an optional media type, `;base64` if the data
+is base64, a `,`, and the data. The media type can have parameters, like
+`;charset=utf-8`, and each parameter needs a value:
+
+```typescript
+isIri("data:text/plain,hello"); // true
+isIri("data:application/json;base64,e30="); // true
+isIri("data:,hello"); // true: the media type is optional
+isIri("data:text/plain"); // false: no ","
+isIri("data:image/svg+xml;utf8,x"); // false: utf8 has no value
+```
+
+The data is ASCII, in an IRI too. Percent-encode any other character,
+and the characters that a URI doesn't allow, like `{` and a space.
+`urlToIri` does that for a `URL`. For more information, see
+[Convert URLs](urls.md).
+
+RFC 2397 doesn't include a query, but the package allows one, because
+the data can have a `?` in it.
+
+`normalizeIri` and `normalizeUri` don't change the media type or the
+data. For example, they don't remove `.` and `..` segments, because the
+data isn't a path:
+
+```typescript
+const uri = "DATA:text/plain,a/../b";
+assertUri(uri);
+normalizeIri(uri); // "data:text/plain,a/../b"
 ```

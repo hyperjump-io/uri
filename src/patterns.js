@@ -30,5 +30,15 @@ export const didQuery = /[^\u{23}\u{7F}-\u{10FFFF}]*/u;
 // DID 1.1 §3.2: a DID URL's fragment is RFC 3986's, which is ASCII
 export const didFragment = /[^\u{7F}-\u{10FFFF}]*/u;
 
+// RFC 2397 §3: dataurl := "data:" [ mediatype ] [ ";base64" ] "," data. Every rule is ASCII, so a data URL is ASCII in
+// an IRI too.
+export const dataPath = /(?:(?:[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+\u{2F}[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+)?(?:\u{3B}[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+\u{3D}[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+)*)?(?:\u{3B}[Bb][Aa][Ss][Ee]64)?\u{2C}[^\u{23}\u{3F}\u{7F}-\u{10FFFF}]*/u;
+
+// RFC 2397 has no query, but its data can have a "?", which starts the query, so the query is more data
+export const dataQuery = /[^\u{23}\u{7F}-\u{10FFFF}]*/u;
+
+// A data URL's fragment is RFC 3986's, which is ASCII
+export const dataFragment = /[^\u{7F}-\u{10FFFF}]*/u;
+
 // RFC 9562 §4, verbatim
 export const uuidNss = /(?:[0-9A-Fa-f][0-9A-Fa-f]){4}\u{2D}(?:[0-9A-Fa-f][0-9A-Fa-f]){2}\u{2D}(?:[0-9A-Fa-f][0-9A-Fa-f]){2}\u{2D}(?:[0-9A-Fa-f][0-9A-Fa-f]){2}\u{2D}(?:[0-9A-Fa-f][0-9A-Fa-f]){6}/u;

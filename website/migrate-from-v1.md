@@ -9,8 +9,8 @@ TypeScript reports many of them, but some don't change any types.
 In v1, the validation functions checked only the generic syntax. In v2,
 they check the rules of the scheme that the identifier has too, for the
 schemes that the package knows: `http`, `https`, `file`, `urn`, `tag`,
-and `did`. Other schemes are checked with the generic syntax only, like
-v1 did:
+`did`, and `data`. Other schemes are checked with the generic syntax
+only, like v1 did:
 
 ```typescript
 // v1

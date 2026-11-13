@@ -103,7 +103,37 @@ describe("Built-in schemes", () => {
     ["did:example:é", false],
     ["did:example:a#é", false],
     ["did:example:a?é", false],
-    ["did://example/a", false]
+    ["did://example/a", false],
+
+    // RFC 2397 §3
+    ["data:,", true],
+    ["data:text/plain,hi", true],
+    ["DATA:text/plain,hi", true],
+    ["data:text/plain,", true],
+    ["data:text/plain;base64,aGk=", true],
+    ["data:text/plain;BASE64,aGk=", true],
+    ["data:;base64,aGk=", true],
+    ["data:;charset=utf-8,hi", true], // A media type without a type and a subtype
+    ["data:text/plain;charset=utf-8;base64,aGk=", true],
+    ["data:application/vnd.api+json,x", true],
+    ["data:text/plain;name=%22a%20b%22,x", true], // A quoted-string is percent-encoded
+    ["data:application/json,%7B%22a%22:1%7D", true],
+    ["data:text/plain,a/../b", true],
+    ["data:text/plain,a?b,c", true], // A query is more data
+    ["data:text/plain,a#b", true],
+    ["data:text/plain", false], // No ","
+    ["data:text/plain?a,b", false], // The "," has to be in the path
+    ["data:text,hi", false], // A type without a subtype
+    ["data:/plain,hi", false],
+    ["data:base64,aGk=", false],
+    ["data:text/plain;charset,hi", false], // A parameter without a value
+    ["data:text/plain;=x,hi", false],
+    ["data:image/svg+xml;utf8,x", false],
+    ["data:te(xt/plain,hi", false], // "(" isn't in a token
+    ["data:text/plain,é", false],
+    ["data:text/plain,a?é", false],
+    ["data:text/plain,a#é", false],
+    ["data://h/a,b", false]
   ])("isIri(%s) => %s", (value, expected) => {
     expect(isIri(value)).to.equal(expected);
   });
@@ -195,6 +225,10 @@ describe("What's wrong with a scheme's rules, and where", () => {
       rule: "did-url", reason: "component-mismatch", component: "path", start: 4, end: 13,
       message: `Invalid did-url: did:Example:a — a did URI's path must be a method name, ":", and a method-specific ID, in ASCII, like example:123456`
     }],
+    ["a data URL without a comma", () => assertIri("data:text/plain"), {
+      rule: "dataurl", reason: "component-mismatch", component: "path", start: 5, end: 15,
+      message: `Invalid dataurl: data:text/plain — a data URI's path must be a media type, ";base64" if the data is base64, ",", and the data, in ASCII, like text/plain,hello`
+    }],
     ["a DID's query that isn't ASCII", () => assertIri("did:example:a?é"), {
       reason: "component-mismatch", component: "query", start: 14, end: 15,
       message: "Invalid did-url: did:example:a?é — a did URI's query must be ASCII, with other characters percent-encoded"
@@ -280,7 +314,9 @@ describe("Scheme-based normalization", () => {
     ["TAG:Example.com,2004:a/./%41", "tag:Example.com,2004:a/./%41"], // Only the scheme
     ["tag:example.com,2004:a%7e#%7e%c3%a9", "tag:example.com,2004:a%7e#~é"],
     ["DID:example:a/./b/%7e", "did:example:a/b/~"], // The syntax-based normalization only
-    ["did:example:a%c3%a9?%c3%a9#%c3%a9", "did:example:a%C3%A9?%C3%A9#%C3%A9"] // A DID is ASCII in an IRI too
+    ["did:example:a%c3%a9?%c3%a9#%c3%a9", "did:example:a%C3%A9?%C3%A9#%C3%A9"], // A DID is ASCII in an IRI too
+    // The data isn't a path, so only the scheme and the fragment are normalized
+    ["DATA:Text/Plain,a/../b/./c%7e?%7e#%7e%c3%a9", "data:Text/Plain,a/../b/./c%7e?%7e#~%C3%A9"]
   ])("normalizeIri(%s) => %s", (value, expected) => {
     expect(normalizeIri(trustedIri(value))).to.equal(expected);
   });
@@ -315,6 +351,8 @@ describe("Resolving checks the result's scheme rules", () => {
     ["did:example:a", "/b", "did-url", "path", 0, 2],
     ["did:example:a/b/c", "../../../d", "did-url", "path", 0, 10], // A merged path spans the reference's path
     ["did:example:a", "?é", "did-url", "query", 1, 2],
+    ["data:text/plain,a", "b", "dataurl", "path", 0, 1], // "text/b" has no ","
+    ["data:text/plain,a", "#é", "dataurl", "fragment", 1, 2],
     ["urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66", "#é", "namestring", "fragment", 1, 2]
   ])("%s against %s", (base, reference, rule, component, start, end) => {
     const error = thrown(() => resolveIri(trustedReference(reference), trustedBase(base)));
@@ -337,6 +375,8 @@ describe("Resolving checks the result's scheme rules", () => {
     ["did:example:a", "#key-1", "did:example:a#key-1"],
     ["did:example:a", "?versionId=1", "did:example:a?versionId=1"],
     ["urn:example:a?=q", "#f", "urn:example:a?=q#f"],
+    ["data:application/json,%7B%7D", "#/a", "data:application/json,%7B%7D#/a"],
+    ["data:text/plain,a/../b", "#f", "data:text/plain,a/../b#f"], // The base's path isn't touched
     ["http://a/b", "", "http://a/b"]
   ])("%s against %s => %s", (base, reference, expected) => {
     expect(resolveIri(trustedReference(reference), trustedBase(base))).to.equal(expected);

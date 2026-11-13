@@ -1,6 +1,9 @@
 /** @import * as API from "./index.d.ts" */
 import { hasValidALabels, hostToUnicode } from "./punycode.js";
-import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPath, urnQuery, uuidNss } from "./patterns.js";
+import {
+  dataFragment, dataPath, dataQuery, didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPath, urnQuery,
+  uuidNss
+} from "./patterns.js";
 
 /**
  * @typedef {{
@@ -358,6 +361,25 @@ const didScheme = compileScheme({
   }
 });
 
+// RFC 2397 §3: dataurl := "data:" [ mediatype ] [ ";base64" ] "," data. So there's no authority, and the path is the
+// media type and the data. Every rule is ASCII. The data isn't a path, so nothing is normalized: removing dot segments
+// would change what the data is.
+const dataScheme = compileScheme({
+  name: "data",
+  rule: "dataurl",
+  syntaxNormalization: false,
+  ascii: true,
+  validate: {
+    authority: "forbidden",
+    path: {
+      pattern: dataPath,
+      description: `a media type, ";base64" if the data is base64, ",", and the data, in ASCII, like text/plain,hello`
+    },
+    query: { pattern: dataQuery, description: "ASCII, with other characters percent-encoded" },
+    fragment: { pattern: dataFragment, description: "ASCII, with other characters percent-encoded" }
+  }
+});
+
 // RFC 8141 §2: namestring = assigned-name [ rq-components ] [ "#" f-component ], where assigned-name = "urn" ":" NID
 // ":" NSS, so the path is NID ":" NSS, and the query is what's after the "?" of rq-components
 /** @type SchemeDefinition["validate"] */
@@ -399,7 +421,8 @@ const builtInSchemes = [
   fileScheme,
   createUrnScheme(uuidNamespace),
   tagScheme,
-  didScheme
+  didScheme,
+  dataScheme
 ];
 
 /** @type Strategy */

@@ -17,6 +17,9 @@ The design is for these, and isn't stretched for others:
   `$id`, the keys of a registry, and bundling. Identifiers are `https`,
   `file`, `urn:uuid`, `tag`, and schemes nobody has registered. OpenAPI's
   `$ref` and `$self` are the same case.
+- **Retrieving in `@hyperjump/browser`**, which fetches `http`, `https`,
+  `file`, and `data` URLs, and normalizes an identifier before it fetches
+  it.
 - **Specifications that use identifiers only as names**: JSON-LD and RDF,
   Atom's `atom:id`, the `redirect_uri`s registered with an OAuth server,
   and `did:` identifiers. Unknown
@@ -297,8 +300,8 @@ first, then `uuid`'s, which makes the NSS lowercase.
 
 ## Built-in schemes
 
-`http`, `https`, `file`, `urn` with the `uuid` namespace, `tag`, and
-`did`.
+`http`, `https`, `file`, `urn` with the `uuid` namespace, `tag`, `did`,
+and `data`.
 
 Adding a built-in after 2.0.0 is a breaking change, and so is fixing one
 of its rules. So a scheme is built in only when:
@@ -396,6 +399,34 @@ What the specifications say, for the rules that took looking up:
   doesn't define normalization, which it leaves to each method, so the
   syntax-based normalization applies. 1.1 dropped 1.0's DID parameters,
   like `versionTime`, which were about values in a query, not syntax.
+- **`data` is RFC 2397's syntax**, with a query allowed:
+
+  ```
+  dataurl    := "data:" [ mediatype ] [ ";base64" ] "," data
+  mediatype  := [ type "/" subtype ] *( ";" parameter )
+  data       := *urlchar
+  parameter  := attribute "=" value
+  ```
+
+  So a data URL has no authority, and its path is the media type and the
+  data. `type`, `subtype`, `attribute`, and `value` are RFC 2045's
+  tokens, "represented using URL escaped encoding of [RFC2396] as
+  necessary". So a token here is the characters of RFC 2045's `token`
+  that a path allows, with the rest percent-encoded, and a
+  `quoted-string` is all percent-encoded. `urlchar` is RFC 2396's `uric`,
+  which in a path is `pchar` and `/`. Every rule is ASCII, so a data URL
+  is ASCII in an IRI too, like a URN.
+
+  A `?` is a `urlchar`, and in RFC 3986's terms it starts the query. So
+  the query is more data, and it's allowed, an exception like `file`'s.
+  `fetch` reads it as data too. The `,` has to be in the path.
+
+  The data isn't a path. `data:text/plain,a/../b` is the text `a/../b`,
+  so the syntax-based normalization is off: removing dot segments would
+  change the data. It was built in on 2026-11-13, when
+  `@hyperjump/browser`'s use case came in. Until then it had the
+  syntax-based normalization, like any unknown scheme, and
+  `normalizeIri("data:text/plain,a/../b")` was `data:text/b`.
 
 `urn` gets a parse function, `parseUrn`, because a caller expects its
 parts: a NID and an NSS. The others have nothing the generic components
@@ -456,9 +487,19 @@ version.
   that holds for a W3C specification with ABNF too. It's in a use case,
   and leaving it out would mean the generic syntax only until 3.0.
 - **Every widely used scheme whose specification defines its syntax**:
-  `ws`, `mailto`, `data`, `tel`, `geo`, `sip`, `ftp`, `ldap`, `news`,
-  `xmpp`, `coap`, `about`, and `dns`. None of them has a use case here,
-  and each built-in is rules that can't be fixed without a major version.
+  `ws`, `mailto`, `tel`, `geo`, `sip`, `ftp`, `ldap`, `news`, `xmpp`,
+  `coap`, `about`, and `dns`. None of them has a use case here, and each
+  built-in is rules that can't be fixed without a major version. `data`
+  was in this list until 2026-11-13.
+- **`data` with only "no authority, and a `,`"**, which is all `fetch`
+  needs. It reads a media type it can't parse as `text/plain`. Strict is
+  the default, so the rules are RFC 2397's, and
+  `data:image/svg+xml;utf8,x`, which is common and which `fetch` takes,
+  isn't valid: `utf8` is a parameter without a value.
+- **`data` with Unicode characters in an IRI.** `fetch` takes them, but
+  RFC 2397's `urlchar` is ASCII.
+- **`data` without a query**, as RFC 2397's ABNF has it. It would reject
+  data with a `?` in it, which RFC 2397 allows.
   `ws` forbids a fragment (RFC 6455 §3), a MUST, but nothing here uses
   it. Dropping `coap` also drops the question of putting its IPv6
   literals in RFC 5952 form, measured in
@@ -478,7 +519,10 @@ A result with an unknown scheme has no rules to check.
 
 Where results can break their scheme's rules, with ✓ for a result that's
 always valid and ✗ for one that can't be. `tag` has no rules, so its
-results are always valid:
+results are always valid. `data` is like `urn`: `#f` is valid if it's
+ASCII, and so is `?q`, since a query is more data. A relative path is
+valid only if the merged path still has its `,`, so `b` against
+`data:text/plain,a` is `data:text/b`, which isn't:
 
 | Reference | `http`, `https` | `file` | `urn` | `did` |
 | --- | --- | --- | --- | --- |
@@ -526,6 +570,18 @@ says resolving with the generic algorithm "should work predictably". So
 resolving against a URN isn't an error: the result is checked like any
 other. `c` against `urn:example:a/b` is `urn:example:a/c`, which is valid.
 
+### Open question
+
+Resolving removes dot segments from a reference that has a scheme too
+(RFC 3986 §5.2.2), whatever the scheme. So
+`resolveIri("data:text/plain,x/a/../b", base)` is `data:text/plain,x/b`,
+which is different data, and `data:text/plain,a/../b` throws, because
+`data:text/b` has no `,`. `urn` and `tag` have the same problem:
+`tag:a,2000:x/../y` resolves to `tag:/y`. The URL Standard leaves these
+paths alone. Whether a scheme that turns off the syntax-based
+normalization should also keep its dot segments when it's resolved isn't
+decided. A base's path is never touched by `#f` or `?q`.
+
 ### Rejected
 
 - **Not checking the result**, with callers who don't trust it calling
@@ -558,6 +614,7 @@ syntax-based ones, because the scheme is the second layer of the syntax
 | `urn` | Only the scheme and the NID are lowercased, and hex digits are made uppercase. Percent-encoded characters aren't decoded ("MUST NOT be decoded"), and dot segments aren't removed, since a URN is compared "octet-by-octet" after case normalization. A `uuid` NSS is lowercased (RFC 9562 §4). | RFC 8141 §3.1 |
 | `tag` | Only the scheme is lowercased. Tags are equal "if and only if they are completely indistinguishable". | RFC 4151 §2.4 |
 | `did` | The syntax-based normalization only. DID leaves normalization to each method (§7.1). | DID 1.1 |
+| `data` | Only the scheme is lowercased. The data isn't a path, so removing dot segments would change it, and RFC 2397 defines no equivalence. | RFC 2397 |
 
 So `normalizeIri("urn:example:%41")` is `urn:example:%41`, not
 `urn:example:A`, and `file://localhost/a` is `file:///a`.
@@ -579,14 +636,14 @@ is decided by the scheme name, which is case-insensitive for every URI
 Internally, a built-in's normalization is a function for each component
 it normalizes, which returns the normalized component, or `undefined` to
 remove it, like a default port. A function only runs when its component
-is there. `urn` and `tag` turn off the syntax-based normalization, and
-`urn` does the steps RFC 8141 allows itself, like making hex digits
-uppercase.
+is there. `urn`, `tag`, and `data` turn off the syntax-based
+normalization, and `urn` does the steps RFC 8141 allows itself, like
+making hex digits uppercase.
 
 ### Fragments
 
-A fragment always gets the syntax-based normalization, for `urn` and
-`tag` too. A scheme can't turn it off, and has no function for it,
+A fragment always gets the syntax-based normalization, for `urn`,
+`tag`, and `data` too. A scheme can't turn it off, and has no function for it,
 because a fragment's semantics "are independent of the URI scheme and
 thus cannot be redefined by scheme specifications" (RFC 3986 §3.5). RFC
 8141's "MUST NOT be decoded" is about URN-equivalence, which doesn't take
@@ -603,7 +660,7 @@ about a fragment. So `normalizeIri("urn:example:a#%7e")` is
 
 ### ASCII schemes
 
-`urn` and `did` are ASCII in an IRI too (see
+`urn`, `did`, and `data` are ASCII in an IRI too (see
 [Built-in schemes](#built-in-schemes)), so
 `normalizeIri` normalizes them like `normalizeUri` does: a
 percent-encoded Unicode character stays encoded. Decoding it would make

@@ -26,6 +26,21 @@ const didRules = `
   idchar             = ALPHA / DIGIT / "." / "-" / "_" / pct-encoded
 `;
 
+// RFC 2397 §3, without dataurl, which the scheme's rules and the pattern below are. Its type, subtype, attribute, and
+// value are RFC 2045's tokens, "represented using URL escaped encoding of [RFC2396] as necessary", so a token is the
+// characters of RFC 2045's token that a path allows, and percent-encoding for the rest, which includes all of a
+// quoted-string. Its urlchar is RFC 2396's uric, which in a path is pchar and "/". A "?" starts the query.
+const dataRules = `
+  mediatype = [ type "/" subtype ] *( ";" parameter )
+  parameter = attribute "=" value
+  type      = token
+  subtype   = token
+  attribute = token
+  value     = token
+  token     = 1*( unreserved / pct-encoded / "!" / "$" / "&" / "'" / "*" / "+" )
+  data      = *( pchar / "/" )
+`;
+
 /** @type [name: string, comment: string, pattern: RegExp][] */
 const patterns = [
   [
@@ -71,6 +86,22 @@ method-specific-id. Every rule is ASCII, so a DID is ASCII in an IRI too.`,
   [
     "didFragment",
     `DID 1.1 §3.2: a DID URL's fragment is RFC 3986's, which is ASCII`,
+    abnf(asciiFragment)`fragment`
+  ],
+  [
+    "dataPath",
+    `RFC 2397 §3: dataurl := "data:" [ mediatype ] [ ";base64" ] "," data. Every rule is ASCII, so a data URL is ASCII in
+an IRI too.`,
+    abnf(asciiPath)`[ mediatype ] [ ";base64" ] "," data ${dataRules}`
+  ],
+  [
+    "dataQuery",
+    `RFC 2397 has no query, but its data can have a "?", which starts the query, so the query is more data`,
+    abnf(asciiQuery)`query`
+  ],
+  [
+    "dataFragment",
+    `A data URL's fragment is RFC 3986's, which is ASCII`,
     abnf(asciiFragment)`fragment`
   ],
   [

@@ -34,13 +34,18 @@ describe("urlToIri", () => {
     expect(urlToIri(new URL("file:///home/josé/a"))).toBe("file:///home/jos%C3%A9/a");
   });
 
+  test("a data URL's data is percent-encoded, which doesn't change what it decodes to", () => {
+    expect(urlToIri(new URL(`data:application/json,{"a": [1]}`))).toBe("data:application/json,%7B%22a%22:%20%5B1%5D%7D");
+  });
+
   test("a path that starts with '//' without a host keeps its '/.'", () => {
     expect(urlToIri(new URL("web+demo:/.//not-a-host/a|b"))).toBe("web+demo:/.//not-a-host/a%7Cb");
   });
 
   test.each([
     ["urn:x"],
-    ["did:Example:1"]
+    ["did:Example:1"],
+    ["data:text/plain"]
   ])("%s breaks its scheme's rules", (url) => {
     expect(() => urlToIri(new URL(url))).toThrow(InvalidUriError);
   });

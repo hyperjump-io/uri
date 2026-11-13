@@ -40,7 +40,7 @@ export type NormalizedUri = Uri & { readonly [normalizedUri]: true };
 /**
  * Whether `value` is a URI (RFC 3986 §3): it has a scheme, and it can have
  * a fragment. A built-in scheme's rules are checked too, for `http`,
- * `https`, `file`, `urn`, and `did`. Any other scheme gets the generic
+ * `https`, `file`, `urn`, `did`, and `data`. Any other scheme gets the generic
  * syntax only.
  */
 export const isUri: (value: string) => value is Uri;
@@ -182,8 +182,9 @@ export const getQuery: (value: IriReference) => string | undefined;
  * decodes percent-encoded characters that don't need to be encoded,
  * uppercases the hex digits of the ones that do, removes dot segments from
  * the path, and lowercases the scheme and host. A built-in scheme can turn
- * the syntax-based normalization off, like `urn` and `tag` do, but not for
- * the fragment. Any other scheme gets the syntax-based normalization only.
+ * the syntax-based normalization off, like `urn`, `tag`, and `data` do, but
+ * not for the fragment. Any other scheme gets the syntax-based
+ * normalization only.
  */
 export function normalizeUri(uri: AbsoluteUri): AbsoluteUri & NormalizedUri;
 export function normalizeUri(uri: Uri): NormalizedUri;
