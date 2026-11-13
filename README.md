@@ -4,8 +4,9 @@ A small and fast library for validating, parsing, resolving, and
 normalizing URIs ([RFC 3986](https://www.rfc-editor.org/rfc/rfc3986)) and
 IRIs ([RFC 3987](https://www.rfc-editor.org/rfc/rfc3987)).
 
-**Status:** v2, in progress and unpublished. See
-[the design docs](design/README.md) for the decisions made so far.
+If you use version 1.x, see the
+[1.x README](https://github.com/hyperjump-io/uri/tree/v1#readme). For what
+changed in v2, see [Migrate from v1](website/migrate-from-v1.md).
 
 ## Install
 
