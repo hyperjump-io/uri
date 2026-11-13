@@ -72,6 +72,59 @@ of 5 runs, in milliseconds.
   its validator, or parsing without an error for fast-uri and uri-js,
   which have none.
 
+## For the website
+
+Run again on 2026-11-13, on Node.js 24.20.0, for
+[Performance](../../website/performance.md), after `data` was built in
+and the built-ins were looked up by their first letter (see
+[The `data` scheme](data-scheme.md)). The v2 snapshots weren't run.
+
+The page says v2 is faster than other libraries, without a table. Against
+identifier-js, the fastest of the three, it validates 1.7 times as fast
+for ASCII and 2.2 times for Unicode, and parses, normalizes, resolves,
+and finds a relative reference 4.9 to 8.6 times as fast. The page says
+"about twice" and "5 to 9 times". It's slower only with `xn--` hosts,
+which the page says under what costs more.
+
+- **Rejected: the table on the page**, with what each library does
+  differently, which the first draft had. It names other libraries'
+  versions, so it goes stale when they release.
+
+| Operation | v1 | v2 | identifier-js | fast-uri | uri-js | `URL` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Validate, ASCII | 208 | 154 | 268 | 921 | 1031 | 70 |
+| Validate, Unicode | 223 | 151 | 325 | 1115 | 2131 | 151 |
+| Validate, `xn--` | 235 | 1381 | 400 | 1665 | 1752 | 173 |
+| Parse, ASCII | 218 | 57 | 490 | 920 | 1035 | 153 |
+| Parse, Unicode | 240 | 84 | 601 | 1114 | 2131 | 342 |
+| Normalize, ASCII | 313 | 187 | 1259 | 1890 | 2592 | 157 |
+| Normalize, Unicode | 369 | 205 | 1393 | 2585 | 4838 | 343 |
+| Normalize, `xn--` | 1905 | 2027 | 2127 | 2648 | 4246 | 291 |
+| Resolve | 756 | 396 | 1962 | 2834 | 3114 | 399 |
+| To relative | 1944 | 412 | 2071 | | | |
+
+`time-checked.mjs` times v2 with each value checked right before it's
+used, which is what v1 and identifier-js do in every function: `isIri`
+and then `parseIri` or `normalizeIri`, `isIriReference` and then
+`resolveIri`, and `isIri`, `normalizeIri`, and then `toRelativeIri`
+against a base normalized once.
+
+| Operation | v2, checked first | v1 |
+| --- | --- | --- |
+| Parse, ASCII | 221 | 218 |
+| Parse, Unicode | 246 | 240 |
+| Normalize, ASCII | 370 | 313 |
+| Normalize, Unicode | 401 | 369 |
+| Normalize, `xn--` | 3363 | 1905 |
+| Resolve | 403 | 756 |
+| To relative | 921 | 1944 |
+
+Checked first, v2 parses as fast as v1 and normalizes 1.2 times slower,
+since it checks the scheme's rules and v1 didn't. The
+getters' shares of `parseIri`'s time on the page are from
+`benchmark/getters.js` on Node.js 24.20.0, and are what
+[Getters](getters.md) has for Node.js 22: 0.15, 0.61, 0.27, and 0.18.
+
 ## What each one does
 
 The libraries don't do the same work, so their times aren't all

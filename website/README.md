@@ -63,5 +63,7 @@ changed in v2, see [Migrate from v1](migrate-from-v1.md).
   fragments
 - [Convert URLs](urls.md): making a `URL` from Node.js or a browser an
   IRI
+- [Performance](performance.md): getting the most from the package, and
+  what costs more than usual
 - [Migrate from v1](migrate-from-v1.md): what changed, and what to do
   about it
