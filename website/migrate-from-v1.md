@@ -171,18 +171,20 @@ compares the result with an object that has `undefined` properties,
 changes. For more information, see
 [Components](validate-and-parse.md#components).
 
-## Future IP addresses are valid
+## Future IP literals are valid
 
 In v1, the validation functions threw an error for a host that's an IP
-address of a version after IPv6, like `[v7.future]`. In v2, they check
-its syntax, like any other host:
+literal in a format that doesn't exist yet, like `[v1.fe80::a+en1]`. In
+v2, they check its syntax, like any other host. For more information, see
+[Future IP literals](validate-and-parse.md#future-ip-literals).
 
 ```typescript
 // v1
-isIri("http://[v7.future]/"); // throws "Unsupported IP version in host: v7.future"
+isIri("http://[v1.fe80::a+en1]/");
+// throws "Unsupported IP version in host: v1.fe80::a+en1"
 
 // v2
-isIri("http://[v7.future]/"); // true
+isIri("http://[v1.fe80::a+en1]/"); // true
 ```
 
 ## Errors are classes

@@ -18,9 +18,9 @@ where it shows up.
     through every layer of every dependent, was a burden that was easy
     to get wrong (see
     [Schemes](../components/schemes.md#unknown-schemes)).
-  - An IP literal of a future version threw `UnsupportedIpVersionError`.
+  - An IP literal in a future format threw `UnsupportedIpVersionError`.
     It's a host like any other now, for consistency with unknown schemes
-    (see [Future IP versions](../components/future-ip-versions.md)).
+    (see [Future IP literals](../components/future-ip-literals.md)).
 
   What's left is what the library does: check the syntax it knows, which
   is the generic syntax and the rules of the built-in schemes, and

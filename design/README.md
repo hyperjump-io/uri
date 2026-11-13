@@ -40,8 +40,8 @@ hand and have JSDoc explaining the details. Documentation for users is in
   the branded types between them
 - [Parsing](components/parsing.md): splitting at delimiters, and
   validating without captures
-- [Future IP versions](components/future-ip-versions.md): why
-  `[v7.future]` is a host like any other
+- [Future IP literals](components/future-ip-literals.md): why
+  `[v1.fe80::a+en1]` is a host like any other
 - [Resolving](components/resolving.md): `resolve*`, `toRelative*`, and
   `toAbsolute*`
 - [Normalizing](components/normalizing.md): `normalize*` and

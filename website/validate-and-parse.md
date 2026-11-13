@@ -236,7 +236,7 @@ try {
 | --- | --- | --- |
 | `invalid-character` | A character that the component doesn't allow | `https://exa mple.com` |
 | `invalid-percent-encoding` | A `%` that isn't followed by two hex digits | `https://example.com/%zz` |
-| `invalid-ip-literal` | A host in brackets that isn't an IP address | `https://[::g]/` |
+| `invalid-ip-literal` | A host in brackets that isn't an IP literal | `https://[::g]/` |
 | `missing-scheme` | No scheme, for a function that needs one | `/foo` passed to `assertIri` |
 | `fragment-not-allowed` | A fragment, for a function that needs an absolute identifier | `https://example.com#foo` passed to `assertAbsoluteIri` |
 | `colon-in-first-segment` | A relative reference with `:` before its first `/`, which reads like a scheme | `1a:b`, which you can write as `./1a:b` |
@@ -261,13 +261,17 @@ JavaScript string, and like positions in the Language Server Protocol. A
 character outside the Basic Multilingual Plane, like an emoji, counts as
 two.
 
-## Future IP versions
+## Future IP literals
 
-RFC 3986 reserves a syntax for IP addresses of versions after IPv6, like
-`[v7.future]`. It defines what they look like, but not which addresses are
-valid. The validation functions check the syntax only, so an identifier
-with one is valid:
+RFC 3986 reserves a syntax for IP literals in formats that don't exist
+yet, like `[v1.fe80::a+en1]`. The number after the `v` is the version of
+the literal's format. It isn't a version of IP, like the 6 of IPv6.
+
+No format is defined, so RFC 3986 says only which characters one can
+have. The validation functions check that a literal stays within that
+syntax, so an identifier with one is valid:
 
 ```typescript
-isIri("http://[v7.future]/"); // true
+isIri("http://[v1.fe80::a+en1]/"); // true
+isIri("http://[v1.fe80::a/en1]/"); // false: a literal can't have "/"
 ```

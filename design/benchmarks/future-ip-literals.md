@@ -1,9 +1,9 @@
 # Future IP literals
 
 First recorded 2026-11-06, on Node.js 22.22.1, when
-`UnsupportedIpVersionError` was dropped and an IP literal of a future
-version became a host like any other (see
-[Future IP versions](../components/future-ip-versions.md)).
+`UnsupportedIpVersionError` was dropped and an IP literal in a future
+format became a host like any other (see
+[Future IP literals](../components/future-ip-literals.md)).
 
 `benchmark/bench-ip.js` times `src/` against a snapshot from before
 (`benchmark/v2-ip-error/`, from `0c248d1`). Run each in its own process:

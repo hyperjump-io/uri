@@ -223,7 +223,7 @@ at all, and the scheme's rules say which one it breaks. So `is*` and
   milliseconds to 138. A name that's found for a value that isn't valid
   is harmless, since the scheme's pattern checks its name.
 - `is*` used to look at a value that failed again too, to throw for an IP
-  literal of a future version. Without it, `isIri` of an invalid value
+  literal in a future format. Without it, `isIri` of an invalid value
   takes a fifth of the time (see
   [Future IP literals](../benchmarks/future-ip-literals.md)).
 - On `assert*`'s second look, and in `resolveIri`'s check of its result, each

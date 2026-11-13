@@ -115,7 +115,7 @@ oldest is 22, which has `URL.parse` since 22.1, and so do browsers since
 - **Unicode labels aren't checked.** That would be the IDNA check of
   [Why hosts aren't checked](#why-hosts-arent-checked), and isn't needed
   to convert anything.
-- **IP literals are skipped.** An IP literal of a future version can have
+- **IP literals are skipped.** An IP literal in a future format can have
   `xn--`, like `[v7.xn--abc]`, but it isn't a domain name.
 - **A percent-encoded label isn't decoded first.** `xn--%63af-dma` doesn't
   decode, so it's invalid, though `%63` is `c`.
