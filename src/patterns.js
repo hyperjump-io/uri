@@ -34,7 +34,7 @@ export const didFragment = /[^\u{7F}-\u{10FFFF}]*/u;
 // an IRI too.
 export const dataPath = /(?:(?:[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+\u{2F}[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+)?(?:\u{3B}[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+\u{3D}[^\u{23}\u{28}\u{29}\u{2C}\u{2F}\u{3A}-\u{40}\u{7F}-\u{10FFFF}]+)*)?(?:\u{3B}[Bb][Aa][Ss][Ee]64)?\u{2C}[^\u{23}\u{3F}\u{7F}-\u{10FFFF}]*/u;
 
-// RFC 2397 has no query, but its data can have a "?", which starts the query, so the query is more data
+// RFC 2397 §3: data := *uric, which can have a "?". That starts RFC 3986's query, so the query is more data.
 export const dataQuery = /[^\u{23}\u{7F}-\u{10FFFF}]*/u;
 
 // A data URL's fragment is RFC 3986's, which is ASCII

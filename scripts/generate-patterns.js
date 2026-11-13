@@ -29,7 +29,8 @@ const didRules = `
 // RFC 2397 §3, without dataurl, which the scheme's rules and the pattern below are. Its type, subtype, attribute, and
 // value are RFC 2045's tokens, "represented using URL escaped encoding of [RFC2396] as necessary", so a token is the
 // characters of RFC 2045's token that a path allows, and percent-encoding for the rest, which includes all of a
-// quoted-string. Its urlchar is RFC 2396's uric, which in a path is pchar and "/". A "?" starts the query.
+// quoted-string. RFC 2396 has no urlchar, which is uric (erratum 2045). A uric can be a "?", which starts RFC 3986's
+// query, so data is the path, where a uric is pchar and "/", and the query.
 const dataRules = `
   mediatype = [ type "/" subtype ] *( ";" parameter )
   parameter = attribute "=" value
@@ -96,7 +97,7 @@ an IRI too.`,
   ],
   [
     "dataQuery",
-    `RFC 2397 has no query, but its data can have a "?", which starts the query, so the query is more data`,
+    `RFC 2397 §3: data := *uric, which can have a "?". That starts RFC 3986's query, so the query is more data.`,
     abnf(asciiQuery)`query`
   ],
   [

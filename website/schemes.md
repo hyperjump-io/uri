@@ -123,8 +123,10 @@ and the characters that a URI doesn't allow, like `{` and a space.
 `urlToIri` does that for a `URL`. For more information, see
 [Convert URLs](urls.md).
 
-RFC 2397 doesn't include a query, but the package allows one, because
-the data can have a `?` in it.
+RFC 2397 lets the data have a `?` that isn't percent-encoded. In a URI,
+a `?` starts the query, so a `data` URL can have a query, which is more
+of the data. If you write a `data` URL, percent-encode a `?` in the data
+as `%3F`.
 
 `normalizeIri` and `normalizeUri` don't change the media type or the
 data. For example, they don't remove `.` and `..` segments, because the

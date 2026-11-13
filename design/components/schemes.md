@@ -399,7 +399,7 @@ What the specifications say, for the rules that took looking up:
   doesn't define normalization, which it leaves to each method, so the
   syntax-based normalization applies. 1.1 dropped 1.0's DID parameters,
   like `versionTime`, which were about values in a query, not syntax.
-- **`data` is RFC 2397's syntax**, with a query allowed:
+- **`data` is RFC 2397's syntax**:
 
   ```
   dataurl    := "data:" [ mediatype ] [ ";base64" ] "," data
@@ -413,13 +413,26 @@ What the specifications say, for the rules that took looking up:
   tokens, "represented using URL escaped encoding of [RFC2396] as
   necessary". So a token here is the characters of RFC 2045's `token`
   that a path allows, with the rest percent-encoded, and a
-  `quoted-string` is all percent-encoded. `urlchar` is RFC 2396's `uric`,
-  which in a path is `pchar` and `/`. Every rule is ASCII, so a data URL
+  `quoted-string` is all percent-encoded. RFC 2396 has no `urlchar`. It's
+  `uric` (erratum 2045, verified), which is
+  `reserved | unreserved | escaped`. Every rule is ASCII, so a data URL
   is ASCII in an IRI too, like a URN.
 
-  A `?` is a `urlchar`, and in RFC 3986's terms it starts the query. So
-  the query is more data, and it's allowed, an exception like `file`'s.
-  `fetch` reads it as data too. The `,` has to be in the path.
+  A `?` is `reserved`, so it's a `uric`, and RFC 2397's `data` can have
+  one that isn't percent-encoded. RFC 2397 was written for RFC 2396,
+  where a URI like this was opaque (`opaque_part = uric_no_slash *uric`)
+  and had no query. RFC 3986 has no opaque URIs: the first `?` starts the
+  query, whatever the scheme. So `data` is RFC 3986's path, and if
+  there's a `?`, its query too, and a data URL can have a query. That
+  isn't an exception to RFC 2397, like `file`'s is to RFC 8089. It's
+  RFC 2397's `data`, in RFC 3986's components. `fetch` reads the query
+  as data too. A token can't have a `?`, so the `,` is always in the
+  path.
+
+  RFC 2397 §2 says octets outside "the range of safe URL characters" are
+  percent-encoded, without saying what's safe. Someone who writes a data
+  URL should encode a `?` as `%3F`, which reads the same under RFC 2396
+  and RFC 3986. One that isn't encoded is still valid.
 
   The data isn't a path. `data:text/plain,a/../b` is the text `a/../b`,
   so the syntax-based normalization is off: removing dot segments would
@@ -498,8 +511,9 @@ version.
   isn't valid: `utf8` is a parameter without a value.
 - **`data` with Unicode characters in an IRI.** `fetch` takes them, but
   RFC 2397's `urlchar` is ASCII.
-- **`data` without a query**, as RFC 2397's ABNF has it. It would reject
-  data with a `?` in it, which RFC 2397 allows.
+- **`data` without a query**, so that a `?` in the data has to be
+  percent-encoded. It reads RFC 2397's `data` as RFC 3986's path only,
+  and rejects `data:,a?b`, which RFC 2397's ABNF makes.
   `ws` forbids a fragment (RFC 6455 §3), a MUST, but nothing here uses
   it. Dropping `coap` also drops the question of putting its IPv6
   literals in RFC 5952 form, measured in
