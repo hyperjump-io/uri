@@ -182,8 +182,8 @@ export const getQuery: (value: IriReference) => string | undefined;
  * decodes percent-encoded characters that don't need to be encoded,
  * uppercases the hex digits of the ones that do, removes dot segments from
  * the path, and lowercases the scheme and host. A built-in scheme can turn
- * the syntax-based normalization off, like `urn` and `tag` do. Any other
- * scheme gets the syntax-based normalization only.
+ * the syntax-based normalization off, like `urn` and `tag` do, but not for
+ * the fragment. Any other scheme gets the syntax-based normalization only.
  */
 export function normalizeUri(uri: AbsoluteUri): AbsoluteUri & NormalizedUri;
 export function normalizeUri(uri: Uri): NormalizedUri;

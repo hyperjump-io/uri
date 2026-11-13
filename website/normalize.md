@@ -39,9 +39,12 @@ First, the functions apply the following rules from RFC 3986:
 Then they apply the normalization of the scheme, like removing the default
 port of an `https` URI. `normalizeIri` also converts an internationalized
 domain name in an `http` or `https` host to Unicode, like
-`xn--caf-dma.example` to `café.example`. A scheme can also turn off the rules from RFC
-3986. For example, `urn` and `tag` identifiers aren't decoded. For what
-each scheme changes, see [Built-in schemes](schemes.md#built-in-schemes).
+`xn--caf-dma.example` to `café.example`.
+
+A scheme can also turn off the rules from RFC 3986. For example, `urn`
+and `tag` identifiers aren't decoded. A scheme can't turn them off for
+the fragment, which the functions always normalize. For what each scheme
+changes, see [Built-in schemes](schemes.md#built-in-schemes).
 
 An identifier with a scheme that isn't built in gets only the
 normalization from RFC 3986.

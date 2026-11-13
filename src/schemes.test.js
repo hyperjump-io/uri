@@ -273,9 +273,14 @@ describe("Scheme-based normalization", () => {
     ["file://host/a/./b", "file://host/a/b"],
     ["file:///a?%7e", "file:///a?~"],
     ["urn:uuid:6E8BC430-9C3A-11D9-9669-0800200C9A66", "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66"],
-    ["URN:UUID:6e8bc430-9c3a-11d9-9669-0800200c9a66?=a%2fb#c%2fd", "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66?=a%2Fb#c%2fd"],
+    ["URN:UUID:6e8bc430-9c3a-11d9-9669-0800200c9a66?=a%2fb#c%2fd", "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66?=a%2Fb#c/d"],
+    // A fragment gets the syntax-based normalization whatever the scheme turns off
+    ["urn:example:a%7e?+r%7e#f%7e%2f", "urn:example:a%7E?+r%7E#f~/"],
+    ["urn:example:a#%c3%a9", "urn:example:a#%C3%A9"], // A URN is ASCII in an IRI too
     ["TAG:Example.com,2004:a/./%41", "tag:Example.com,2004:a/./%41"], // Only the scheme
-    ["DID:example:a/./b/%7e", "did:example:a/b/~"] // The syntax-based normalization only
+    ["tag:example.com,2004:a%7e#%7e%c3%a9", "tag:example.com,2004:a%7e#~é"],
+    ["DID:example:a/./b/%7e", "did:example:a/b/~"], // The syntax-based normalization only
+    ["did:example:a%c3%a9?%c3%a9#%c3%a9", "did:example:a%C3%A9?%C3%A9#%C3%A9"] // A DID is ASCII in an IRI too
   ])("normalizeIri(%s) => %s", (value, expected) => {
     expect(normalizeIri(trustedIri(value))).to.equal(expected);
   });

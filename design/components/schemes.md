@@ -583,6 +583,33 @@ is there. `urn` and `tag` turn off the syntax-based normalization, and
 `urn` does the steps RFC 8141 allows itself, like making hex digits
 uppercase.
 
+### Fragments
+
+A fragment always gets the syntax-based normalization, for `urn` and
+`tag` too. A scheme can't turn it off, and has no function for it,
+because a fragment's semantics "are independent of the URI scheme and
+thus cannot be redefined by scheme specifications" (RFC 3986 §3.5). RFC
+8141's "MUST NOT be decoded" is about URN-equivalence, which doesn't take
+the f-component into account (§2.3.3), and RFC 4151 has nothing to say
+about a fragment. So `normalizeIri("urn:example:a#%7e")` is
+`urn:example:a#~`.
+
+- **Rejected: leaving the fragment of `urn` and `tag` alone.** It's what
+  turning off the syntax-based normalization did at first. Two URNs that
+  differ only in how a fragment is encoded stayed different.
+- **Rejected: a function for the fragment in a scheme's normalization**,
+  which `urn` used to make hex digits uppercase. It gave the scheme a say
+  over the fragment, and it did less than the syntax-based normalization.
+
+### ASCII schemes
+
+`urn` and `did` are ASCII in an IRI too (see
+[Built-in schemes](#built-in-schemes)), so
+`normalizeIri` normalizes them like `normalizeUri` does: a
+percent-encoded Unicode character stays encoded. Decoding it would make
+an identifier that breaks its scheme's rules, like `did:example:é` from
+`did:example:%C3%A9`.
+
 ### Changes aren't breaking
 
 Normalization can be partial: it must never make identifiers equal that

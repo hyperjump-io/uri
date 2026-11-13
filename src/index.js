@@ -58,6 +58,7 @@ import { didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPat
  *   readonly name: string;
  *   readonly rule: string;
  *   readonly syntaxNormalization?: boolean;
+ *   readonly ascii?: boolean;
  *   readonly validate?: { readonly [Component in SchemeComponent]?: ComponentRule };
  *   readonly normalize?: {
  *     readonly userinfo?: (userinfo: string) => string | undefined;
@@ -348,6 +349,7 @@ const tagScheme = compileScheme({
 const didScheme = compileScheme({
   name: "did",
   rule: "did-url",
+  ascii: true,
   validate: {
     authority: "forbidden",
     path: { pattern: didPath, description: `a method name, ":", and a method-specific ID, in ASCII, like example:123456` },
@@ -812,6 +814,7 @@ function createUrnScheme(namespace) {
     name: "urn",
     rule: "namestring",
     syntaxNormalization: false,
+    ascii: true,
     validate: urnValidate,
     normalize: urnNormalize
   }, namespace);
@@ -1173,9 +1176,21 @@ const normalize = (strategy, value) => {
 
   // The syntax-based normalization comes first, then the scheme's, which is the order of RFC 3986's comparison
   // ladder (§6.2)
-  const components = scheme?.syntaxNormalization === false
-    ? { ...parsed, scheme: name }
-    : normalizeComponents(strategy, parsed);
+  // A scheme that's ASCII in an IRI too keeps Unicode characters percent-encoded, like a URI does
+  const syntax = scheme?.ascii === true ? uriStrategy : strategy;
+
+  /** @type Components */
+  let components;
+  if (scheme?.syntaxNormalization === false) {
+    // A scheme can't turn off the fragment's normalization, because a fragment's semantics "are independent of the
+    // URI scheme and thus cannot be redefined by scheme specifications" (RFC 3986 §3.5)
+    components = { ...parsed, scheme: name };
+    if (parsed.fragment !== undefined) {
+      components.fragment = syntax.normalizeFragment(parsed.fragment);
+    }
+  } else {
+    components = normalizeComponents(syntax, parsed);
+  }
 
   if (scheme !== undefined) {
     normalizeScheme(scheme, components, strategy.form);
