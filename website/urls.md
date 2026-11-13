@@ -10,13 +10,17 @@ and RFC 3987. A URL can have characters that a URI doesn't allow, like
 Every URI is an IRI, so the functions that take an IRI take the result:
 
 ```typescript
-import { resolveIri, toAbsoluteIri, urlToIri } from "@hyperjump/uri";
+import {
+  assertIriReference, resolveIri, toAbsoluteIri, urlToIri
+} from "@hyperjump/uri";
 
 const url = new URL("https://example.com/a|b/person.json");
 const base = toAbsoluteIri(urlToIri(url));
 // "https://example.com/a%7Cb/person.json"
 
-resolveIri("address.json", base);
+const reference = "address.json";
+assertIriReference(reference);
+resolveIri(reference, base);
 // "https://example.com/a%7Cb/address.json"
 ```
 

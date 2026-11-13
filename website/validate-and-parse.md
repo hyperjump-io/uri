@@ -193,7 +193,7 @@ The functions throw the following errors:
 
 | Error | When |
 | --- | --- |
-| `InvalidUriError` | A string passed to an `assert` function for URIs isn't that kind of URI |
+| `InvalidUriError` | A string passed to an `assert` function for URIs isn't that kind of URI, or `urlToIri`'s result breaks its scheme's rules |
 | `InvalidIriError` | A string passed to an `assert` function for IRIs isn't that kind of IRI, or `resolveIri`'s result breaks its scheme's rules |
 
 Each error has a `value` property with the string that caused it.

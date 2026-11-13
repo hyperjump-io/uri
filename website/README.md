@@ -45,11 +45,6 @@ The package offers the following:
 - **Small and fast.** No dependencies. It has TypeScript types and works
   in Node.js and browsers.
 
-[`@hyperjump/json-schema`](https://github.com/hyperjump-io/json-schema/blob/v2/website/README.md)
-and
-[`@hyperjump/browser`](https://github.com/hyperjump-io/browser/blob/v2/website/README.md)
-build on it.
-
 If you use version 1.x, see the
 [1.x README](https://github.com/hyperjump-io/uri/tree/v1#readme). For what
 changed in v2, see [Migrate from v1](migrate-from-v1.md).
