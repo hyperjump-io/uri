@@ -17,9 +17,7 @@ allows, and `normalizeUri` doesn't.
 Then the scheme of the identifier can add normalizations, like removing
 `:80` from an `http` URI, and turn off ones that its specification
 forbids, like decoding for `urn` (see
-[Schemes](schemes.md#normalizing)). A fragment always gets the
-syntax-based normalization, which a scheme can't turn off (see
-[Fragments](schemes.md#fragments)).
+[Scheme-based normalization](#scheme-based-normalization)).
 
 Each step is skipped when it can't change anything, because most
 identifiers don't need it: decoding only runs with a `%`, and dot-segment
@@ -34,12 +32,8 @@ removal only with a dot segment.
   brand, or `NormalizedUri` from `normalizeUri`, which `toRelativeIri`
   requires (see [Trust](trust.md#normalized-brands)). It doesn't check
   its input.
-- It applies only the syntax-based normalization for a scheme that isn't
-  built in.
 - It keeps its URI and IRI forms, because they decode different
-  characters. `normalizeIri` also converts the A-labels of an `http` or
-  `https` host to Unicode, and `normalizeUri` doesn't (see
-  [Domain names](domain-names.md#converting)).
+  characters.
 
 ## Rejected
 
@@ -51,16 +45,116 @@ removal only with a dot segment.
   repeats those tests, and a scheme's normalization needs the components
   split out anyway.
 
+## Scheme-based normalization
+
+A built-in scheme's normalization runs after the syntax-based
+normalization (RFC 3986 §6.2.3). A scheme's specification can add
+normalizations and take away syntax-based ones, because the scheme is the
+second layer of the syntax (RFC 3986 §1.1.1). An unknown scheme gets the
+syntax-based normalization only (see
+[Schemes](schemes.md#unknown-schemes)).
+
+| Scheme | Syntax-based normalization | What the scheme adds |
+| --- | --- | --- |
+| [`http`, `https`](schemes/http.md#normalization) | On | No default or empty port, `/` for an empty path, and A-labels in Unicode from `normalizeIri` |
+| [`file`](schemes/file.md#normalization) | On | A host of `localhost` is empty |
+| [`urn`](schemes/urn.md#normalization) | Off | The NID in lowercase, hex digits in uppercase, and a `uuid` NSS in lowercase |
+| [`tag`](schemes/tag.md#normalization) | Off | Nothing |
+| [`did`](schemes/did.md#normalization) | On | Nothing |
+| [`data`](schemes/data.md#normalization) | Off | Nothing |
+
+A scheme's name is lowercased whatever the scheme says.
+
+### Order
+
+The syntax-based normalization runs first, then the scheme's. That's the
+order of RFC 3986's comparison ladder (§6.2), which climbs from
+syntax-based to scheme-based. So a scheme's normalization sees the host
+lowercased, hex digits uppercase, and unreserved characters decoded.
+
+### How it's defined
+
+A built-in's normalization is a function for each component it
+normalizes, which returns the normalized component, or `undefined` to
+remove it, like a default port. A function only runs when its component
+is there. A scheme's host normalization is told whether it's normalizing
+a URI or an IRI, since `normalizeUri`'s result has to stay ASCII.
+
+### Fragments
+
+A fragment always gets the syntax-based normalization, for `urn`, `tag`,
+and `data` too. A scheme can't turn it off, and has no function for it,
+because a fragment's semantics "are independent of the URI scheme and
+thus cannot be redefined by scheme specifications" (RFC 3986 §3.5). RFC
+8141's "MUST NOT be decoded" is about URN-equivalence, which doesn't take
+the f-component into account (§2.3.3), and RFC 4151 has nothing to say
+about a fragment. So `normalizeIri("urn:example:a#%7e")` is
+`urn:example:a#~`.
+
+### ASCII schemes
+
+`urn`, `did`, and `data` are ASCII in an IRI too, so `normalizeIri`
+normalizes them like `normalizeUri` does: a percent-encoded Unicode
+character stays encoded. Decoding it would make an identifier that
+breaks its scheme's rules, like `did:example:é` from
+`did:example:%C3%A9`.
+
+### Changes aren't breaking
+
+Normalization can be partial: it must never make identifiers equal that
+are different, but it doesn't have to catch every equivalent pair (RFC
+3986 §6.1). So a new step for a built-in can only make identifiers equal
+that should have been. That's a fix, and it isn't a breaking change, even
+though `normalize*` returns something different. A registry normalizes
+when it stores and when it looks up, so both use the new step and find
+the same entry. A key kept from an older version, like one in a cache on
+disk, misses once.
+
+A new built-in is a breaking change anyway, for its rules, so its
+normalization comes with it.
+
+### What isn't normalized
+
+- **Empty ports of schemes without a default port.** RFC 3986 §6.2.3 says
+  not to remove a delimiter whose component is empty "unless licensed to
+  do so by the scheme specification". An empty port means the default
+  port, so it's removed only by a scheme that has one.
+- **Equivalence without a normal form**, like ignoring the r-, q-, and
+  f-components of a URN (RFC 8141 §3.1), or comparing Windows drive
+  letters without case (RFC 8089 Appendix E.2, which isn't normative).
+  The result of `normalize*` is an identifier for the same resource, not
+  a key for comparing, so it can't drop or change what the identifier
+  says. An `equals*` function could do it.
+- **Unicode labels of a host, beyond making them lowercase.** UTS #46
+  maps them with NFC and case folding, which needs IDNA tables (see
+  [Domain names](domain-names.md#known-limitations)).
+
+### Rejected
+
+- **Only adding to the syntax-based normalization.** RFC 8141 forbids
+  decoding, and RFC 4151 forbids any change. The scheme's specification
+  is the one that applies, so it wins (see
+  [Follow the RFCs](../principles/follow-the-rfcs.md)).
+- **The scheme's normalization first.** It isn't the order of the
+  comparison ladder, and decoding after the scheme's functions could
+  undo what they did, like `%41` becoming `A` in a part they lowercased.
+- **Removing an empty port for every scheme.** What an empty port means
+  is up to the scheme.
+- **Leaving the fragment of `urn` and `tag` alone**, which turning off
+  the syntax-based normalization did at first. Two URNs that differ only
+  in how a fragment is encoded stayed different.
+- **A function for the fragment in a scheme's normalization**, which
+  `urn` used to make hex digits uppercase. It gave the scheme a say over
+  the fragment, and it did less than the syntax-based normalization.
+
 ## Components
 
 `normalizeComponents` normalizes parsed components, and `recompose` joins
-components into a string without changing them. `compose` is both. The
-normalized components are the ones parsing the normalized identifier
-would make: `authority` is rebuilt with the host in lowercase, and a path
-that starts with `//` without an authority has `/.` in front of it.
-`toRelative*` uses them now to compare normalized identifiers without
-parsing them again. It takes normalized identifiers now, so only
-`normalize*` needs them.
+components into a string without changing them. The normalized
+components are the ones parsing the normalized identifier would make:
+`authority` is rebuilt with the host in lowercase, and a path that starts
+with `//` without an authority has `/.` in front of it. Only `normalize*`
+normalizes components. `resolveIri` uses `recompose` for its result.
 
 ## Encoding fragments
 

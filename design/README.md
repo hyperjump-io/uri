@@ -2,10 +2,11 @@
 
 v2 of `@hyperjump/uri`, rewritten from v1 (the `main` branch before v2,
 `../uri` at `v1.4.0`). The concepts are the same: validate, parse, resolve,
-relativize, and normalize URIs and IRIs, with a URI and an IRI form of each
-function. What changed is mostly what v1 got wrong about its own rules.
+relativize, and normalize URIs and IRIs. What changed is which functions
+check, the rules of schemes, and what v1 got wrong about its own rules
+(see [What changed from v1](components/v1.md)).
 
-These documents record the decisions made so far, and why. The `.d.ts`
+These documents record the decisions that were made, and why. The `.d.ts`
 files in `src/` are the source of truth for the API. They're written by
 hand and have JSDoc explaining the details. Documentation for users is in
 [`website/`](../website/README.md).
@@ -42,14 +43,22 @@ hand and have JSDoc explaining the details. Documentation for users is in
   validating without captures
 - [Future IP literals](components/future-ip-literals.md): why
   `[v1.fe80::a+en1]` is a host like any other
-- [Resolving](components/resolving.md): `resolve*`, `toRelative*`, and
-  `toAbsolute*`
-- [Normalizing](components/normalizing.md): `normalize*` and
-  `encode*Fragment`
+- [Resolving](components/resolving.md): `resolveIri` and checking its
+  result, `toRelativeIri`, and `toAbsoluteIri`
+- [Normalizing](components/normalizing.md): `normalize*`, the schemes'
+  normalization, and `encode*Fragment`
 - [URLs](components/urls.md): `urlToIri`, for WHATWG URLs that come in
   from the platform
-- [Schemes](components/schemes.md): the built-in schemes' rules and
-  normalization, and unknown schemes
+- [Schemes](components/schemes.md): which schemes are built in, and
+  unknown schemes
+  - [`http` and `https`](components/schemes/http.md),
+    [`file`](components/schemes/file.md),
+    [`urn`](components/schemes/urn.md),
+    [`tag`](components/schemes/tag.md),
+    [`did`](components/schemes/did.md), and
+    [`data`](components/schemes/data.md)
+- [Scheme rules](components/scheme-rules.md): how a built-in's rules are
+  defined and checked
 - [Domain names](components/domain-names.md): why hosts aren't checked,
   except for `http` A-labels, which `normalizeIri` converts to Unicode
 - [ABNF](components/abnf.md): the contexts the built-in schemes'

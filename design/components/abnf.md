@@ -6,31 +6,9 @@ ABNF to regular expressions. It was written here, for scheme patterns, and
 moved to its own package, which `json-schema-formats` uses too. Nothing in
 it knows about URIs. How it parses, compiles, and rewrites is in
 [its design docs](https://github.com/hyperjump-io/abnf/tree/main/design).
-This document is what `@hyperjump/uri` gives it, and how the built-ins use
-it.
-
-## Why
-
-A scheme's pattern for a component is a lookahead in the scheme's pattern
-(see [Schemes](schemes.md#patterns-only-add-structure)), so it runs
-against the rest of the identifier, not its component alone. Whoever
-writes one has to know that:
-
-- `.` and wide classes can match the delimiter that ends the component, so
-  the pattern runs past it. `http`'s host was `/.+/u` at first, and it let
-  `http:///a` through.
-- `^` and `$` mean the start and end of the whole identifier. A path
-  pattern `/^a.*$/u` rejects every path.
-- A lookahead in a pattern sees the components after it.
-
-The specifications a scheme comes from write its syntax in ABNF. Compiled
-with a context for the component, a scheme's ABNF can't leave its
-component, ABNF has no anchors and can't look ahead or behind, and the
-rules can be copied from the RFC.
-
-Custom schemes' patterns were written this way too, with the contexts
-exported as `@hyperjump/uri/abnf`, until custom schemes were dropped (see
-[Schemes](schemes.md#unknown-schemes)). The contexts are internal now.
+This document is what `@hyperjump/uri` gives it. Why the patterns are
+written in ABNF is in
+[Scheme rules](scheme-rules.md#patterns-come-from-abnf).
 
 ## Contexts
 
@@ -68,12 +46,12 @@ development dependency.
 
 ## Shipping
 
-- The built-in schemes' patterns are generated from their ABNF by
-  `scripts/generate-patterns.js` into `src/patterns.js`, with
-  `npm run generate`. The generated file is committed, and
-  `src/patterns.test.js` fails if it isn't what the script generates.
-  Nothing is compiled when the library loads.
-So nobody pays for the compiler (see
+The built-in schemes' patterns are generated from their ABNF by
+`scripts/generate-patterns.js` into `src/patterns.js`, with
+`npm run generate`. The generated file is committed, and
+`src/patterns.test.js` fails if it isn't what the script generates.
+Nothing is compiled when the library loads, so nobody pays for the
+compiler (see
 [Pay only for what you ask for](../principles/pay-only-for-what-you-ask-for.md)).
 
 ## Rejected
@@ -86,9 +64,6 @@ So nobody pays for the compiler (see
 - **The compiler in `@hyperjump/uri`**, compiling patterns when the
   library loads, which the prototype did. Everyone would load it: importing took 27 milliseconds instead of 5, and the library
   was 13.7 KB gzipped instead of 8.1.
-- **A `@hyperjump/uri/abnf` that wraps the compiler**, with it as a peer
-  dependency, for custom schemes. Passing the contexts as values did the
-  same with no dependency, and the compiler stays general.
 - **Compiling the built-ins when the library loads.** It was most of the
   27 milliseconds: about 8 for `http`'s and `https`'s host, which inline
   RFC 3986's `IP-literal`, and about 6 for parsing RFC 3986 and RFC 3987.
@@ -97,10 +72,7 @@ So nobody pays for the compiler (see
   can't know a rule by its name, and a context can't say "except inside
   this rule" without a notion of scope only hosts would use. So a host's
   delimiters are `/`, `?`, and `#`. A host rule that needs a `:` outside
-  an IP literal can match into the port, and no `reg-name` has one (see
-  [Schemes](schemes.md#patterns-come-from-abnf)).
+  an IP literal can match into the port, and no `reg-name` has one.
 - **A rule for the whole identifier**, like RFC 8089's `file-URI`, in
-  place of one per component. The RFCs' rules leave out the fragment, which RFC
-  3986 §3.5 leaves to the generic syntax, so `http-URI` would forbid one.
-  And per-component rules are what errors and `#f` need (see
-  [Schemes](schemes.md#checking)).
+  place of one per component (see
+  [Scheme rules](scheme-rules.md#checking)).

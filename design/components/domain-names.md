@@ -128,20 +128,20 @@ so a normalized IRI never names a different host than its input did.
 
 ### How it's checked
 
-A built-in's rule for a component can have a check, for what a pattern
-can't say. It's a function of the component, with a hint, a function of
-the whole value that says whether the check could fail. `http`'s hint
-finds `xn--` anywhere, in any case. The value is only split when the hint
-matches, so an `http` URI without `xn--` costs a scan for `--`, which is
-rare in URLs. `is*`, `assert*`, and `resolveIri` run the check after the
-scheme's pattern passes, and a failing check is a `component-mismatch`
-of the host (see [Errors](errors.md#reasons)), with the message `an http
-URI's host must be an internationalized domain name in a label that
-starts with xn--, like xn--caf-dma`.
+It's the host rule's check (see [Scheme rules](scheme-rules.md)): a
+function of the host, with a hint, a function of the whole value that
+says whether the check could fail. `http`'s hint finds `xn--` anywhere,
+in any case. The value is only split when the hint matches, so an `http`
+URI without `xn--` costs a scan for `--`, which is rare in URLs. `is*`,
+`assert*`, and `resolveIri` run the check after the scheme's pattern
+passes, and a failing check is a `component-mismatch` of the host (see
+[Errors](errors.md#reasons)), with the message `an http URI's host must
+be an internationalized domain name in a label that starts with xn--,
+like xn--caf-dma`.
 
 That's a predicate, which the design rejected for rules in general,
 because each one scanned every identifier again (see
-[Schemes](schemes.md#rejected-1)). With the hint, `isIri` takes 7% longer
+[Scheme rules](scheme-rules.md#rejected)). With the hint, `isIri` takes 7% longer
 for an `http` URI without `xn--`, and an `xn--` label takes about 1.4
 microseconds to check, most of it `URL.parse` (see
 [A-labels](../benchmarks/a-labels.md)).
@@ -151,9 +151,7 @@ microseconds to check, most of it `URL.parse` (see
 `normalizeIri` decodes every `xn--` label of an `http` or `https` host
 and makes it lowercase, after the syntax-based normalization has made
 the host lowercase. It trusts that they're A-labels, since its input is an `Iri`,
-so it doesn't call `URL.parse`. A scheme's host normalization is told
-whether it's normalizing a URI or an IRI, since `normalizeUri`'s result
-has to stay ASCII.
+so it doesn't call `URL.parse`.
 
 ## Rejected
 

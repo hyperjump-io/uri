@@ -24,11 +24,10 @@ delimiters (see [Parsing](parsing.md)).
 
 The URI and IRI forms of each function differ only in which patterns and
 which characters they allow, so each function is written once and given a
-strategy: `uriStrategy` or `iriStrategy`. A strategy is a record of the
-three normalizers for a form. The validators, `assert*`, and
+strategy: `uriStrategy` or `iriStrategy`. A strategy is a record of a
+form's name and its three normalizers. The validators, `assert*`, and
 `encode*Fragment` depend on the form too, and are made from its patterns
-directly. The parsers left the strategy when they stopped validating.
-It's a value, not an interface, so nothing implements it but the two
+directly. It's a value, not an interface, so nothing implements it but the two
 records.
 
 ## Components

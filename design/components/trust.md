@@ -41,12 +41,12 @@ Brands are only in the types. At runtime they're strings, so they cost
 nothing.
 
 ```ts
-isIri(value: string, options?): value is Iri
-assertAbsoluteIri(value: string, options?): asserts value is AbsoluteIri
+isIri(value: string): value is Iri
+assertAbsoluteIri(value: string): asserts value is AbsoluteIri
 parseIri(value: AbsoluteIri): AbsoluteIdentifierComponents  // and overloads for Iri and IriReference
-resolveIri(reference: IriReference, base: AbsoluteIri, options?): Iri
+resolveIri(reference: IriReference, base: AbsoluteIri): Iri
 toAbsoluteIri<T extends Iri>(value: T): T & AbsoluteIri
-normalizeIri(value: AbsoluteIri, options?): AbsoluteIri & NormalizedIri  // and an overload for Iri
+normalizeIri(value: AbsoluteIri): AbsoluteIri & NormalizedIri  // and an overload for Iri
 toRelativeIri(target: NormalizedIri, base: NormalizedIri & AbsoluteIri): IriReference
 ```
 
@@ -91,7 +91,7 @@ valid for every scheme the library knows.
 That makes a function that makes an identifier responsible for its brand.
 `resolveIri` checks its result's scheme rules, because a valid reference
 against a valid base can make an invalid identifier (see
-[Schemes](schemes.md#resolving)). `toRelativeIri`'s result doesn't need
+[Resolving](resolving.md#checking-the-result)). `toRelativeIri`'s result doesn't need
 checking: it resolves to the target, which has its brand.
 
 A reference that was checked can become an `Iri` without being checked
@@ -117,23 +117,9 @@ because a registry's keys are normalized.
   trusting functions need to work, and `resolveIri` could give one without
   checking. But a brand would then mean less than `is*` says, and a value
   could have one while it's invalid for its scheme.
-- **A generic-only check that gives a brand**, like `isIriSyntax`, for
-  values with schemes that aren't configured. Unknown schemes get the
-  generic syntax only now, from `is*` itself (see
-  [Schemes](schemes.md#unknown-schemes)).
 - **Casts as the way to trust a value.** They're there for a caller who
   needs one, but a cast that's the documented way in would be used where
   a check belongs.
-- **Brands that say which schemes they were checked under**, like
-  `Iri<"did">`, so a missing configuration is a type error, when there
-  were custom schemes. It was
-  prototyped and works, with a scheme's name as a literal type and a
-  conditional rest parameter on `resolveIri`. But a configuration typed
-  as plain `Options`, like one passed through `@hyperjump/json-schema`'s
-  configuration, widens the names to `string` and turns the check off. Keeping
-  it would make every dependent's configuration generic over its scheme names,
-  and a bare `Iri` in a dependent's signature would either refuse custom
-  schemes or not be resolvable. The errors were `Expected 3 arguments`.
 - **Three parse functions with no brands**, `parse`, `parseReference`,
   and `parseAbsolute`, sharing one splitter. The names say something is
   checked that isn't, and the return type is the caller's claim, which

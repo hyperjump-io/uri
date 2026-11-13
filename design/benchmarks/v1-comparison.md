@@ -1,13 +1,29 @@
 # Comparison with v1
 
-These are the times from before scheme validation and the trust contract.
-Since then, `isIri` is 1.73 times slower than v1's, and the other
-functions do less than v1's and are faster (see
-[Schemes and trust](schemes-and-trust.md)).
-
 First recorded 2026-11-01, against v1 at `1.4.0`, on Node.js 22.22.1.
-Last run 2026-11-01, after `toRelative*` stopped parsing each identifier
-twice.
+Last run 2026-11-13, with the built-in schemes and the trust contract:
+
+| Function | v1 | v2 | v2/v1 |
+| --- | --- | --- | --- |
+| `parseIri` | 197 | 60 | 0.31x |
+| `isIri` | 187 | 141 | 0.75x |
+| `resolveIri` | 661 | 318 | 0.48x |
+| `toAbsoluteIri` | 327 | 10 | 0.03x |
+| `normalizeIri` | 327 | 206 | 0.63x |
+| `toRelativeIri` | 1500 | 142 | 0.09x |
+
+Every function is faster than v1. `isIri` checks the schemes' rules,
+which v1 didn't. The others trust what they're given, and
+`resolveIri`, `toAbsoluteIri`, and `toRelativeIri` don't normalize, so
+they do less than v1's (see [Trust](../components/trust.md)).
+`toRelativeIri` is given identifiers that are already normalized.
+
+## Before schemes and trust
+
+The rest of this document is from 2026-11-01, before scheme validation
+and the trust contract, after `toRelative*` stopped parsing each
+identifier twice. It's what validating without captures and then
+splitting gained by itself.
 
 `benchmark/compare.js` times each IRI function in v1, in v2 when it
 parsed with capture groups, and in v2, on the same four identifiers: an

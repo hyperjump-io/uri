@@ -125,9 +125,7 @@ nanoseconds. A value with one is about twice as fast.
 ## Changes are checked by differential testing
 
 A change to the grammar can make a pattern accept something different
-without a test failing. The paths, the `rules` function, and the layout
-of `IPv6address` were checked against the previous patterns on 500,000
-random strings, built from the characters that delimit and start rules,
-for each of the six rules, and every function was checked against the
-previous version on 153,359 inputs and 5.5 million calls. There were no
-differences. The scripts are in `benchmark/`, which isn't committed.
+without a test failing. So a change is checked against the version before
+it, on random strings built from the characters that delimit and start
+rules: each of the six rules' patterns, and every function. The scripts
+are `benchmark/differential*.js`, which aren't committed.

@@ -1,7 +1,7 @@
 # The `data` scheme
 
 First recorded 2026-11-13, on Node.js 22.22.1, when `data` was built in
-(see [Schemes](../components/schemes.md#built-in-schemes)).
+(see [`data`](../components/schemes/data.md)).
 
 `benchmark/bench-data.js` times `src/` against a snapshot from before
 (`benchmark/v2-before-data/`, from `b35239e`), where `data` is an unknown
@@ -73,7 +73,8 @@ without slicing its name out. It takes 1.16 times what it did before
 ## The data is scanned twice
 
 A scheme's pattern is the generic syntax with each rule as a lookahead
-(see [`defineScheme`](define-scheme.md)), so a `data` URL's path is
+(see [Scheme rules](../components/scheme-rules.md#patterns-only-add-structure)),
+so a `data` URL's path is
 matched by RFC 2397's pattern and then by the generic path. For 100 KB of
 data that's 170 microseconds, where the generic syntax alone took 82.
 

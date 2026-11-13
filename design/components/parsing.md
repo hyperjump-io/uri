@@ -22,28 +22,17 @@ need them, so a caller who only splits and resolves doesn't load them.
 
 ### Rejected
 
-- **Validating while parsing**, as before. A caller who'd checked a value
+- **Validating while parsing**, as v1 did. A caller who'd checked a value
   paid for the pattern again on every parse, and `resolve*` and
   `normalize*` paid for it on every call, since they parse. Most of the
   time in a parse was the pattern.
 - **Three parse functions with no brands**, and **one returning the
   reference shape**. See [Trust](trust.md#rejected).
 
-## Validating, then splitting
-
-How `src/` parses now:
-
-1. **Validate** with the rule's regular expression, built from the ABNF
-   with no capture groups, using `test`.
-2. **Split** the valid string into its components at its delimiters.
-
-Captures were the most expensive part of matching, and only parsing
-needed them.
-
 ## Splitting
 
-`split` only runs on a string that its rule's pattern has accepted, or,
-or that's trusted to be one. Then
+`split` only runs on a string that its rule's pattern has accepted, or
+that's trusted to be one. Then
 each delimiter can only be where its component ends, so the first one of
 each kind ends that component:
 
@@ -57,13 +46,11 @@ each kind ends that component:
   one after the `]`, if the host starts with `[`.
 
 The split can disagree with the patterns without any test failing, so it
-was checked against the version with capture groups: 146,686 inputs, the
-strings in the tests plus random strings built from delimiters and the
-characters around them, 33,904 of them valid IRI-references. All 16
-single-argument functions, and `resolve*` and `toRelative*` against five
-bases, gave the same results and the same errors, 5.3 million calls in
-all. `src/parse.test.js` has the cases where a delimiter is most likely to
-be mistaken for the end of a component.
+was checked against the version with capture groups, on the strings in
+the tests and random strings built from delimiters and the characters
+around them. Every function gave the same results and the same errors.
+`src/parse.test.js` has the cases where a delimiter is most likely to be
+mistaken for the end of a component.
 
 ## Getters
 
@@ -98,14 +85,10 @@ fragment takes a fifth of that or less (see [Getters](../benchmarks/getters.md))
   the whole value, as `split` does, so it only saves building the
   components.
 
-They're checked against `parseIri`: `src/parse.test.js` has the cases
-where a delimiter is most likely to be mistaken for the end of a
-component, and `benchmark/differential-getters.js` compares the four with
-`parseIri`'s components for every valid reference the other differential
-tests make, with no differences on each of three seeds. It compares
-`hasScheme` with `parseIri` and with `isIri` too, since its narrowing
-says a checked reference with a scheme is an `Iri`: about 390,000
-checks on each seed in all.
+They're checked against `parseIri`, in `src/parse.test.js` and by
+`benchmark/differential-getters.js`, which also compares `hasScheme` with
+`isIri`, since its narrowing says a checked reference with a scheme is an
+`Iri`.
 
 ### Rejected
 
@@ -122,12 +105,10 @@ checks on each seed in all.
 
 ## Performance
 
-Before scheme validation, every function was faster than v1, which used
-capture groups: `isIri` 2.2 times, the others 1.2–1.4 times (see
-[Comparison with v1](../benchmarks/v1-comparison.md)). With the schemes'
-rules, `isIri` is 1.73 times slower than v1's, and `parseIri`, which only
-splits, is 3.3 times faster (see
-[Schemes and trust](../benchmarks/schemes-and-trust.md)).
+Every function is faster than v1, which used capture groups (see
+[Comparison with v1](../benchmarks/v1-comparison.md)). `isIri` takes 0.75
+times what v1's does, with the schemes' rules that v1 didn't check, and
+`parseIri`, which only splits, takes 0.31 times.
 
 ## Why URIs are slower than IRIs
 

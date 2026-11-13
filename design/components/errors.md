@@ -8,18 +8,18 @@ instead of by its message.
 | `InvalidUriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of URI a function needs |
 | `InvalidIriError` | `Error` | `value`, `rule`, `reason`, `component`, `start`, `end` | A value isn't the kind of IRI a function needs |
 
-`InvalidUriError` and `InvalidIriError` are
-thrown by `assert*`, which checks like `is*` does, and by `resolveIri`
-for a result that breaks its scheme's rules. Parsers don't validate any
-more, so they don't throw (see [Trust](trust.md)).
+`InvalidUriError` and `InvalidIriError` are thrown by `assert*`, which
+checks like `is*` does, and by `resolveIri` and `urlToIri` for a result
+that breaks its scheme's rules. The other functions trust what they're
+given, so they don't throw (see [Trust](trust.md)).
 
 `value` is the string that was given. `rule` is the RFC rule it doesn't
 match: `"URI"`, `"URI-reference"`, or `"absolute-URI"`, or their IRI
 forms, or a scheme's rule, like `"http-URI"`, for a value that breaks its
 scheme's rules. `resolveIri` trusts both of its arguments, and its only
 error is a result that breaks its scheme's rules, which is about the
-reference, with the scheme's rule (see [Schemes](schemes.md#resolving)).
-v1's `resolveUri` checked both, and the rule said which was wrong.
+reference, with the scheme's rule (see
+[Resolving](resolving.md#checking-the-result)).
 
 The rest say what's wrong and where:
 
@@ -72,10 +72,9 @@ since a scheme can have digits after its first character.
 
 ## Diagnosing
 
-The patterns only say whether a value matches. When a parser's pattern
+The patterns only say whether a value matches. When `assert*`'s pattern
 fails, a second step finds out why. Only the error path runs it.
 Validators return `false` without it, and a valid value never reaches it.
-`assert*` runs it, in place of the parsers.
 
 1. **Split** the value with RFC 3986 Appendix B's regular expression,
    which matches any string. A value that isn't valid still has
@@ -127,15 +126,14 @@ same constants.
 It can still disagree with the patterns. It has to find a problem in
 every value the pattern rejects, and none in a value the pattern accepts.
 It's checked that way by differential testing, on the same random inputs
-as the grammar (see [Grammar](grammar.md#changes-are-checked-by-differential-testing)).
-For each of the six rules, on 377,747 strings and two seeds, the parser
-threw exactly when the validator returned `false`, every span was inside
-the value, and the errors matched a prototype written before the port.
-Every reason came up more than 80,000 times.
+as the grammar (see
+[Grammar](grammar.md#changes-are-checked-by-differential-testing)): for
+each of the six rules, `assert*` throws exactly when the validator
+returns `false`, and every span is inside the value.
 
-The parser's error says it found a problem, without checking. A value its
-pattern rejects always has one, and checking would be code that the
-differential test shows can't run.
+The error says it found a problem, without checking. A value the pattern
+rejects always has one, and checking would be code that the differential
+test shows can't run.
 
 A URI given a character that's allowed in an IRI gets a hint to
 percent-encode it or use the IRI functions, since that's the usual mistake.
@@ -185,21 +183,54 @@ the other reasons about a part of the value.
 | `forbidden-component` | The component, with its delimiter | A query on a scheme that forbids one |
 | `component-mismatch` | The component | A component that doesn't match its scheme's pattern |
 
-The last three are for scheme rules (see
-[Schemes](schemes.md#errors)).
+The last three are for scheme rules (see [Scheme rules](#scheme-rules)).
 
 `reason` is a union of these strings in the declarations,
 `InvalidIdentifierReason`, so a caller can `switch` on it and TypeScript
 checks every case. Adding one later breaks that `switch`, so the list is
-settled before 2.0.0, with the scheme reasons in it. The declarations
-have all nine, since `assert*` and `resolveIri` throw the scheme reasons.
+settled before 2.0.0.
+
+## Scheme rules
+
+`assert*` reports a scheme's rule that fails with the same fields as the
+generic syntax: a `reason`, the `component`, and a span. The `rule` is
+the scheme's, like `"http-URI"`.
+
+| `reason` | Message |
+| --- | --- |
+| `missing-component` | `an http URI must have an authority` |
+| `forbidden-component` | `a did URI can't have an authority` |
+| `component-mismatch` | `a did URI's path must be a method name, ":", and a method-specific ID, in ASCII, like example:123456` |
+
+The scheme's name in a message is its name, and its article is "an" for
+a name that's read letter by letter from one whose letter name starts
+with a vowel sound, like `http`, and for a word that starts with a vowel
+other than `u`: `an http URI`, `a did URI`, `a urn URI`.
+
+- A `component-mismatch` spans the whole component, not a character in
+  it.
+- A `missing-component` is an empty span where the component would go,
+  like `5` for `http:/a`'s authority.
+- A `forbidden-component` spans the component with its delimiter, like
+  `?b` or `//a`, so a forbidden empty query isn't an empty span, which
+  would read as a missing one.
+
+The generic syntax is checked first, so a character that no component of
+that kind can have has already been reported, at its position. What a
+scheme adds is structure, like a method name where the path starts, and
+a description of the structure says more than a position in it would.
+
+### Rejected
+
+- **`wrong-scheme`**, for a reference checked against a scheme that has a
+  different one. Checking references against a scheme isn't supported.
+- **Positions inside a scheme's pattern**, with the longest prefix that
+  matches, as the generic diagnosis does. It's only exact for a
+  repetition of characters. For a pattern with structure, like `urn`'s
+  path, the longest match can end well before the mistake, and the
+  position would point at the wrong place.
 
 ## Rejected
-
-- **`UnknownSchemeError`, with `value` and `scheme`, and
-  `UnknownUrnNamespaceError`, with `value` and `nid`**, for a scheme or a
-  URN namespace that wasn't configured. They went with custom schemes
-  (see [Schemes](schemes.md#unknown-schemes)).
 
 - **`Error` only**, as in v1. Callers could only tell errors apart by
   their messages.
@@ -215,15 +246,11 @@ have all nine, since `assert*` and `resolveIri` throw the scheme reasons.
   on the start of it still works.
 - **A message only.** A language server needs a span to underline, and
   shouldn't have to parse a message to get one.
-- **Parsers as the way to get a reason**, which was the decision before
-  parsers stopped validating: a caller who wanted to know why calls the
-  parser and catches the error. `assert*` is that, as six exports: the
-  same answers as `is*`, as errors (see [Trust](trust.md)).
-- **Parsers that check known schemes' rules** and let unknown schemes
-  through, so they could still give reasons. A caller who trusts a value
-  would pay for the check on every parse.
-- **An option on the parsers to validate.** A flag that changes what a
-  function does is two functions in one.
+- **Parsers that validate, as the way to get a reason**: a caller who
+  wanted to know why called the parser and caught the error. A caller who
+  trusts a value paid for the check on every parse, and an option to turn
+  it on is two functions in one. `assert*` is that, as six exports (see
+  [Trust](trust.md)).
 - **Diagnosing in validators.** They return a boolean, and JSON Schema's
   format validation calls them on every value.
 - **A second grammar for diagnosing**, such as a recursive-descent parser
@@ -250,6 +277,3 @@ have all nine, since `assert*` and `resolveIri` throw the scheme reasons.
 - **Checking the characters before the rule's shape.** A fragment in an
   absolute-URI is wrong however its characters are fixed, so it's said
   first.
-- **The scheme reasons in the declarations before they could be
-  thrown.** A caller would `switch` on reasons that never happen. They
-  went in with scheme validation.

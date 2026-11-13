@@ -5,8 +5,9 @@ namespace in front of it. That's the rule `@hyperjump/json-pointer` v2
 renamed its functions for: `get` only made sense as `JsonPointer.get`.
 
 v1's names already follow it. Each is a verb and the kind of identifier it
-works on: `parseUri`, `resolveIri`, `isAbsoluteUri`, `toRelativeIri`. So
-they didn't change.
+works on: `parseIri`, `resolveIri`, `isAbsoluteUri`, `toRelativeIri`. So
+they didn't change, except where two functions became one (see
+[Merged functions](#merged-functions)).
 
 The error classes name what went wrong: `InvalidUriError` and
 `InvalidIriError`.
@@ -28,10 +29,6 @@ identifier, so they make sense imported by themselves, and they take
 URIs, IRIs, and references alike, like the merged functions. With the
 kind, `getIriScheme` would read as an IRI scheme, which RFC 3987 says
 there's no such thing as.
-
-`getScheme` could have been read as getting a `Scheme`, which is what
-`defineScheme` made, until custom schemes were dropped (see
-[Schemes](schemes.md#unknown-schemes)). Nothing is named `Scheme` now.
 
 ## Merged functions
 

@@ -25,7 +25,7 @@ A function still checks what it makes, when what it makes can be invalid
 although its inputs aren't. `resolveIri` checks its result against its
 scheme's rules, because a valid reference against a valid base can make
 an invalid identifier (see
-[Schemes](../components/schemes.md#resolving)). That isn't paying for a
+[Resolving](../components/resolving.md#checking-the-result)). That isn't paying for a
 check of trusted data: the result is new data.
 
 ## Rejected
