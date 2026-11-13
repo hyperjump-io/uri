@@ -967,15 +967,6 @@ const split = (value) => {
 
 // Schemes
 
-// In a valid identifier, a ":" before any "/", "?", or "#" ends a scheme
-const firstDelimiter = /[:/?#]/;
-
-/** @type (value: string) => string | undefined */
-const schemeOf = (value) => {
-  const end = value.search(firstDelimiter);
-  return value[end] === ":" ? value.slice(0, end).toLowerCase() : undefined;
-};
-
 // A scan of a few entries
 /** @type (name: string) => Scheme | undefined */
 const findScheme = (name) => {
@@ -991,13 +982,24 @@ const findScheme = (name) => {
 // value that isn't valid is harmless, since its pattern checks its name.
 /** @type (value: string) => Scheme | undefined */
 const builtInSchemeOf = (value) => {
-  for (const scheme of builtInSchemes) {
-    if (startsWithScheme(value, scheme.name)) {
-      return scheme;
+  const schemes = schemesByFirstLetter[value.charCodeAt(0) | 0x20];
+  if (schemes !== undefined) {
+    for (const scheme of schemes) {
+      if (startsWithScheme(value, scheme.name)) {
+        return scheme;
+      }
     }
   }
   return undefined;
 };
+
+// The built-in schemes by the character code of their name's first letter. Most values that don't have a built-in
+// scheme, like a relative reference, don't start with one of those letters, so one look finds that they don't.
+/** @type (readonly Scheme[] | undefined)[] */
+const schemesByFirstLetter = Array.from({ length: 0x80 }, (_, code) => {
+  const schemes = builtInSchemes.filter((scheme) => scheme.name.charCodeAt(0) === code);
+  return schemes.length === 0 ? undefined : schemes;
+});
 
 // Whether `value` starts with a lowercase scheme name and ":". Setting a character's 0x20 bit lowercases a letter, and
 // doesn't change a digit, "+", "-", or ".".
@@ -1300,7 +1302,7 @@ const resolve = (reference, base) => {
 
   // Only the fragment changes, so only its rule is checked
   if (reference.startsWith("#")) {
-    checkResolved(base, { scheme: "", path: "", fragment: reference.slice(1) }, fragmentOnly, reference, base + reference);
+    checkResolved(base, { scheme: "", path: "", fragment: reference.slice(1) }, fragmentOnly, reference, reference);
     return base + reference;
   }
 
@@ -1308,7 +1310,7 @@ const resolve = (reference, base) => {
   if (reference.startsWith("?")) {
     const queryStart = base.indexOf("?");
     const result = (queryStart === -1 ? base : base.slice(0, queryStart)) + reference;
-    checkResolved(base, split(reference), queryAndFragment, reference, result);
+    checkResolved(base, split(reference), queryAndFragment, reference, reference);
     return result;
   }
 
@@ -1365,15 +1367,16 @@ const queryAndFragment = ["query", "fragment"];
 const pathQueryAndFragment = ["path", "query", "fragment"];
 
 // A result that breaks its scheme's rules can only be the reference's fault, because the base has a brand, so the
-// error is about the reference, spanned in it
-/** @type (identifier: string, components: Components, names: readonly SchemeComponent[], reference: string, result: string) => void */
-const checkResolved = (identifier, components, names, reference, result) => {
-  const scheme = findScheme(/** @type string */ (schemeOf(identifier)));
+// error is about the reference, spanned in it. `value` ends with the components to check: it's the result, or the
+// reference when the result ends with it, so a result that's the base and the reference isn't put together to be checked.
+/** @type (identifier: string, components: Components, names: readonly SchemeComponent[], reference: string, value: string) => void */
+const checkResolved = (identifier, components, names, reference, value) => {
+  const scheme = builtInSchemeOf(identifier);
   if (scheme === undefined) {
     return;
   }
 
-  const problem = checkComponents(scheme, components, names, result);
+  const problem = checkComponents(scheme, components, names, value);
   if (problem !== undefined) {
     // A merged path spans the reference's path, since no one place in the reference made it
     throw new InvalidIriError(reference, scheme.rule, locate(reference, { ...problem, nid: undefined }));

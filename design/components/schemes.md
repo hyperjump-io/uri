@@ -810,3 +810,12 @@ the generic check alone, after the scan of the built-ins' names, and
 `isIri` of one takes what it took with the scheme defined with no rules.
 `did` takes twice as long as a custom `did` with no rules did, for its
 rules.
+
+With `data` built in (see
+[The `data` scheme](../benchmarks/data-scheme.md)), the built-ins are
+looked up by the first letter of their names, so a value that starts with
+another letter is known to have none after one look. `isIri` of an
+unknown scheme takes 0.89 times what it did, and `isIriReference` 0.83
+times. A `data` URL takes 1.35 times what it took as an unknown scheme,
+for its rules, and twice for 100 KB of data, which is matched by RFC
+2397's pattern and by the generic path.

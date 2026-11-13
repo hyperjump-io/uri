@@ -24,3 +24,4 @@ v1 as installed in the `json-schema` checkout next to this repo
 - [A-labels](a-labels.md) (2026-11-09)
 - [IP-literal's shape](ip-literal-shape.md) (2026-11-10)
 - [Fragment encoding](fragment-encoding.md) (2026-11-10)
+- [The `data` scheme](data-scheme.md) (2026-11-13)
