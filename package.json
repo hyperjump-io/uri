@@ -21,6 +21,9 @@
     "url": "https://github.com/sponsors/hyperjump-io"
   },
   "type": "module",
+  "engines": {
+    "node": ">=22.1"
+  },
   "files": [
     "src/**/*.js",
     "src/**/*.d.ts",

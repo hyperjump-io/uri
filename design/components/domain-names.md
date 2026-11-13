@@ -97,8 +97,9 @@ identical to the original". A label is an A-label when:
 
 The decoder is in `src/punycode.js`, about 80 lines, with no tables. The
 round trip is `URL.parse`, so the IDNA tables are the runtime's. The
-library supports the latest LTS of Node.js, which has `URL.parse`, and so
-do browsers since 2024.
+library supports every version of Node.js that's still maintained. The
+oldest is 22, which has `URL.parse` since 22.1, and so do browsers since
+2024. `engines` in `package.json` says so.
 
 - **Lowercase.** RFC 5891 §5.3 makes an A-label lowercase before
   converting it, and normalizing makes the host lowercase. The decoded label is

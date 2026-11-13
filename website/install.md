@@ -7,7 +7,8 @@ npm install @hyperjump/uri
 ```
 
 The package is an ES module with no dependencies, and it works the same in
-Node.js and browsers. Import the functions that you use:
+Node.js and browsers. It needs Node.js 22.1 or later, or a browser released
+since 2024. Import the functions that you use:
 
 ```typescript
 import { isIri, parseIri, resolveIri } from "@hyperjump/uri";
