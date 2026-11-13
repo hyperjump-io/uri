@@ -1869,7 +1869,7 @@ const describe = (rule, value, problem) => {
     case "invalid-ip-literal":
       return `${JSON.stringify(span)} isn't a valid IP literal, at ${problem.start}`;
     case "missing-scheme":
-      return `${rule.startsWith("absolute-") ? "an" : "a"} ${rule} has to have a scheme`;
+      return `${rule.startsWith("URI") ? "a" : "an"} ${rule} has to have a scheme`;
     case "fragment-not-allowed":
       return `an ${rule} can't have a fragment`;
     case "colon-in-first-segment": {

@@ -116,6 +116,10 @@ describe("What's wrong and where", () => {
       reason: "missing-scheme", component: "scheme", start: 0, end: 0,
       message: "Invalid URI: /a — a URI has to have a scheme"
     }],
+    ["a missing scheme in an IRI", () => assertIri("/a"), {
+      reason: "missing-scheme", component: "scheme", start: 0, end: 0,
+      message: "Invalid IRI: /a — an IRI has to have a scheme"
+    }],
     ["an empty scheme", () => assertAbsoluteUri(":a"), {
       reason: "missing-scheme", component: "scheme", start: 0, end: 0,
       message: "Invalid absolute-URI: :a — an absolute-URI has to have a scheme"
