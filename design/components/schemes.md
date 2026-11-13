@@ -314,8 +314,8 @@ built in.
 
 What the specifications say, for the rules that took looking up:
 
-- **`http` and `https` need a host.** "A sender MUST NOT generate an
-  "http" URI with an empty host identifier. A recipient that processes
+- **`http` and `https` need a host.** A sender "MUST NOT generate" an
+  `http` URI "with an empty host identifier. A recipient that processes
   such a URI reference MUST reject it as invalid." (RFC 9110 §4.2.1, and
   §4.2.2 for `https`.)
 - **`http` and `https` A-labels, which aren't a MUST.** A label that
@@ -373,7 +373,7 @@ What the specifications say, for the rules that took looking up:
 - **A URN's f-component is a fragment**: `f-component = fragment`, with
   the ASCII rule above. It isn't part of URN-equivalence ("SHALL NOT be
   taken into account", §2.3.3).
-- **`did` is DID 1.1's syntax.** DID 1.1 is a W3C Candidate
+- **`did` follows DID 1.1's syntax.** DID 1.1 is a W3C Candidate
   Recommendation (5 March 2026), and its syntax is the same as DID Core
   1.0's (a Recommendation, 2022), so it's stable. "All DID URLs MUST
   conform to the DID URL Syntax ABNF Rules" (§3.2):
@@ -654,8 +654,8 @@ an empty span, which would read as a missing one.
 spanning only the NSS: `a uuid URN's NSS must be a UUID, like
 f81d4fae-7dec-11d0-a765-00a0c91e6bf6`.
 
-`resolveIri`'s errors are always `InvalidIriError`, since it's one
-function for URIs and IRIs. A `Uri` result that breaks its rules is still
+`resolveIri`'s errors are always `InvalidIriError`, because one function
+resolves URIs and IRIs. A `Uri` result that breaks its rules is still
 reported as an IRI. The generic syntax is
 checked first, so a character that no component of that kind can have
 has already been reported, at its position. What a scheme adds is
