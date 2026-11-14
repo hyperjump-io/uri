@@ -1,6 +1,6 @@
 {
   "name": "@hyperjump/uri",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A small and fast library for validating, parsing, and resolving URIs and IRIs",
   "keywords": [
     "URI",
