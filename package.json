@@ -15,6 +15,7 @@
   ],
   "author": "Jason Desrosiers <jdesrosi@gmail.com>",
   "license": "MIT",
+  "homepage": "https://hyperjump.io/uri/",
   "repository": "github:hyperjump-io/uri",
   "funding": {
     "type": "github",
