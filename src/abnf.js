@@ -120,9 +120,29 @@ const rfc3987 = `
 // so in an IRI, each of RFC 3986's rules that RFC 3987 renamed means the renamed one. RFC 3986's rules are kept under
 // their own names only where nothing replaces them.
 const renamed = [
-  "URI", "hier-part", "URI-reference", "absolute-URI", "relative-ref", "relative-part", "authority", "userinfo", "host",
-  "reg-name", "path", "path-abempty", "path-absolute", "path-noscheme", "path-rootless", "path-empty", "segment",
-  "segment-nz", "segment-nz-nc", "pchar", "query", "fragment", "unreserved"
+  "URI",
+  "hier-part",
+  "URI-reference",
+  "absolute-URI",
+  "relative-ref",
+  "relative-part",
+  "authority",
+  "userinfo",
+  "host",
+  "reg-name",
+  "path",
+  "path-abempty",
+  "path-absolute",
+  "path-noscheme",
+  "path-rootless",
+  "path-empty",
+  "segment",
+  "segment-nz",
+  "segment-nz-nc",
+  "pchar",
+  "query",
+  "fragment",
+  "unreserved"
 ];
 const iriName = (/** @type string */ name) => name.includes("URI") ? name.replace("URI", "IRI") : `i${name}`;
 const rfc3986Kept = rfc3986.replaceAll(/^ {2}(\S+)\s+=[\s\S]*?(?=^ {2}\S|(?![\s\S]))/gm, (rule, name) => renamed.includes(name) ? "" : rule);

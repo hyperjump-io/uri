@@ -1,7 +1,17 @@
 /** @import * as API from "./index.d.ts" */
 import { hasValidALabels, hostToUnicode } from "./punycode.js";
 import {
-  dataFragment, dataPath, dataQuery, didFragment, didPath, didQuery, filePath, httpHost, urnFragment, urnPath, urnQuery,
+  dataFragment,
+  dataPath,
+  dataQuery,
+  didFragment,
+  didPath,
+  didQuery,
+  filePath,
+  httpHost,
+  urnFragment,
+  urnPath,
+  urnQuery,
   uuidNss
 } from "./patterns.js";
 

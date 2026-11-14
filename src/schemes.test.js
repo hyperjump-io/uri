@@ -1,8 +1,18 @@
 import { describe, expect, test } from "vitest";
 import {
-  InvalidIriError, InvalidUriError,
-  assertIri, assertIriReference, assertUri, isAbsoluteIri, isIri, isIriReference, isUri,
-  normalizeIri, normalizeUri, parseUrn, resolveIri
+  InvalidIriError,
+  InvalidUriError,
+  assertIri,
+  assertIriReference,
+  assertUri,
+  isAbsoluteIri,
+  isIri,
+  isIriReference,
+  isUri,
+  normalizeIri,
+  normalizeUri,
+  parseUrn,
+  resolveIri
 } from "./index.js";
 
 /** @import { AbsoluteIri, Iri, IriReference, Uri } from "./index.d.ts" */
@@ -200,57 +210,104 @@ describe("Unknown schemes", () => {
 describe("What's wrong with a scheme's rules, and where", () => {
   test.each([
     ["a missing authority, where it would go", () => assertIri("http:/a"), {
-      rule: "http-URI", reason: "missing-component", component: "authority", start: 5, end: 5,
+      rule: "http-URI",
+      reason: "missing-component",
+      component: "authority",
+      start: 5,
+      end: 5,
       message: "Invalid http-URI: http:/a — an http URI must have an authority"
     }],
     ["a component that doesn't match, without its delimiter", () => assertIri("http:///a"), {
-      rule: "http-URI", reason: "component-mismatch", component: "host", start: 7, end: 7,
+      rule: "http-URI",
+      reason: "component-mismatch",
+      component: "host",
+      start: 7,
+      end: 7,
       message: "Invalid http-URI: http:///a — an http URI's host must be non-empty"
     }],
     ["a forbidden component, with its delimiter", () => assertIri("did://a/b"), {
-      rule: "did-url", reason: "forbidden-component", component: "authority", start: 4, end: 7,
+      rule: "did-url",
+      reason: "forbidden-component",
+      component: "authority",
+      start: 4,
+      end: 7,
       message: "Invalid did-url: did://a/b — a did URI can't have an authority"
     }],
     ["forbidden userinfo, with its \"@\"", () => assertIri("file://u@h/a"), {
-      reason: "forbidden-component", component: "userinfo", start: 7, end: 9,
+      reason: "forbidden-component",
+      component: "userinfo",
+      start: 7,
+      end: 9,
       message: "Invalid file-URI: file://u@h/a — a file URI can't have userinfo"
     }],
     ["a forbidden port, with its \":\"", () => assertIri("file://h:1/a"), {
-      reason: "forbidden-component", component: "port", start: 8, end: 10
+      reason: "forbidden-component",
+      component: "port",
+      start: 8,
+      end: 10
     }],
     ["a forbidden empty port, with its \":\"", () => assertIri("file://c:/a"), {
-      reason: "forbidden-component", component: "port", start: 8, end: 9
+      reason: "forbidden-component",
+      component: "port",
+      start: 8,
+      end: 9
     }],
     ["a mismatched path", () => assertIri("did:Example:a"), {
-      rule: "did-url", reason: "component-mismatch", component: "path", start: 4, end: 13,
+      rule: "did-url",
+      reason: "component-mismatch",
+      component: "path",
+      start: 4,
+      end: 13,
       message: `Invalid did-url: did:Example:a — a did URI's path must be a method name, ":", and a method-specific ID, in ASCII, like example:123456`
     }],
     ["a data URL without a comma", () => assertIri("data:text/plain"), {
-      rule: "dataurl", reason: "component-mismatch", component: "path", start: 5, end: 15,
+      rule: "dataurl",
+      reason: "component-mismatch",
+      component: "path",
+      start: 5,
+      end: 15,
       message: `Invalid dataurl: data:text/plain — a data URI's path must be a media type, ";base64" if the data is base64, ",", and the data, in ASCII, like text/plain,hello`
     }],
     ["a DID's query that isn't ASCII", () => assertIri("did:example:a?é"), {
-      reason: "component-mismatch", component: "query", start: 14, end: 15,
+      reason: "component-mismatch",
+      component: "query",
+      start: 14,
+      end: 15,
       message: "Invalid did-url: did:example:a?é — a did URI's query must be ASCII, with other characters percent-encoded"
     }],
     ["a URN's fragment that isn't ASCII", () => assertIri("urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66#é"), {
-      rule: "namestring", reason: "component-mismatch", component: "fragment", start: 46, end: 47,
+      rule: "namestring",
+      reason: "component-mismatch",
+      component: "fragment",
+      start: 46,
+      end: 47,
       message: "Invalid namestring: urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66#é — a urn URI's fragment must be ASCII, with other characters percent-encoded"
     }],
     ["a namespace's rule, spanning only the NSS", () => assertIri("urn:UUID:x"), {
-      rule: "namestring", reason: "component-mismatch", component: "path", start: 9, end: 10,
+      rule: "namestring",
+      reason: "component-mismatch",
+      component: "path",
+      start: 9,
+      end: 10,
       message: "Invalid namestring: urn:UUID:x — a UUID URN's NSS must be a UUID, like f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
     }],
     ["RFC 8141's rules before the namespace's", () => assertIri("urn:example:é"), {
-      component: "path", start: 4, end: 13,
+      component: "path",
+      start: 4,
+      end: 13,
       message: `Invalid namestring: urn:example:é — a urn URI's path must be a NID, ":", and an NSS, in ASCII, like example:a`
     }],
     ["a label that starts with xn-- and isn't an A-label", () => assertIri("http://a.xn--abc.example/"), {
-      rule: "http-URI", reason: "component-mismatch", component: "host", start: 7, end: 24,
+      rule: "http-URI",
+      reason: "component-mismatch",
+      component: "host",
+      start: 7,
+      end: 24,
       message: "Invalid http-URI: http://a.xn--abc.example/ — an http URI's host must be an internationalized domain name in a label that starts with xn--, like xn--caf-dma"
     }],
     ["the scheme's rules, after the generic syntax", () => assertIri("http:///a b"), {
-      rule: "IRI", reason: "invalid-character"
+      rule: "IRI",
+      reason: "invalid-character"
     }]
   ])("%s", (_description, fn, expected) => {
     const error = thrown(fn);

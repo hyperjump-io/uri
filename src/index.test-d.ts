@@ -1,11 +1,39 @@
 import {
-  InvalidIriError, InvalidUriError,
-  assertAbsoluteIri, assertIri, assertIriReference, isAbsoluteUri, isIri, isUri, isUriReference,
-  getFragment, getPath, getQuery, getScheme, hasScheme, normalizeIri, normalizeUri, parseIri, parseUrn, resolveIri, toAbsoluteIri, toRelativeIri, urlToIri
+  InvalidIriError,
+  InvalidUriError,
+  assertAbsoluteIri,
+  assertIri,
+  assertIriReference,
+  isAbsoluteUri,
+  isIri,
+  isUri,
+  isUriReference,
+  getFragment,
+  getPath,
+  getQuery,
+  getScheme,
+  hasScheme,
+  normalizeIri,
+  normalizeUri,
+  parseIri,
+  parseUrn,
+  resolveIri,
+  toAbsoluteIri,
+  toRelativeIri,
+  urlToIri
 } from "./index.js";
 import type {
-  AbsoluteIri, AbsoluteUri, IdentifierComponents, Iri, IriReference, IriRule, NormalizedIri, NormalizedUri,
-  Uri, UriReference, UriRule
+  AbsoluteIri,
+  AbsoluteUri,
+  IdentifierComponents,
+  Iri,
+  IriReference,
+  IriRule,
+  NormalizedIri,
+  NormalizedUri,
+  Uri,
+  UriReference,
+  UriRule
 } from "./index.d.ts";
 
 declare const value: string;

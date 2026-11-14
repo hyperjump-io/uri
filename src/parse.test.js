@@ -385,8 +385,24 @@ describe("getScheme, hasScheme, getPath, getQuery, and getFragment", () => {
     "x:?#"
   ];
   const references = [
-    ...iris, "#a:b", "?a#b?c", "//h/a#b", "a/b:c", "", "#", "//h", "//h?q", "//[::1]:80", "///a", "a?", "./a:b?c:d", "/a//b",
-    "//h:80", "a?b:c", "/a:b", "//[::1]/a:b"
+    ...iris,
+    "#a:b",
+    "?a#b?c",
+    "//h/a#b",
+    "a/b:c",
+    "",
+    "#",
+    "//h",
+    "//h?q",
+    "//[::1]:80",
+    "///a",
+    "a?",
+    "./a:b?c:d",
+    "/a//b",
+    "//h:80",
+    "a?b:c",
+    "/a:b",
+    "//[::1]/a:b"
   ];
 
   test.each(iris)("getScheme(%s) is parseIri's scheme", (value) => {
